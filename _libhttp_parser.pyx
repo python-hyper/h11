@@ -56,17 +56,22 @@ cdef extern from "http_parser.h":
 
 cdef class InternalState(object):
     cdef list events
-    # used to tell the parser that it should not expect a body, even if it
-    # otherwise looks like one should be there (useful for HEAD)
-    cdef object header_only
+    cdef object client_side
+    # we need to know if we're processing the response to a HEAD or CONNECT,
+    # because they have special rules for handling the response body
+    cdef object method
+    # set when processing message-complete for an upgrade request
+    cdef object just_upgraded
     def _add(self, *args, **kwargs):
         if kwargs:
             args = args + (kwargs,)
         self.events.append(args)
 
-    def __cinit__(self):
+    def __cinit__(self, *, client_side):
         self.events = []
-        self.header_only = False
+        self.client_side = client_side
+        self.method = None
+        self.just_upgraded = False
 
 cdef int on_message_begin(http_parser *p):
     (<InternalState>p.data)._add("message-begin")
@@ -93,31 +98,38 @@ cdef int on_header_value(http_parser *p, const char *at, size_t length):
 
 cdef int on_headers_complete(http_parser *p):
     cdef bytes method = PyBytes_FromString(http_method_str(p.method))
-    (<InternalState>p.data)._add("headers-complete",
-                         http_major=p.http_major,
-                         http_minor=p.http_minor,
-                         status_code=p.status_code,
-                         method=method,
-                         should_keep_alive=http_should_keep_alive(p),
-                         )
-    # Special case in how libhttp_parser works: normally, returning non-zero
-    # from a callback means "error, blow up". But for on_headers_complete, it
-    # means "thanks, we don't expect anything beyond headers here" (maybe
-    # because it's HEAD).
-    #
-    # The other magical thing is that (in very recent versions of
-    # libhttp_parser) you can return 2 to mean "treat this as an
-    # upgrade". (Just assigning to p->upgrade will also work, but is
-    # considered ugly.) Upgrades are special in that not only do they make the
-    # parser skip the body of the message, they make it actually stop early
-    # and tell you where it stopped -- otherwise it continues on parsing the
-    # next bit of data as the beginning of the next message. It tries to do
-    # this by default for upgrades it can detect (CONNECT, Upgrade:,
-    # Connection: upgrade) but you can also do it by hand.
-    if (<InternalState>p.data).header_only:
-        return 1
+    if (<InternalState>p.data).client_side:
+        kwargs = {"status_code": p.status_code}
     else:
-        return 0
+        kwargs = {"method": method}
+    (<InternalState>p.data)._add("headers-complete",
+                                 http_major=p.http_major,
+                                 http_minor=p.http_minor,
+                                 keep_alive=http_should_keep_alive(p),
+                                 **kwargs)
+    # Special case in how libhttp_parser works: normally, returning non-zero
+    # from a callback means "error, blow up". But for on_headers_complete,
+    # there are some magic return values available that change body handling.
+    #
+    # Rules for determining whether there's a body are at:
+    #   https://svn.tools.ietf.org/svn/wg/httpbis/specs/rfc7230.html#rfc.section.3.3.p.4
+    # Basically there are two cases where you can't tell without some external
+    # information: responses to HEAD and responses to CONNECT.
+    if (<InternalState>p.data).client_side:
+        if (<InternalState>p.data).method == b"HEAD":
+            # HEAD responses have no body. 1 is the magic value meaning "no
+            # body (but otherwise continue processing as normal)"
+            return 1
+        elif (<InternalState>p.data).method == b"CONNECT":
+            # Successful 2xx CONNECT responses have no body -- instead, the
+            # connection hands off to the proxied connection after the end of
+            # the headers, basically an upgrade. 2 is the magic value meaning
+            # "treat this as an upgrade".
+            # NB: this requires a very recent version of libhttp_parser
+            # (~2.6 or better, not yet in Debian on 2016-04-25)
+            if 200 <= p.status_code < 300:
+                return 2
+    return 0
 
 cdef int on_body(http_parser *p, const char *at, size_t length):
     cdef bytes data = PyBytes_FromStringAndSize(at, length)
@@ -127,24 +139,22 @@ cdef int on_body(http_parser *p, const char *at, size_t length):
 cdef int on_message_complete(http_parser *p):
    # reset this back to false after each item is processed
    (<InternalState>p.data).header_only = False
-   if p.upgrade:
-       # placeholder, will be replaced by real event in .feed
-       (<InternalState>p.data)._add("_UPGRADE")
-   else:
-       (<InternalState>p.data)._add("message-complete",
-                                    should_keep_alive=http_should_keep_alive(p))
+   # This will have upgrade information added in feed()
+   (<InternalState>p.data)._add("message-complete",
+                                upgrade=p.upgrade,
+                                keep_alive=http_should_keep_alive(p))
+   (<InternalState>p.data).just_upgraded = p.upgrade
    return 0
 
 class HttpParseError(RuntimeError):
     pass
 
-cdef class HttpParser(object):
+cdef class LowlevelHttpParser(object):
     cdef http_parser _parser
     cdef http_parser_settings _settings
     # exposed to python to ease debugging -- but these are still internal
     # implementation details.
     cdef public InternalState _state
-    cdef public object _upgraded
 
     # read this, and call .clear() after doing so; .feed() just keeps
     # appending.
@@ -152,14 +162,14 @@ cdef class HttpParser(object):
         def __get__(self):
             return self._state.events
 
-    # when you're about to process a HEAD response, set this to True. it
-    # resets to False after the next request finishes.
-    property header_only:
+    # set this to the request method that you're parsing a response to. needed
+    # to handle HEAD and CONNECT responses correctly.
+    property method:
         def __get__(self):
-            return self._state.header_only
+            return self._state.method
 
         def __set__(self, value):
-            self._state.header_only = value
+            self._state.method = value
 
     def __cinit__(self, *, client_side):
         self._settings.on_message_begin = on_message_begin
@@ -170,7 +180,7 @@ cdef class HttpParser(object):
         self._settings.on_body = on_body
         self._settings.on_message_complete = on_message_complete
 
-        self._state = InternalState()
+        self._state = InternalState(client_side=client_side)
 
         cdef http_parser_type type
         if client_side:
@@ -181,19 +191,13 @@ cdef class HttpParser(object):
         http_parser_init(&self._parser, type)
         self._parser.data = <void*>self._state
 
-        self._upgraded = False
-
     def feed(self, data):
-        if not isinstance(data, bytes):
-            raise TypeError("data must be bytes")
+        if not isinstance(data, (bytes, bytearray)):
+            raise TypeError("data must be bytes or bytearray")
 
         if self._parser.http_errno != HPE_OK:
             # bug in caller
             raise RuntimeError("can't call feed() after error")
-
-        if self._upgraded:
-            # bug in caller
-            raise RuntimeError("can't call feed() after upgrade")
 
         cdef int consumed = http_parser_execute(&self._parser,
                                                 &self._settings,
@@ -211,12 +215,15 @@ cdef class HttpParser(object):
             raise HttpParseError("http parse error: %s"
                                  % desc.decode("utf8"))
 
-        if self._state.events[-1] == ("_UPGRADE",):
-            self._state.events[-1] = ("upgraded",
-                                      {"trailing-data": data[consumed:]})
-            self._upgraded = True
+        # Special case: after a message-complete for an upgrade request, stash
+        # the unconsumed bytes directly in the message-complete event
+        if self._state.just_upgraded:
+            event_type, payload = self._state.events[-1]
+            assert event_type == "message-complete"
+            payload["trailing_data"] = data[consumed:]
+            self._state.just_upgraded = False
 
-        if consumed != len(data) and not self._upgraded:
+        if consumed != len(data) and not self._state.upgraded:
             raise RuntimeError("bug in _http_parser.pyx")
 
 # How http-parser works, based on empirical observations:
