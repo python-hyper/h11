@@ -1,5 +1,7 @@
 from cpython.bytes cimport PyBytes_FromStringAndSize, PyBytes_FromString
 
+__all__ = ["HttpParser", "HttpParseError"]
+
 cdef extern from "http_parser.h":
     enum http_parser_type:
         HTTP_REQUEST
@@ -23,7 +25,9 @@ cdef extern from "http_parser.h":
     ctypedef struct http_parser_settings:
         http_cb      on_message_begin
         http_data_cb on_url
-        http_cb      on_status_complete
+        # There is also an on_status callback, but it has different names in
+        # 2.1 and 2.7, and in neither case does it appear to be called under
+        # any circumstances.
         http_data_cb on_header_field
         http_data_cb on_header_value
         # this is when status_code, method, http version are valid
@@ -50,15 +54,11 @@ cdef extern from "http_parser.h":
     const char *http_errno_name(http_errno err)
     const char *http_errno_description(http_errno err)
 
-cdef class State(object):
-    cdef readonly list events
+cdef class InternalState(object):
+    cdef list events
     # used to tell the parser that it should not expect a body, even if it
     # otherwise looks like one should be there (useful for HEAD)
-    cdef readonly header_only
-    # used to signal that we've just emitted the on-message-complete for an
-    # upgraded connection, so we need to collect all unprocessed data and
-    # expose it as an event
-    cdef readonly just_upgraded
+    cdef object header_only
     def _add(self, *args, **kwargs):
         if kwargs:
             args = args + (kwargs,)
@@ -67,34 +67,33 @@ cdef class State(object):
     def __cinit__(self):
         self.events = []
         self.header_only = False
-        self.just_upgraded = False
 
 cdef int on_message_begin(http_parser *p):
-    (<State>p.data)._add("message-begin")
+    (<InternalState>p.data)._add("message-begin")
     return 0
 
 cdef int on_url(http_parser *p, const char *at, size_t length):
     cdef bytes data = PyBytes_FromStringAndSize(at, length)
-    (<State>p.data)._add("url-data", data)
+    (<InternalState>p.data)._add("url-data", data)
     return 0
 
-cdef int on_status_complete(http_parser *p):
-    (<State>p.data)._add("status-complete")
-    return 0
+# cdef int on_status_complete(http_parser *p):
+#     (<InternalState>p.data)._add("status-complete")
+#     return 0
 
 cdef int on_header_field(http_parser *p, const char *at, size_t length):
     cdef bytes data = PyBytes_FromStringAndSize(at, length)
-    (<State>p.data)._add("header-field-data", data)
+    (<InternalState>p.data)._add("header-field-data", data)
     return 0
 
 cdef int on_header_value(http_parser *p, const char *at, size_t length):
     cdef bytes data = PyBytes_FromStringAndSize(at, length)
-    (<State>p.data)._add("header-value-data", data)
+    (<InternalState>p.data)._add("header-value-data", data)
     return 0
 
 cdef int on_headers_complete(http_parser *p):
     cdef bytes method = PyBytes_FromString(http_method_str(p.method))
-    (<State>p.data)._add("headers-complete",
+    (<InternalState>p.data)._add("headers-complete",
                          http_major=p.http_major,
                          http_minor=p.http_minor,
                          status_code=p.status_code,
@@ -115,24 +114,25 @@ cdef int on_headers_complete(http_parser *p):
     # next bit of data as the beginning of the next message. It tries to do
     # this by default for upgrades it can detect (CONNECT, Upgrade:,
     # Connection: upgrade) but you can also do it by hand.
-    if (<State>p.data).header_only:
+    if (<InternalState>p.data).header_only:
         return 1
     else:
         return 0
 
 cdef int on_body(http_parser *p, const char *at, size_t length):
     cdef bytes data = PyBytes_FromStringAndSize(at, length)
-    (<State>p.data)._add("body-data", data)
+    (<InternalState>p.data)._add("body-data", data)
     return 0
 
 cdef int on_message_complete(http_parser *p):
-   (<State>p.data)._add("message-complete",
-                        should_keep_alive=http_should_keep_alive(p))
    # reset this back to false after each item is processed
-   (<State>p.data).header_only = False
-   # check if this is the start of an upgrade, leaving HTTP behind
+   (<InternalState>p.data).header_only = False
    if p.upgrade:
-       (<State>p.data).just_upgraded = True
+       # placeholder, will be replaced by real event in .feed
+       (<InternalState>p.data)._add("_UPGRADE")
+   else:
+       (<InternalState>p.data)._add("message-complete",
+                                    should_keep_alive=http_should_keep_alive(p))
    return 0
 
 class HttpParseError(RuntimeError):
@@ -141,7 +141,10 @@ class HttpParseError(RuntimeError):
 cdef class HttpParser(object):
     cdef http_parser _parser
     cdef http_parser_settings _settings
-    cdef State _state
+    # exposed to python to ease debugging -- but these are still internal
+    # implementation details.
+    cdef public InternalState _state
+    cdef public object _upgraded
 
     # read this, and call .clear() after doing so; .feed() just keeps
     # appending.
@@ -158,56 +161,62 @@ cdef class HttpParser(object):
         def __set__(self, value):
             self._state.header_only = value
 
-    def __cinit__(self, mode):
+    def __cinit__(self, *, client_side):
         self._settings.on_message_begin = on_message_begin
         self._settings.on_url = on_url
-        self._settings.on_status_complete = on_status_complete
         self._settings.on_header_field = on_header_field
         self._settings.on_header_value = on_header_value
         self._settings.on_headers_complete = on_headers_complete
         self._settings.on_body = on_body
         self._settings.on_message_complete = on_message_complete
 
-        self._state = State()
+        self._state = InternalState()
 
         cdef http_parser_type type
-        if mode == "both":
-            type = HTTP_BOTH
-        elif mode == "request":
-            type = HTTP_REQUEST
-        elif mode == "response":
+        if client_side:
             type = HTTP_RESPONSE
         else:
-            raise ValueError("mode must be 'both', 'request', or 'response'")
+            type = HTTP_REQUEST
 
         http_parser_init(&self._parser, type)
         self._parser.data = <void*>self._state
 
+        self._upgraded = False
+
     def feed(self, data):
         if not isinstance(data, bytes):
             raise TypeError("data must be bytes")
+
         if self._parser.http_errno != HPE_OK:
             # bug in caller
             raise RuntimeError("can't call feed() after error")
-        if self._state.just_upgraded:
+
+        if self._upgraded:
             # bug in caller
             raise RuntimeError("can't call feed() after upgrade")
+
         cdef int consumed = http_parser_execute(&self._parser,
                                                 &self._settings,
                                                 <char *>data,
                                                 len(data))
+
         # there are two cases where consumed != len(data):
         # - there was an error, so how much we consumed is meaningless,
         #   because this isn't actually HTTP
-        # - the connection is switching to a new protocol, so we need to get
-        #   back the data that would have gone there.
+        # - the connection is switching to a new protocol, so we need to give
+        #   back the trailing data, which is part of the new protocol's
+        #   chatter
         if self._parser.http_errno != HPE_OK:
             desc = http_errno_description(self._parser.http_errno)
             raise HttpParseError("http parse error: %s"
                                  % desc.decode("utf8"))
-        if self._state.just_upgraded:
-            self._state._add("upgraded", {"trailing-data": data[consumed:]})
-        elif consumed != len(data):
+
+        if self._state.events[-1] == ("_UPGRADE",):
+            self._state.events[-1] = ("upgraded",
+                                      {"trailing-data": data[consumed:]})
+            self._upgraded = True
+
+        if consumed != len(data) and not self._upgraded:
             raise RuntimeError("bug in _http_parser.pyx")
 
 # How http-parser works, based on empirical observations:
