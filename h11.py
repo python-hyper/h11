@@ -6,8 +6,8 @@
 # semantics to check that what you're asking to write to the wire is sensible,
 # but at least it gets you out of dealing with the wire itself.
 #
-# This is all based on the node.js-associated libhttp_parser code for the core
-# HTTP parsing, which is wrapped in _libhttp_parser.pyx
+# This is all based on node.js's libhttp_parser code for the core HTTP
+# parsing, which is wrapped in _libhttp_parser.pyx
 
 import collections
 
@@ -233,14 +233,17 @@ class HttpParser:
         return out_events
 
     def receive_data(self, data):
-        # may throw HttpParseError
-        # lowlevel parser treats b"" as indicating EOF, so we have to convert
-        # CloseSocket sentinel to this, while screening out literal b""
+        # May throw HttpParseError.
+        #
+        # Lowlevel parser treats b"" as indicating EOF, so we have to convert
+        # CloseSocket sentinel to this, while screening out literal b"".
         if data is CloseSocket:
             lowlevel_data = b""
         elif data:
             lowlevel_data = data
         else:
+            # data is an empty bytes-like, nothing to do
+            assert not data
             return []
         self._lowlevel_parser.feed(lowlevel_data)
         out_events = []
