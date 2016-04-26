@@ -1,6 +1,11 @@
 # hack hack
 # for now just expects you to have libhttp-parser-dev installed
 
+# TODO:
+# - make proper package (or move into rakaia or something)
+# - vendor libhttp_parser
+# - expose the version of vendored libhttp_parser
+
 from setuptools import setup, Extension
 from Cython.Distutils import build_ext
 import os.path

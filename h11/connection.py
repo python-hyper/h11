@@ -1,261 +1,12 @@
-# A highish-level implementation of the HTTP/1.1 protocol, containing no
-# networking code at all, loosely modelled on hyper-h2's generic
-# implementation of HTTP/2 (and in particular the h2.connection.H2Connection
-# class). There's still a bunch of subtle details you need to get right if you
-# want to make this actually useful, because it doesn't implement all the
-# semantics to check that what you're asking to write to the wire is sensible,
-# but at least it gets you out of dealing with the wire itself.
-#
-# This is all based on node.js's libhttp_parser code for the core HTTP
-# parsing, which is wrapped in _libhttp_parser.pyx
-
 import collections
 
-# Note: in case we ever replace libhttp_parser with something else, we should
-# ensure that our "something else" enforces an anti-DoS size limit on
-# header size (like libhttp_parser does).
-from _libhttp_parser import LowlevelHttpParser, HttpParseError
+__all__ = ["H11Connection"]
 
-__all__ = [
-    "H11Connection",
-    # pass this to receive_data() to indicate socket close
-    "CloseSocket",
-    "HttpParseError",
-    "Request",
-    "Response",
-    "InformationalResponse",
-    "Data",
-    "EndOfMessage",
-]
+from .events import *
+from .parser import HttpParser
 
 ################################################################
 #
-# High level events that we emit as our external interface for reading HTTP
-# streams, somewhat modelled on the corresponding events in hyper-h2:
-#   http://python-hyper.org/h2/en/stable/api.html#events
-#
-# Main difference is that I use the same objects for sending, so have dropped
-#the Receive prefix.
-#
-################################################################
-
-# used for methods, urls, and headers
-def _asciify(s):
-    if isinstance(s, str):
-        s = s.encode("ascii")
-    return s
-
-def _asciify_headers(headers):
-    return [(_asciify(f), _asciify(v)) for (f, v) in headers]
-
-class _EventBundle:
-    _required = []
-    _optional = []
-
-    def __init__(self, **kwargs):
-        allowed = set(self._required + self._optional)
-        for kwarg in kwargs:
-            if kwarg not in allowed:
-                raise TypeError(
-                    "unrecognized kwarg {} for {}"
-                    .format(kwarg, self.__class__.__name__))
-        for field in self._required:
-            if field not in kwargs:
-                raise TypeError(
-                    "missing required kwarg {} for {}"
-                    .format(kwarg, self.__class__.__name__))
-        self.__dict__.update(kwargs)
-
-        if "headers" in self.__dict__:
-            self.headers = _asciify_headers(self.headers)
-        for field in ["method", "client_method", "url"]:
-            if field in self.__dict__:
-                self.__dict__[field] = _asciify(self.__dict__[field])
-
-    def __repr__(self):
-        name = self.__class__.__name__
-        kwarg_strs = ["{}={}".format(field, self.__dict__[field])
-                      for field in self._fields]
-        kwarg_str = ", ".join(kwarg_strs)
-        return "{}({})".format(name, kwarg_str)
-
-    # Useful for tests
-    def __eq__(self, other):
-        return (self.__class__ == other.__class__
-                and self.__dict__ == other.__dict__)
-
-class Request(_EventBundle):
-    _required = ["method", "url", "headers"]
-    _optional = ["http_version", "keep_alive"]
-
-class _ResponseBase(_EventBundle):
-    _required = ["status_code", "headers"]
-    _optional = ["http_version", "request_method", "keep_alive"]
-
-class Response(_ResponseBase):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        if not (200 <= self.status_code):
-            raise ValueError(
-                "Response status_code should be >= 200, but got {}"
-                .format(self.status_code))
-
-class InformationalResponse(_ResponseBase):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        if not (100 <= self.status_code < 200):
-            raise ValueError(
-                "InformationalResponse status_code should be in range "
-                "[200, 300), but got {}"
-                .format(self.status_code))
-
-class Data(_EventBundle):
-    _required = ["data"]
-
-# XX FIXME: "A recipient MUST ignore (or consider as an error) any fields that
-# are forbidden to be sent in a trailer, since processing them as if they were
-# present in the header section might bypass external security filters."
-# https://svn.tools.ietf.org/svn/wg/httpbis/specs/rfc7230.html#chunked.trailer.part
-class EndOfMessage:
-    _optional = ["headers", "keep_alive", "upgrade", "trailing_data"]
-
-################################################################
-#
-# This next set of functions is designed to process low-level events from
-# libhttp_parser, and transduce them (in the "finite state transducer" sense)
-# into the high-level HTTP events above. Except instead of an explicit finite
-# state machine, our state is tracked through our position in these
-# coroutines. (This is a very simple and linear FSM that requires a
-# sub-machine for headers, so it's clearer and easier to write it as code with
-# a subroutine than as an explicit FSM.)
-#
-# Our coroutine protocol:
-# - We can yield None, in which case we'll get sent back the next event
-# - We can yield an outgoing event ("emit"), in which case we'll immediately
-#   get sent back None so we can continue
-#   (these two rules are implemented by the driver routine,
-#   HttpParser._transduce)
-# - 'event' always refers to the next event to process (basically a lookahead
-#   of 1); subroutines get it passed in and then pass it out.
-#
-# When reading this code you'll want to refer to the _http_parser.pyx file to
-# see how the low-level events are formatted, but note that they are always
-# (type, [payload]), and payload (if present) is always a bytestring or a
-# dict.
-#
-################################################################
-
-def require_event_is(event_type, event):
-    if event[0] != event_type:
-        raise ValueError("expected event of type {}, not {}"
-                         .format(event_type, event[0]))
-
-# Collect a sequence of events like
-#   ("url-data", b"/ind")
-#   ("url-data", b"ex.h")
-#   ("url-data", b"tml")
-# into a single bytestring b"/index.html", stopping when we see a different
-# type of event.
-def collect_data(event_type, event):
-    # must see at least one event of the appropriate type or it fails
-    require_event_is(event_type, event)
-    data = bytearray()
-    while event[0] == event_type:
-        data += event[-1]
-        event = (yield)
-    # returns data + next event
-    return bytes(data), event
-
-def decode_headers(event):
-    headers = []
-    # headers are optional, so we can return early with no headers
-    while event[0] == "header-field-data":
-        field, event = yield from collect_data("header-field-data", event)
-        value, event = yield from collect_data("header-value-data", event)
-        headers.append((field, value))
-    return headers, event
-
-# Main loop for the libhttp_parser low-level -> high level event transduction
-# machinery
-def http_transducer(*, client_side):
-    while True:
-        # -- begin --
-        event = (yield)
-        require_event_is("message-begin", event)
-        # -- read status line and headers --
-        event = (yield)
-        if not client_side:
-            url, event = yield from collect_data("url-data", event)
-        headers, event = yield from decode_headers(event)
-        require_event_is("headers-complete", event)
-        _, headers_complete_info = event
-        if client_side:
-            status_code = headers_complete_info["status_code"]
-            if 100 <= status_code < 200:
-                class_ = InformationalResponse
-            else:
-                class_ = Response
-            yield class_(headers=headers, **headers_complete_info)
-        else:
-            yield Request(headers=headers, url=url, **headers_complete_info)
-        del headers, headers_complete_info
-        # -- read body --
-        event = (yield)
-        while event[0] == "body-data":
-            yield Data(data=event[-1])
-        # -- trailing headers (optional) --
-        if event[0] == "header-field-data":
-            trailing_headers, event = yield from decode_headers(event)
-        else:
-            trailing_headers = []
-        # -- end-of-message --
-        require_event_is("message-complete", event)
-        yield EndOfMessage(headers=trailing_headers, **event[-1])
-        # -- loop around for the next message --
-
-# The wrapper that uses all that stuff above
-class HttpParser:
-    def __init__(self, *, client_side):
-        self._lowlevel_parser = LowlevelHttpParser(client_side=client_side)
-        self._transducer = http_transducer(client_side=client_side)
-        # Prime the coroutine -- execute until the first yield.  This is
-        # needed because we can't call .send to target the first yield until
-        # after we've reached that yield -- .send on a newly-initialized
-        # coroutine is an error.
-        next(self._transducer)
-
-    def _transduce(self, in_event):
-        out_events = []
-        result = self._transducer.send(in_event)
-        while result is not None:
-            out_events.append(result)
-            result = next(self._transducer)
-        return out_events
-
-    def receive_data(self, data):
-        # May throw HttpParseError.
-        #
-        # Lowlevel parser treats b"" as indicating EOF, so we have to convert
-        # CloseSocket sentinel to this, while screening out literal b"".
-        if data is CloseSocket:
-            lowlevel_data = b""
-        elif data:
-            lowlevel_data = data
-        else:
-            # data is an empty bytes-like, nothing to do
-            assert not data
-            return []
-        self._lowlevel_parser.feed(lowlevel_data)
-        out_events = []
-        for event in self._lowlevel_parser.events:
-            out_events += self._transduce(event)
-        self._lowlevel_parser.events.clear()
-        return out_events
-
-    def set_request_method(self, method):
-        self._lowlevel_parser.set_request_method(method)
-
-
 # Higher level stuff:
 # - Timeouts: waiting for 100-continue, killing idle keepalive connections,
 #     killing idle connections in general
@@ -389,12 +140,6 @@ def _strip_transfer_encoding(headers):
             new_headers.append(header)
     headers[:] = new_headers
 
-class CloseSocketType:
-    def __repr__(self):
-        return "CloseSocket"
-
-CloseSocket = CloseSocketType()
-
 class NoBodyFramer:
     def send_data(self, data, connection):
         raise RuntimeError("no body allowed for this message")
@@ -508,6 +253,14 @@ def _examine_and_fix_framing_headers(self, event, response_to=None):
 
     assert False
 
+# XX FIXME: we should error out if people try to pipeline as a client, since
+# otherwise we will give silently subtly wrong behavior
+#
+# XX FIXME: better tracking for when one has really and truly processed a
+# single request/response pair would be good.
+#
+# XX FIXME: might at that point make sense to split the client and server into
+# two separate classes?
 class H11Connection:
     def __init__(self, *, client_side):
         self._client_side = client_side
@@ -536,7 +289,7 @@ class H11Connection:
         self._close_after_message = False
 
     def receive_data(self, data):
-        "data is either a bytes-like or SocketClose"
+        "data is either a bytes-like, or None to indicate EOF"
         self._receive_event_buffer.extend(self._parser.receive_data(data))
         events = []
         while self._receive_event_buffer:
