@@ -8,8 +8,8 @@ import os.path
 setup(
     cmdclass = {'build_ext': build_ext},
     ext_modules = [
-      Extension("_libhttp_parser",
-                ["_libhttp_parser.pyx"],
+      Extension("h11._libhttp_parser",
+                ["h11/_libhttp_parser.pyx"],
                 language="c",
                 libraries=["http_parser"],
                 )
