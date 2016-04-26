@@ -2,6 +2,7 @@ import collections
 
 __all__ = ["H11Connection"]
 
+from .util import asciify
 from .events import *
 from .parser import HttpParser
 

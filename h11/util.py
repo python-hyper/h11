@@ -1,3 +1,5 @@
+__all__ = ["asciify", "asciify_headers"]
+
 # used for methods, urls, and headers
 def asciify(s):
     if isinstance(s, str):
