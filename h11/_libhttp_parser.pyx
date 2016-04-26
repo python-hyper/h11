@@ -192,8 +192,8 @@ cdef class LowlevelHttpParser(object):
         http_parser_init(&self._parser, type)
         self._parser.data = <void*>self._state
 
-    def set_request_attributes(self, method, http_version):
-        self._state.set_request_attributes(method, http_version)
+    def set_request_method(self, method):
+        self._state.set_request_method(method)
 
     def feed(self, data):
         if not isinstance(data, (bytes, bytearray)):
