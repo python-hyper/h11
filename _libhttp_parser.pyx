@@ -57,21 +57,30 @@ cdef extern from "http_parser.h":
 cdef class InternalState(object):
     cdef list events
     cdef object client_side
-    # we need to know if we're processing the response to a HEAD or CONNECT,
-    # because they have special rules for handling the response body
-    cdef object method
-    # set when processing message-complete for an upgrade request
-    cdef object just_upgraded
+
+    # On the client side, we need to know if we're processing the response to
+    # a HEAD or CONNECT, because they have special rules for handling the
+    # response body. We also pass this through in our headers-complete event
+    # so downstream processors have access to it too.
+    cdef object request_method
+
+    def __cinit__(self, *, client_side):
+        self.events = []
+        self.client_side = client_side
+        # clients should set this to keep track of what they requested, so
+        # we can properly interpret the response
+        self.request_method = None
+
     def _add(self, *args, **kwargs):
         if kwargs:
             args = args + (kwargs,)
         self.events.append(args)
 
-    def __cinit__(self, *, client_side):
-        self.events = []
-        self.client_side = client_side
-        self.method = None
-        self.just_upgraded = False
+    def set_request_method(self, method):
+        if not self.client_side:
+            raise RuntimeError(
+                "only clients should call set_request_method")
+        self.request_method = method
 
 cdef int on_message_begin(http_parser *p):
     (<InternalState>p.data)._add("message-begin")
@@ -97,14 +106,14 @@ cdef int on_header_value(http_parser *p, const char *at, size_t length):
     return 0
 
 cdef int on_headers_complete(http_parser *p):
-    cdef bytes method = PyBytes_FromString(http_method_str(p.method))
     if (<InternalState>p.data).client_side:
-        kwargs = {"status_code": p.status_code}
+        kwargs = {"status_code": p.status_code,
+                  "request_method": (<InternalState>p.data).request_method}
     else:
+        method = PyBytes_FromString(http_method_str(p.method))
         kwargs = {"method": method}
     (<InternalState>p.data)._add("headers-complete",
-                                 http_major=p.http_major,
-                                 http_minor=p.http_minor,
+                                 http_version=(p.http_major, p.http_minor),
                                  keep_alive=http_should_keep_alive(p),
                                  **kwargs)
     # Special case in how libhttp_parser works: normally, returning non-zero
@@ -116,11 +125,11 @@ cdef int on_headers_complete(http_parser *p):
     # Basically there are two cases where you can't tell without some external
     # information: responses to HEAD and responses to CONNECT.
     if (<InternalState>p.data).client_side:
-        if (<InternalState>p.data).method == b"HEAD":
+        if (<InternalState>p.data).request_method == b"HEAD":
             # HEAD responses have no body. 1 is the magic value meaning "no
             # body (but otherwise continue processing as normal)"
             return 1
-        elif (<InternalState>p.data).method == b"CONNECT":
+        elif (<InternalState>p.data).request_method == b"CONNECT":
             # Successful 2xx CONNECT responses have no body -- instead, the
             # connection hands off to the proxied connection after the end of
             # the headers, basically an upgrade. 2 is the magic value meaning
@@ -129,6 +138,8 @@ cdef int on_headers_complete(http_parser *p):
             # (~2.6 or better, not yet in Debian on 2016-04-25)
             if 200 <= p.status_code < 300:
                 return 2
+    if p.status_code >= 200:
+        (<InternalState>p.data).request_method = None
     return 0
 
 cdef int on_body(http_parser *p, const char *at, size_t length):
@@ -143,7 +154,6 @@ cdef int on_message_complete(http_parser *p):
    (<InternalState>p.data)._add("message-complete",
                                 upgrade=p.upgrade,
                                 keep_alive=http_should_keep_alive(p))
-   (<InternalState>p.data).just_upgraded = p.upgrade
    return 0
 
 class HttpParseError(RuntimeError):
@@ -161,15 +171,6 @@ cdef class LowlevelHttpParser(object):
     property events:
         def __get__(self):
             return self._state.events
-
-    # set this to the request method that you're parsing a response to. needed
-    # to handle HEAD and CONNECT responses correctly.
-    property method:
-        def __get__(self):
-            return self._state.method
-
-        def __set__(self, value):
-            self._state.method = value
 
     def __cinit__(self, *, client_side):
         self._settings.on_message_begin = on_message_begin
@@ -190,6 +191,9 @@ cdef class LowlevelHttpParser(object):
 
         http_parser_init(&self._parser, type)
         self._parser.data = <void*>self._state
+
+    def set_request_attributes(self, method, http_version):
+        self._state.set_request_attributes(method, http_version)
 
     def feed(self, data):
         if not isinstance(data, (bytes, bytearray)):
@@ -215,15 +219,14 @@ cdef class LowlevelHttpParser(object):
             raise HttpParseError("http parse error: %s"
                                  % desc.decode("utf8"))
 
-        # Special case: after a message-complete for an upgrade request, stash
-        # the unconsumed bytes directly in the message-complete event
-        if self._state.just_upgraded:
-            event_type, payload = self._state.events[-1]
-            assert event_type == "message-complete"
+        # Special case: after a message-complete, stash
+        # the unconsumed bytes directly in the message-complete event (useful
+        # for upgrade requests)
+        if self._state.events[-1][0] == "message-complete":
+            payload = self._state.events[-1][1]
             payload["trailing_data"] = data[consumed:]
-            self._state.just_upgraded = False
 
-        if consumed != len(data) and not self._state.upgraded:
+        if consumed != len(data) and not self._parser.upgrade:
             raise RuntimeError("bug in _http_parser.pyx")
 
 # How http-parser works, based on empirical observations:
