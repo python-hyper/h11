@@ -82,37 +82,129 @@ from .parser import HttpParser
 # immediately call receive_data even if there's no new bytes to pass, because
 # more responses might have been pipelined up.
 
-# server-side state machine:
-# WAIT -> got request line + headers          ->            read body
-#                             -> waiting for 100-continue ->
-#                             -> response sent
-#                                            -> finish response
-#     need response sent + read body before can process the next request
+# Client sends (regex):
+#   Request Data* EndOfMessage
+# Server sends (regex):
+#   InformationalResponse* Response Data* EndOfMessage
+# They are linked in two places:
+# - client has wait-for-100-continue state (not shown) where the transition
+#   out is receiving a InformationalResponse or Response (or timeout)
+# - *both* EndOfMessage's have to arrive before *either* machine returns to
+#   the start state.
 
-# client-side state machine:
-# send request line + headers
-#    (-> wait for 100-continue ->)
-#          send body
-#    read response
-# can't send new request until after have read response (crucial for current
-# method tracking! and pipelining is not important to support)
-#
-# and NB 1xx responses don't count as having read the response (though
-# libhttp_parser will parse them as a complete message-begin
-# ... message-complete cycle) in fact it seems to have a bug where it doesn't
-# know that 100 responses can't contain a body... probably harmless but eh.
-#
-# also note that client is allowed to just go ahead sending body even after
-# saying Expect: 100-continue and seeing no response
-# this is needed to handle ancient servers that don't know about Expect:
-# 100-continue (maybe they don't exist anymore?)
-# in fact even if gets a 4xx response still has to "send the rest" -- if using
-# chunked it could send 0 bytes (but a common 4xx response is "your
-# content-length is too big", so maybe you want to use content-length!), or
-# could just close the connection (or server might just close the connection),
-# but these are your options.
-# - seeing a response when in wait-for-continue state just moves you to
-# send-body state
+# We model the joint state of the client and server as a pair of finite state
+# automata: one for the client and one for the server. Transitions in each
+# machine can be triggered by either local or remote events. (For example, the
+# client sending a Request triggers both the client to move to SENDING-BODY
+# and the server to move to SENDING-RESPONSE.)
+
+# We reuse the Client and Server class objects as sentinel values for
+# referring to the two parties.
+class Client(Enum):
+    IDLE = 1
+    WAIT_FOR_100 = 2
+    SENDING_BODY = 3
+    DONE = 4
+    CLOSED = 5
+
+class Server(Enum):
+    WAIT = 1
+    SENDING_RESPONSE = 2
+    SENDING_BODY = 3
+    DONE = 4
+    CLOSED = 5
+
+def _get_next_client_state_for_request(request):
+    # if this request has no body, go straight to DONE
+    # if this request has Expect: 100-continue, go to WAIT_FOR_100
+    # otherwise, go to SENDING_BODY
+
+def _get_next_server_state_for_response(response):
+    # if this response has no body, go straight to DONE
+    # otherwise, go to SENDING_BODY
+
+client_transitions = {
+    Client.IDLE: {
+        (Client, Request): _get_next_client_state_for_request,
+    },
+    Client.WAIT_FOR_100: {
+        (Server, InformationalResponse): Client.SENDING_BODY,
+        (Server, Response): Client.SENDING_BODY,
+        (Client, Data): Client.SENDING_BODY,
+        (Client, EndOfMessage): Client.DONE,
+    }
+    Client.SENDING_BODY: {
+        (Client, Data): Client.SENDING_BODY,
+        (Client, EndOfMessage): Client.DONE,
+    },
+}
+
+server_transitions = {
+    Server.WAIT_FOR_REQUEST: {
+        (Client, Request): Server.SENDING_RESPONSE,
+    },
+    Server.SENDING_RESPONSE: {
+        (Server, InformationalResponse): Server.SENDING_RESPONSE,
+        (Server, Response): _get_next_server_state_for_response,
+    },
+    Server.SENDING_BODY: {
+        (Server, Data): Server.SENDING_BODY,
+        (Server, EndOfMessage): Server.DONE,
+    },
+}
+
+class PartyMachine:
+    def __init__(self, party, initial_state, transitions):
+        self.party = party
+        self.initial_state = initial_state
+        self.transitions = transitions
+        self.reset()
+
+    def process_event(self, party, event):
+        key = (party, type(event))
+        new_state = self.transitions[self.state].get(key)
+        if new_state is None:
+            if party is not self.party:
+                return
+            else:
+                raise RuntimeError(
+                    "illegal event {} in state {}".format(key, self.state))
+        if callable(new_state):
+            new_state = new_state(event)
+        self.state = new_state
+
+    def reset(self):
+        self.state = self.initial_state
+
+class ConnectionState:
+    def __init__(self):
+        self._client_machine = PartyMachine(Client.IDLE, client_transitions)
+        self._server_machine = PartyMachine(Server.WAIT, server_transitions)
+        self.request = None
+        self.response = None
+
+    @property
+    def client_state(self):
+        return self._client_machine.state
+
+    @property
+    def server_state(self):
+        return self._server_machine.state
+
+    def process_event(self, party, event):
+        self.client_machine.receive_event(party, event)
+        self.server_machine.receive_event(party, event)
+        if isinstance(event, Request):
+            self.request = event
+        if isinstance(event, Response):
+            self.response = event
+        if (self.client_state is Client.DONE
+            and self.server_state is Server.DONE):
+            # XX FIXME either move them to CLOSING state or reset them
+            self._client_machine.reset()
+            self._server_machine.reset()
+            self.request = None
+            self.response = None
 
 # Connection shutdown is tricky. Quoth RFC 7230:
 #
