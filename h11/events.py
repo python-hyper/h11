@@ -9,8 +9,8 @@ from .util import asciify, asciify_headers
 
 __all__ = [
     "Request",
-    "Response",
     "InformationalResponse",
+    "Response",
     "Data",
     "EndOfMessage",
 ]
@@ -59,21 +59,21 @@ class _ResponseBase(_EventBundle):
     _required = ["status_code", "headers"]
     _optional = ["http_version", "request_method", "keep_alive"]
 
-class Response(_ResponseBase):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        if not (200 <= self.status_code):
-            raise ValueError(
-                "Response status_code should be >= 200, but got {}"
-                .format(self.status_code))
-
 class InformationalResponse(_ResponseBase):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if not (100 <= self.status_code < 200):
             raise ValueError(
                 "InformationalResponse status_code should be in range "
-                "[200, 300), but got {}"
+                "[100, 200), but got {}"
+                .format(self.status_code))
+
+class Response(_ResponseBase):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if not (200 <= self.status_code):
+            raise ValueError(
+                "Response status_code should be >= 200, but got {}"
                 .format(self.status_code))
 
 class Data(_EventBundle):

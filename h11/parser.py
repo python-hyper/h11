@@ -33,8 +33,8 @@ __all__ = ["HttpParser", "HttpParseError"]
 
 def require_event_is(event_type, event):
     if event[0] != event_type:
-        raise ValueError("expected event of type {}, not {}"
-                         .format(event_type, event[0]))
+        raise HttpParseError("expected event of type {}, not {}"
+                             .format(event_type, event[0]))
 
 # Collect a sequence of events like
 #   ("url-data", b"/ind")
@@ -62,32 +62,51 @@ def decode_headers(event):
     return headers, event
 
 # Main loop for the libhttp_parser low-level -> high level event transduction
-# machinery
+# machinery.
 def http_transducer(*, client_side):
     while True:
         # -- begin --
-        event = (yield)
-        require_event_is("message-begin", event)
-        # -- read status line and headers --
-        event = (yield)
-        if not client_side:
-            url, event = yield from collect_data("url-data", event)
-        headers, event = yield from decode_headers(event)
-        require_event_is("headers-complete", event)
-        _, headers_complete_info = event
-        if client_side:
-            status_code = headers_complete_info["status_code"]
-            if 100 <= status_code < 200:
-                class_ = InformationalResponse
+        # The underlying parser treats each 1xx informational response as a
+        # complete independent message, with its own message-being / message
+        # complete. We want to collapse these down into a single
+        # InformationalResponse event. So we start with a loop to issue all
+        # InformationalResponse events + the actual Response / Request.
+        while True:
+            event = (yield)
+            require_event_is("message-begin", event)
+            # -- read request / status line and headers --
+            event = (yield)
+            if not client_side:
+                url, event = yield from collect_data("url-data", event)
+            headers, event = yield from decode_headers(event)
+            require_event_is("headers-complete", event)
+            _, headers_complete_info = event
+            status_code = headers_complete_info.get("status_code")
+            if client_side and 100 <= status_code < 200:
+                yield InformationalResponse(headers=headers,
+                                            **headers_complete_info)
+                event = (yield)
+                # libhttp_parser is actually perfectly happy to read out
+                # bodies and maybe even trailers from 1xx responses, if they
+                # contain a Content-Length or Transfer-Encoding. Such
+                # responses and this way of treating them are both
+                # non-compliant with the spec, so erroring out is the right
+                # response.
+                require_event_is("message-complete", event)
+                # Swallow this message-complete, and loop back around to read
+                # the next message-begin.
+                continue
+            if client_side:
+                yield Response(headers=headers, **headers_complete_info)
             else:
-                class_ = Response
-            yield class_(headers=headers, **headers_complete_info)
-        else:
-            yield Request(headers=headers, url=url, **headers_complete_info)
-        del headers, headers_complete_info
+                yield Request(headers=headers, url=url, **headers_complete_info)
+            break
         # -- read body --
         event = (yield)
         while event[0] == "body-data":
+            if is_informational:
+                raise HttpParseError(
+                    "got body data in 1xx informational response")
             yield Data(data=event[-1])
         # -- trailing headers (optional) --
         if event[0] == "header-field-data":
@@ -96,7 +115,8 @@ def http_transducer(*, client_side):
             trailing_headers = []
         # -- end-of-message --
         require_event_is("message-complete", event)
-        yield EndOfMessage(headers=trailing_headers, **event[-1])
+        if not is_informational:
+            yield EndOfMessage(headers=trailing_headers, **event[-1])
         # -- loop around for the next message --
 
 # The wrapper that uses all that stuff above
