@@ -6,6 +6,47 @@ from .util import asciify
 from .events import *
 from .parser import HttpParser
 
+# XX FIXME: sendfile support?
+#   maybe switch data_to_send to returning an iterable of stuff-to-do, which
+#     could be a mix of bytes-likes, sendfile objects, and CloseSocket
+#   and Data could accept sendfile objects as a .data field
+
+# XX FIXME: once we have the high-level state machine in place, using it to
+# drive our own lowlevel parser would not be that hard... it already knows
+# (better than libhttp_parser!) things like "next is a chunked-encoded body",
+# and if we are allowed to buffer and have context then HTTP tokenization is
+# pretty trivial I think? and everything above tokenization we are already
+# handling. basically the primitive we need is length-bounded regexp matching:
+# try to match regexp, if it fails then wait for more data to arrive in
+# buffer, raise HttpParseError if the buffer is already longer than the max
+# permitted length.
+
+# XX FIXME: it would be nice to support sending Connection: keep-alive headers
+# back to HTTP 1.0 clients who have requested this:
+#   https://en.wikipedia.org/wiki/HTTP_persistent_connection#HTTP_1.0
+# though I'm not 100% sure whether this actually does anything.
+
+# XX FIXME: replace our RuntimeError's with some more specific "you are doing
+# HTTP wrong" error like H2's ProtocolError.
+
+# XX FIXME: we should error out if people try to pipeline as a client, since
+# otherwise we will give silently subtly wrong behavior
+#
+# XX FIXME: better tracking for when one has really and truly processed a
+# single request/response pair would be good.
+#
+# XX FIXME: might at that point make sense to split the client and server into
+# two separate classes?
+
+# headers to consider auto-supporting at the high-level:
+# - Date: https://svn.tools.ietf.org/svn/wg/httpbis/specs/rfc7231.html#header.date
+#     MUST be sent by origin servers who know what time it is
+#     (clients don't bother)
+# - Server
+# - automagic compression
+
+# should let handlers control timeouts
+
 ################################################################
 #
 # Higher level stuff:
@@ -92,7 +133,27 @@ from .parser import HttpParser
 # the client's acknowledgement of the packet(s) containing the server's last
 # response. Finally, the server fully closes the connection."
 #
-# So this needs shutdown(2)
+# So this needs shutdown(2). This is what data_to_send's close means -- this
+# complicated close dance.
+
+# EndOfMessage is tricky:
+# - upgrade trailing data handling
+# - must immediately call receive_data(b"") before blocking on socket
+
+# Implementing Expect: 100-continue on the client is also tricky: see RFC 7231
+# 5.1.1 for details, but in particular if you get a 417 then you have to drop
+# the Expect: and then try again.
+#
+# On the server: HTTP/1.0 + Expect: 100-continue is like the 100-continue
+# didn't even exist, you just ignore it.
+# And if you want it to go away, you should send a 4xx + Connection: close +
+# EOM and then we'll close it and the client won't send everything. Otherwise
+# you have to read it all.
+#
+# For any Expect: value besides 100-continue, it was originally intended that
+# the server should blow up if it's unrecognized, but the RFC7xxx specs gave
+# up on this because no-one implemented it, so now servers are free to
+# blithely ignore unrecognized Expect: values.
 
 def _get_header_values(wanted_field, headers, *, split_comma, lower):
     wanted_field = _asciify(wanted_field).lower()
@@ -199,7 +260,10 @@ def _examine_and_fix_framing_headers(self, event, response_to=None):
     # Reference:
     #   https://svn.tools.ietf.org/svn/wg/httpbis/specs/rfc7230.html#message.body.length
 
-    # Some things never have a body:
+    # Some things never have a body, regardless of what the headers might say.
+    # (Technically in some but not all of these cases we should error out if
+    # the framing headers are present since they'e protocol violations. But
+    # for now we don't.)
     if (isinstance(event, InformationalResponse)
         or (isinstance(event, Response)
             and (event.status_code in (204, 304)
@@ -221,21 +285,20 @@ def _examine_and_fix_framing_headers(self, event, response_to=None):
         return ContentLengthFramer(int(content_lengths[0]))
 
     # Otherwise -- Transfer-Encoding: chunked is set or there's no framing
-    # headers at all -- we don't know it, and we handle all such situations
-    # identically.
+    # headers at all -- we don't know it.
     #
-    # If we're a client, then we just set Transfer-Encoding: chunked and hope
-    # for the best. This will only work with HTTP/1.1 servers, but almost all
-    # servers now qualify, and if we have a HTTP/1.0 server then we can't send
-    # a variable length body at all. (If you wanted to send no body then you
-    # should have said Content-Length: 0.)
+    # If we're a client sending a request, then we just set Transfer-Encoding:
+    # chunked and hope for the best. This will only work with HTTP/1.1
+    # servers, but almost all servers now qualify, and if we have a HTTP/1.0
+    # server then we can't send a variable length body at all. (If you wanted
+    # to send no body then you should have said Content-Length: 0.)
     if isinstance(event, Request):
         if transfer_encoding is None:
             event.headers.append((b"Transfer-Encoding", b"chunked"))
         return ChunkedFramer()
-    # If we're a server, then we should use chunked IFF we are talking to
-    # a HTTP/1.1 client, and otherwise use the HTTP/1.0 "send and then
-    # close" framing. In the latter case we also have to set the
+    # If we're a server sending a response, then we should use chunked IFF we
+    # are talking to a HTTP/1.1 client, and otherwise use the HTTP/1.0 "send
+    # and then close" framing. In the latter case we also have to set the
     # Connection: close header.
     else:
         # NB InformationalResponse got handled above, so Response is the only
@@ -254,14 +317,6 @@ def _examine_and_fix_framing_headers(self, event, response_to=None):
 
     assert False
 
-# XX FIXME: we should error out if people try to pipeline as a client, since
-# otherwise we will give silently subtly wrong behavior
-#
-# XX FIXME: better tracking for when one has really and truly processed a
-# single request/response pair would be good.
-#
-# XX FIXME: might at that point make sense to split the client and server into
-# two separate classes?
 class H11Connection:
     def __init__(self, *, client_side):
         self._client_side = client_side
@@ -355,6 +410,10 @@ class H11Connection:
             # We don't bother sending ascii status messages like "OK"; they're
             # optional anyway. (But the space after the numeric status code is
             # mandatory.)
+            # XX FIXME: could at least make an effort to pull out the status
+            # message from stdlib's http.HTTPStatus table. Or maybe just steal
+            # their enums (either by import or copy/paste). We already accept
+            # them since they're of type IntEnum < int.
             self._send(b"HTTP/1.1 %s \r\n" % (status_bytes,))
             self._body_framer = self._examine_and_fix_framing_headers(
                 event, response_to=self._last_request_received)
