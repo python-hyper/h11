@@ -82,6 +82,47 @@ from .parser import HttpParser
 # immediately call receive_data even if there's no new bytes to pass, because
 # more responses might have been pipelined up.
 
+# Connection shutdown is tricky. Quoth RFC 7230:
+#
+# "If a server performs an immediate close of a TCP connection, there is a
+# significant risk that the client will not be able to read the last HTTP
+# response. If the server receives additional data from the client on a fully
+# closed connection, such as another request that was sent by the client
+# before receiving the server's response, the server's TCP stack will send a
+# reset packet to the client; unfortunately, the reset packet might erase the
+# client's unacknowledged input buffers before they can be read and
+# interpreted by the client's HTTP parser.
+#
+# "To avoid the TCP reset problem, servers typically close a connection in
+# stages. First, the server performs a half-close by closing only the write
+# side of the read/write connection. The server then continues to read from
+# the connection until it receives a corresponding close by the client, or
+# until the server is reasonably certain that its own TCP stack has received
+# the client's acknowledgement of the packet(s) containing the server's last
+# response. Finally, the server fully closes the connection."
+#
+# So this needs shutdown(2). This is what data_to_send's close means -- this
+# complicated close dance.
+
+# EndOfMessage is tricky:
+# - upgrade trailing data handling
+# - must immediately call receive_data(b"") before blocking on socket
+
+# Implementing Expect: 100-continue on the client is also tricky: see RFC 7231
+# 5.1.1 for details, but in particular if you get a 417 then you have to drop
+# the Expect: and then try again.
+#
+# On the server: HTTP/1.0 + Expect: 100-continue is like the 100-continue
+# didn't even exist, you just ignore it.
+# And if you want it to go away, you should send a 4xx + Connection: close +
+# EOM and then we'll close it and the client won't send everything. Otherwise
+# you have to read it all.
+#
+# For any Expect: value besides 100-continue, it was originally intended that
+# the server should blow up if it's unrecognized, but the RFC7xxx specs gave
+# up on this because no-one implemented it, so now servers are free to
+# blithely ignore unrecognized Expect: values.
+
 # Client sends (regex):
 #   Request Data* EndOfMessage
 # Server sends (regex):
@@ -91,6 +132,8 @@ from .parser import HttpParser
 #   out is receiving a InformationalResponse or Response (or timeout)
 # - *both* EndOfMessage's have to arrive before *either* machine returns to
 #   the start state.
+
+################################################################
 
 # We model the joint state of the client and server as a pair of finite state
 # automata: one for the client and one for the server. Transitions in each
@@ -205,47 +248,6 @@ class ConnectionState:
             self._server_machine.reset()
             self.request = None
             self.response = None
-
-# Connection shutdown is tricky. Quoth RFC 7230:
-#
-# "If a server performs an immediate close of a TCP connection, there is a
-# significant risk that the client will not be able to read the last HTTP
-# response. If the server receives additional data from the client on a fully
-# closed connection, such as another request that was sent by the client
-# before receiving the server's response, the server's TCP stack will send a
-# reset packet to the client; unfortunately, the reset packet might erase the
-# client's unacknowledged input buffers before they can be read and
-# interpreted by the client's HTTP parser.
-#
-# "To avoid the TCP reset problem, servers typically close a connection in
-# stages. First, the server performs a half-close by closing only the write
-# side of the read/write connection. The server then continues to read from
-# the connection until it receives a corresponding close by the client, or
-# until the server is reasonably certain that its own TCP stack has received
-# the client's acknowledgement of the packet(s) containing the server's last
-# response. Finally, the server fully closes the connection."
-#
-# So this needs shutdown(2). This is what data_to_send's close means -- this
-# complicated close dance.
-
-# EndOfMessage is tricky:
-# - upgrade trailing data handling
-# - must immediately call receive_data(b"") before blocking on socket
-
-# Implementing Expect: 100-continue on the client is also tricky: see RFC 7231
-# 5.1.1 for details, but in particular if you get a 417 then you have to drop
-# the Expect: and then try again.
-#
-# On the server: HTTP/1.0 + Expect: 100-continue is like the 100-continue
-# didn't even exist, you just ignore it.
-# And if you want it to go away, you should send a 4xx + Connection: close +
-# EOM and then we'll close it and the client won't send everything. Otherwise
-# you have to read it all.
-#
-# For any Expect: value besides 100-continue, it was originally intended that
-# the server should blow up if it's unrecognized, but the RFC7xxx specs gave
-# up on this because no-one implemented it, so now servers are free to
-# blithely ignore unrecognized Expect: values.
 
 def _get_header_values(wanted_field, headers, *, split_comma, lower):
     wanted_field = _asciify(wanted_field).lower()
