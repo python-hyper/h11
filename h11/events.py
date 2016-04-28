@@ -2,6 +2,13 @@
 # streams, loosely inspired by the corresponding events in hyper-h2:
 #     http://python-hyper.org/h2/en/stable/api.html#events
 
+# XX FIXME:
+# - standardize the optional stuff as being parse_metadata or something
+#   (peer_info? wire_info? pragma?)
+# - maybe if we get our own parser we can turn of the upgrade= field in
+#   EndOfMessage too and just have trailing_data unconditionally? leave
+#   upgrade to the higher level to figure out?
+
 from .util import bytesify
 from .headers import Headers
 
@@ -39,6 +46,11 @@ class _EventBundle:
         for field in ["method", "client_method", "url"]:
             if field in self.__dict__:
                 self.__dict__[field] = bytesify(self.__dict__[field])
+                if b" " in self.__dict__[field]:
+                    raise ValueError(
+                        "HTTP url {!r} is invalid -- urls cannot contain "
+                        "spaces (see RFC 7230 sec. 3.1.1)"
+                        .format(path))
 
     def __repr__(self):
         name = self.__class__.__name__
@@ -54,11 +66,11 @@ class _EventBundle:
 
 class Request(_EventBundle):
     _required = ["method", "url", "headers"]
-    _optional = ["http_version", "keep_alive"]
+    _optional = ["http_version"]
 
 class _ResponseBase(_EventBundle):
     _required = ["status_code", "headers"]
-    _optional = ["http_version", "request_method", "keep_alive"]
+    _optional = ["http_version"]
 
 class InformationalResponse(_ResponseBase):
     def __init__(self, **kwargs):
@@ -85,4 +97,4 @@ class Data(_EventBundle):
 # present in the header section might bypass external security filters."
 # https://svn.tools.ietf.org/svn/wg/httpbis/specs/rfc7230.html#chunked.trailer.part
 class EndOfMessage:
-    _optional = ["headers", "keep_alive", "upgrade", "trailing_data"]
+    _optional = ["headers", "upgrade", "trailing_data"]

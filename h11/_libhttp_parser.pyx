@@ -101,8 +101,7 @@ cdef int on_header_value(http_parser *p, const char *at, size_t length):
 
 cdef int on_headers_complete(http_parser *p):
     if (<InternalState>p.data).client_side:
-        kwargs = {"status_code": p.status_code,
-                  "request_method": (<InternalState>p.data).request_method}
+        kwargs = {"status_code": p.status_code}
     else:
         method = PyBytes_FromString(http_method_str(p.method))
         kwargs = {"method": method}
@@ -130,7 +129,7 @@ cdef int on_headers_complete(http_parser *p):
             # the headers, basically an upgrade. 2 is the magic value meaning
             # "treat this as an upgrade".
             # NB: this requires a very recent version of libhttp_parser
-            # (~2.6 or better, not yet in Debian on 2016-04-25)
+            # (~2.7 or better, not yet released as of 2016-04-25)
             if 200 <= p.status_code < 300:
                 return 2
     if p.status_code >= 200:
