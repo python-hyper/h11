@@ -44,12 +44,6 @@ cdef extern from "http_parser.h":
                                const char * data,
                                size_t len)
 
-    # Call this from on_headers_complete or on_message_complete
-    # If it's 0, then this should be the last message on the connection
-    # So server should say Connection: close, then send response, then close
-    # Client should finish getting message, then close
-    int http_should_keep_alive(const http_parser *parser)
-
     const char *http_method_str(unsigned char m)
     const char *http_errno_name(http_errno err)
     const char *http_errno_description(http_errno err)
@@ -112,9 +106,10 @@ cdef int on_headers_complete(http_parser *p):
     else:
         method = PyBytes_FromString(http_method_str(p.method))
         kwargs = {"method": method}
+    # This is safe, b/c HTTP versions are spec'ed to be 1 digit max
+    http_version="%s.%s" % (p.http_major, p.http_minor),
     (<InternalState>p.data)._add("headers-complete",
-                                 http_version=(p.http_major, p.http_minor),
-                                 keep_alive=http_should_keep_alive(p),
+                                 http_version=http_version,
                                  **kwargs)
     # Special case in how libhttp_parser works: normally, returning non-zero
     # from a callback means "error, blow up". But for on_headers_complete,
@@ -151,9 +146,7 @@ cdef int on_message_complete(http_parser *p):
    # reset this back to false after each item is processed
    (<InternalState>p.data).header_only = False
    # This will have upgrade information added in feed()
-   (<InternalState>p.data)._add("message-complete",
-                                upgrade=p.upgrade,
-                                keep_alive=http_should_keep_alive(p))
+   (<InternalState>p.data)._add("message-complete", upgrade=p.upgrade)
    return 0
 
 class HttpParseError(RuntimeError):

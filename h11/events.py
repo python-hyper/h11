@@ -1,11 +1,9 @@
 # High level events that we emit as our external interface for reading HTTP
-# streams, loosely modelled on the corresponding events in hyper-h2:
+# streams, loosely inspired by the corresponding events in hyper-h2:
 #     http://python-hyper.org/h2/en/stable/api.html#events
-#
-# The most noticeable difference is that I use the same objects for sending,
-# so have dropped the Receive prefix.
 
-from .util import asciify, asciify_headers
+from .util import bytesify
+from .headers import Headers
 
 __all__ = [
     "Request",
@@ -33,11 +31,14 @@ class _EventBundle:
                     .format(kwarg, self.__class__.__name__))
         self.__dict__.update(kwargs)
 
+        # Special handling for some fields
         if "headers" in self.__dict__:
-            self.headers = _asciify_headers(self.headers)
+            if not isinstance(headers, Headers):
+                self.headers = Headers(self.headers)
+
         for field in ["method", "client_method", "url"]:
             if field in self.__dict__:
-                self.__dict__[field] = _asciify(self.__dict__[field])
+                self.__dict__[field] = bytesify(self.__dict__[field])
 
     def __repr__(self):
         name = self.__class__.__name__

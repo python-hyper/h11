@@ -1,145 +1,211 @@
-import collections
-
-__all__ = ["H11Connection"]
-
-from .util import asciify
-from .events import *
-from .parser import HttpParser
-
-# XX FIXME: sendfile support?
-#   maybe switch data_to_send to returning an iterable of stuff-to-do, which
-#     could be a mix of bytes-likes, sendfile objects, and CloseSocket
-#   and Data could accept sendfile objects as a .data field
-
-# XX FIXME: once we have the high-level state machine in place, using it to
-# drive our own lowlevel parser would not be that hard... it already knows
-# (better than libhttp_parser!) things like "next is a chunked-encoded body",
-# and if we are allowed to buffer and have context then HTTP tokenization is
-# pretty trivial I think? and everything above tokenization we are already
-# handling. basically the primitive we need is length-bounded regexp matching:
-# try to match regexp, if it fails then wait for more data to arrive in
-# buffer, raise HttpParseError if the buffer is already longer than the max
-# permitted length.
-
-# XX FIXME: it would be nice to support sending Connection: keep-alive headers
-# back to HTTP 1.0 clients who have requested this:
-#   https://en.wikipedia.org/wiki/HTTP_persistent_connection#HTTP_1.0
-# though I'm not 100% sure whether this actually does anything.
-
-# XX FIXME: replace our RuntimeError's with some more specific "you are doing
-# HTTP wrong" error like H2's ProtocolError.
-
-# XX FIXME: we should error out if people try to pipeline as a client, since
-# otherwise we will give silently subtly wrong behavior
-#
-# XX FIXME: better tracking for when one has really and truly processed a
-# single request/response pair would be good.
-#
-# XX FIXME: might at that point make sense to split the client and server into
-# two separate classes?
-
-# headers to consider auto-supporting at the high-level:
-# - Date: https://svn.tools.ietf.org/svn/wg/httpbis/specs/rfc7231.html#header.date
-#     MUST be sent by origin servers who know what time it is
-#     (clients don't bother)
-# - Server
-# - automagic compression
-
-# should let handlers control timeouts
-
-################################################################
-#
-# Higher level stuff:
-# - Timeouts: waiting for 100-continue, killing idle keepalive connections,
-#     killing idle connections in general
-#     basically just need a timeout when we block on read, and if it times out
-#       then we close. should be settable in the APIs that block on read
-#       (e.g. iterating over body).
-# - Expect:
-#     https://svn.tools.ietf.org/svn/wg/httpbis/specs/rfc7231.html#rfc.section.5.1.1
-#   This is tightly integrated with flow control, not a lot we can do, except
-#   maybe provide a method to be called before blocking waiting for the
-#   request body?
-# - Sending an error when things go wrong (esp. 400 Bad Request)
-#
-# - Transfer-Encoding: compress, gzip
-#   - but unfortunately, libhttp_parser doesn't support these at all (just
-#     ignores the Transfer-Encoding field and doesn't even do chunked parsing,
-#     so totally unfixable)
-#       https://stackapps.com/questions/916/why-content-encoding-gzip-rather-than-transfer-encoding-gzip
-#     So... this sucks, but I guess we don't support it either.
-
-# rules for upgrade are:
-# - when you get back an message-complete, you have to check for the upgrade
-#   flag
-# - if it's set, then there's also some trailing-data provided
-# - if you continue doing HTTP on the same socket, then you have to
-#   receive_data that trailing data again
-# maybe we should make this an opt-in thing in the constructor -- you have to
-# say whether you're prepared for upgrade handling?
-#
-# also, after sending a message-complete on the server you then have to
-# immediately call receive_data even if there's no new bytes to pass, because
-# more responses might have been pipelined up.
-
-# Connection shutdown is tricky. Quoth RFC 7230:
-#
-# "If a server performs an immediate close of a TCP connection, there is a
-# significant risk that the client will not be able to read the last HTTP
-# response. If the server receives additional data from the client on a fully
-# closed connection, such as another request that was sent by the client
-# before receiving the server's response, the server's TCP stack will send a
-# reset packet to the client; unfortunately, the reset packet might erase the
-# client's unacknowledged input buffers before they can be read and
-# interpreted by the client's HTTP parser.
-#
-# "To avoid the TCP reset problem, servers typically close a connection in
-# stages. First, the server performs a half-close by closing only the write
-# side of the read/write connection. The server then continues to read from
-# the connection until it receives a corresponding close by the client, or
-# until the server is reasonably certain that its own TCP stack has received
-# the client's acknowledgement of the packet(s) containing the server's last
-# response. Finally, the server fully closes the connection."
-#
-# So this needs shutdown(2). This is what data_to_send's close means -- this
-# complicated close dance.
-
-# EndOfMessage is tricky:
-# - upgrade trailing data handling
-# - must immediately call receive_data(b"") before blocking on socket
-
-# Implementing Expect: 100-continue on the client is also tricky: see RFC 7231
-# 5.1.1 for details, but in particular if you get a 417 then you have to drop
-# the Expect: and then try again.
-#
-# On the server: HTTP/1.0 + Expect: 100-continue is like the 100-continue
-# didn't even exist, you just ignore it.
-# And if you want it to go away, you should send a 4xx + Connection: close +
-# EOM and then we'll close it and the client won't send everything. Otherwise
-# you have to read it all.
-#
-# For any Expect: value besides 100-continue, it was originally intended that
-# the server should blow up if it's unrecognized, but the RFC7xxx specs gave
-# up on this because no-one implemented it, so now servers are free to
-# blithely ignore unrecognized Expect: values.
-
-# Client sends (regex):
-#   Request Data* EndOfMessage
-# Server sends (regex):
-#   InformationalResponse* Response Data* EndOfMessage
-# They are linked in two places:
-# - client has wait-for-100-continue state (not shown) where the transition
-#   out is receiving a InformationalResponse or Response (or timeout)
-# - *both* EndOfMessage's have to arrive before *either* machine returns to
-#   the start state.
-
-################################################################
-
 # We model the joint state of the client and server as a pair of finite state
 # automata: one for the client and one for the server. Transitions in each
 # machine can be triggered by either local or remote events. (For example, the
 # client sending a Request triggers both the client to move to SENDING-BODY
 # and the server to move to SENDING-RESPONSE.)
+
+
+# for things we receive:
+# can skip figuring out framing b/c the low-level parser does that
+# but do want to check whether it has a body to keep the state machine
+# consistent
+# or maybe we should just figure out framing anyway, b/c someday we won't rely
+# on the low-level parser
+
+# for things we're sending:
+# if HTTP/1.0 / Connection stuff means we should close, set Connection: close
+#
+# then figure out framing we're using and munge the headers to match
+#
+# save the connection close information somewhere
+
+# invariant: state machine should see the final version of each event, post
+# all munging
+
+
+# Receive loop:
+# - get event
+# - if sending (remote) party is in DONE state, queue it for later
+# - otherwise, pass it through state machines and then return
+#   - maybe converting state machine errors into HttpParseError
+#   - (or HttpPeerError)?
+#
+# Send loop:
+# - get event
+# - check if event is even allowed; otherwise, error
+# - for Data and EndOfMessage, send via framer
+# - for InformationalResponse, send
+# - for Request:
+#   - User must have set Content-Length or Transfer-Encoding if there's a body
+#   - Figure out body framing:
+#     - Content-Length: works
+#     - Transfer-Encoding: chunked works (we hope, nothing to do otherwise)
+#     - Otherwise, has no body
+#   - Connection: close is already set or not, not our problem
+# - for Response:
+#   - Figure out body framing
+#     - Content-Length: works
+#     - Transfer-Encoding or unset: munge Transfer-Encoding and Connection
+#       appropriately
+#   - Set framing headers appropriately
+#     - if no Content-length and is Response and has body:
+#         if peer is HTTP/1.1, always use chunked. otherwise use close.
+#   - set Connection: close appropriately (based on Transfer-Encoding etc.)
+#   - send
+# - pass it through state machines
+
+
+import collections
+from enum import Enum
+
+__all__ = ["H11Connection"]
+
+from .util import bytesify
+from .events import *
+from .parser import HttpParser
+from .headers import get_comma_header, set_comma_header
+
+# Standard rules:
+# - If either side says they want to close the connection, then the connection
+#   must close.
+# - HTTP/1.1 defaults to keep-alive unless someone says Connection: close
+# - HTTP/1.0 defaults to close unless both sides say Connection: keep-alive
+#   (and even this is a mess -- e.g. if you're proxy then this is illegal).
+#
+# We simplify life by simply not supporting keep-alive with HTTP/1.0 peers. So
+# our rule is:
+# - If someone says Connection: close, we will close
+# - If someone uses HTTP 1.0, we will close.
+def _should_close(event):
+    # NB: InformationalResponse should not come through here
+    assert isinstance(event, (Request, Response))
+    connection = _get_comma_header(event.headers, "Connection")
+    if b"close" in connection:
+        return True
+    if getattr(event, "http_version", "1.1") < "1.1":
+        return True
+    return False
+
+def _has_expect_100_continue(request):
+    assert isinstance(request, Request)
+    # Expect: 100-continue is case *sensitive*
+    expect = _get_comma_header(request.headers, "Expect", lowercase=False)
+    return (b"100-continue" in expect)
+
+################################################################
+#
+# Body framing (Transfer-Encoding and Content-Length)
+#
+# Detailed rules for interpreting these headers are here:
+#
+#     https://tools.ietf.org/html/rfc7230#section-3.3.3
+#
+################################################################
+
+def _get_framing_headers(headers):
+    # Returns:
+    #
+    #   effective_transfer_encoding, effective_content_length
+    #
+    # At least one will always be None.
+    #
+    # Transfer-Encoding beats Content-Length, so check Transfer-Encoding
+    # first.
+    transfer_encodings = _get_comma_header(headers, "Transfer-Encoding")
+    if transfer_encodings not in ([], [b"chunked"]):
+        raise RuntimeError(
+            "unsupported Transfer-Encodings {!r}".format(transfer_encodings))
+    if transfer_encodings:
+        return b"chunked", None
+
+    content_lengths = _get_comma_header(headers, "Content-Length")
+    if len(content_lengths) > 1:
+        raise RuntimeError(
+            "encountered multiple Content-Length headers")
+    if content_lengths:
+        return None, int(content_lengths[0])
+    else:
+        return None, None
+
+def _request_has_body(request):
+    assert isinstance(request, Request)
+    # Requests by default don't have bodies; needs a Transfer-Encoding, or a
+    # non-zero Content-Length.
+    transfer_encoding, content_length = _get_framing_headers(request.headers)
+    if transfer_encoding is not None:
+        return True
+    if content_length is not None and content_length > 0:
+        return True
+    return False
+
+def _response_has_body(response, *, response_to):
+    assert isinstance(response, (InformationalResponse, Response))
+    assert isinstance(response_to, Request)
+    # Responses by default *do* have bodies, except if they meet some
+    # particular criteria, or have Content-Length: 0
+    if (response.status_code < 200
+        or response.status_code in (204, 304)
+        or response_to.method == b"HEAD"
+        or (response_to.method == b"CONNECT"
+            and 200 <= response.status_code < 300)):
+        return False
+    _, content_length = _get_framing_headers(request.headers)
+    if content_length is not None and content_length == 0:
+        return False
+    return True
+
+def _clean_up_response_headers_for_sending(response, *, response_to):
+    assert isinstance(response, Response)
+    assert isinstance(response_to, Request)
+    # Tricky bits to this:
+    # - We take responsibility for setting Connection: close if the client
+    #   doesn't support keep-alive
+    # - We take the responsibility of setting Transfer-Encoding etc. correctly
+    #   if user didn't set Content-Length, taking into account peer's HTTP
+    #   version
+    # - The actual framing stuff is taken care of later, based on the final
+    #   munged headers.
+    do_close = _should_close(response) or _should_close(response_to)
+
+    _, effective_content_length = _get_framing_headers(response.headers)
+    if (_response_has_body(response, response_to=response_to)
+        and effective_content_length is None):
+        # This response has a body of unknown length.
+        # If our peer is HTTP/1.1, we use Transfer-Encoding: chunked
+        # If our peer is HTTP/1.0, we use no framing headers, and close the
+        # connection afterwards.
+        #
+        # Make sure to clear Content-Length (could have been set but
+        # overridden by Transfer-Encoding -- even though setting both is a
+        # spec violation)
+        _set_comma_header(response.headers, "Content-Length", [])
+        # If we're sending the response, the request came from the wire, so it
+        # should have an attached http_version
+        assert hasattr(response_to, "http_version")
+        if response_to.http_version < "1.1":
+            _set_comma_header(response.headers, "Transfer-Encoding", [])
+            do_close = True
+        else:
+            _set_comma_header(response.headers,
+                              "Transfer-Encoding", ["chunked"])
+
+    # Set Connection: close if we need it.
+    connection = set(_get_comma_header(response.headers, "Connection"))
+    if do_close and b"close" not in connection:
+        connection.discard(b"keep-alive")
+        connection.add(b"close")
+        _set_comma_header(response.headers, "Connection", connection)
+
+# Only called if we have to send DATA, so can take for granted that this
+# message does in fact have a body
+def _get_framer(headers):
+    transfer_encoding, content_length = _get_framing_headers(headers)
+    if transfer_encoding is not None:
+        return ChunkedFramer()
+    elif content_length is not None:
+        return ContentLengthFramer(content_length)
+    else:
+        return HTTP10Framer()
 
 # We reuse the Client and Server class objects as sentinel values for
 # referring to the two parties.
@@ -157,44 +223,14 @@ class Server(Enum):
     DONE = 4
     CLOSED = 5
 
-def _get_next_client_state_for_request(request):
-    # if this request has no body, go straight to DONE
-    # if this request has Expect: 100-continue, go to WAIT_FOR_100
-    # otherwise, go to SENDING_BODY
-
-def _get_next_server_state_for_response(response):
-    # if this response has no body, go straight to DONE
-    # otherwise, go to SENDING_BODY
-
-client_transitions = {
-    Client.IDLE: {
-        (Client, Request): _get_next_client_state_for_request,
-    },
-    Client.WAIT_FOR_100: {
-        (Server, InformationalResponse): Client.SENDING_BODY,
-        (Server, Response): Client.SENDING_BODY,
-        (Client, Data): Client.SENDING_BODY,
-        (Client, EndOfMessage): Client.DONE,
-    }
-    Client.SENDING_BODY: {
-        (Client, Data): Client.SENDING_BODY,
-        (Client, EndOfMessage): Client.DONE,
-    },
-}
-
-server_transitions = {
-    Server.WAIT_FOR_REQUEST: {
-        (Client, Request): Server.SENDING_RESPONSE,
-    },
-    Server.SENDING_RESPONSE: {
-        (Server, InformationalResponse): Server.SENDING_RESPONSE,
-        (Server, Response): _get_next_server_state_for_response,
-    },
-    Server.SENDING_BODY: {
-        (Server, Data): Server.SENDING_BODY,
-        (Server, EndOfMessage): Server.DONE,
-    },
-}
+# Convention:
+#
+# Both machines see all events (i.e., client machine sees both client and
+# server events, server machine sees both client and server events). But they
+# have different defaults: if the client machine sees a client event that it
+# has no transition for, that's an error. But if the client machine sees a
+# server event that it has no transition for, then that's ignored. And
+# similarly for the server.
 
 class PartyMachine:
     def __init__(self, party, initial_state, transitions):
@@ -221,10 +257,59 @@ class PartyMachine:
 
 class ConnectionState:
     def __init__(self):
-        self._client_machine = PartyMachine(Client.IDLE, client_transitions)
-        self._server_machine = PartyMachine(Server.WAIT, server_transitions)
+        self._client_machine = PartyMachine(
+            party=Client,
+            initial_state=Client.IDLE,
+            transitions = {
+                Client.IDLE: {
+                    (Client, Request): self._next_client_state_for_request,
+                },
+                Client.WAIT_FOR_100: {
+                    (Server, InformationalResponse): Client.SENDING_BODY,
+                    (Server, Response): Client.SENDING_BODY,
+                    (Client, Data): Client.SENDING_BODY,
+                    (Client, EndOfMessage): Client.DONE,
+                }
+                Client.SENDING_BODY: {
+                    (Client, Data): Client.SENDING_BODY,
+                    (Client, EndOfMessage): Client.DONE,
+                },
+            })
+
+        self._client_machine = PartyMachine(
+            party=Server,
+            initial_state=Server.WAIT_FOR_REQUEST,
+            transitions = {
+                Server.WAIT_FOR_REQUEST: {
+                    (Client, Request): Server.SENDING_RESPONSE,
+                },
+                Server.SENDING_RESPONSE: {
+                    (Server, InformationalResponse): Server.SENDING_RESPONSE,
+                    (Server, Response): self._next_server_state_for_response,
+                },
+                Server.SENDING_BODY: {
+                    (Server, Data): Server.SENDING_BODY,
+                    (Server, EndOfMessage): Server.DONE,
+                },
+            })
         self.request = None
         self.response = None
+
+    def _next_client_state_for_request(self, request):
+        if _request_has_body(request):
+            if ("Expect", "100-continue") in request.headers:
+                return Client.WAIT_FOR_100
+            else:
+                return Client.SENDING_BODY
+        else:
+            return Client.DONE
+
+    def _next_server_state_for_response(self, response):
+        assert self.request is not None
+        if _response_has_body(response, response_to=self.request):
+            return Server.SENDING_BODY
+        else:
+            return Server.DONE
 
     @property
     def client_state(self):
@@ -235,8 +320,8 @@ class ConnectionState:
         return self._server_machine.state
 
     def process_event(self, party, event):
-        self.client_machine.receive_event(party, event)
-        self.server_machine.receive_event(party, event)
+        self.client_machine.process_event(party, event)
+        self.server_machine.process_event(party, event)
         if isinstance(event, Request):
             self.request = event
         if isinstance(event, Response):
@@ -250,7 +335,7 @@ class ConnectionState:
             self.response = None
 
 def _get_header_values(wanted_field, headers, *, split_comma, lower):
-    wanted_field = _asciify(wanted_field).lower()
+    wanted_field = bytesify(wanted_field).lower()
     values = []
     for field, value in headers:
         field = field.lower()
@@ -295,14 +380,6 @@ def _strip_transfer_encoding(headers):
         if header.lower() != b"transfer-encoding":
             new_headers.append(header)
     headers[:] = new_headers
-
-class NoBodyFramer:
-    def send_data(self, data, connection):
-        raise RuntimeError("no body allowed for this message")
-
-    def send_eom(self, headers, connection):
-        if headers:
-            raise RuntimeError("can't send trailers on a body-less message")
 
 class ContentLengthFramer:
     def __init__(self, length):
@@ -398,7 +475,7 @@ def _examine_and_fix_framing_headers(self, event, response_to=None):
         # NB InformationalResponse got handled above, so Response is the only
         # possibility here.
         assert isinstance(event, Response)
-        if response_to.http_version < (1, 1):
+        if response_to.http_version < "1.1":
             if not _connection_close_is_set(event.headers):
                 event.headers.append(b"Connection", b"close")
             if transfer_encoding is not None:
@@ -476,6 +553,9 @@ class H11Connection:
             else:
                 self._data_to_send += data
 
+    # XX FIXME: "Since the Host field-value is critical information for
+    # handling a request, a user agent SHOULD generate Host as the first
+    # header field following the request-line." - RFC 7230
     def _send_headers(self, headers):
         for field, value in headers:
             self._send(b"%s: %s\r\n" % (field, value))

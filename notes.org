@@ -1,0 +1,135 @@
+XX FIXME: sendfile support?
+  maybe switch data_to_send to returning an iterable of stuff-to-do, which
+    could be a mix of bytes-likes, sendfile objects, and CloseSocket
+  and Data could accept sendfile objects as a .data field
+
+XX FIXME: once we have the high-level state machine in place, using it to
+drive our own lowlevel parser might not be that hard... it already knows
+(better than libhttp_parser!) things like "next is a chunked-encoded body",
+and if we are allowed to buffer and have context then HTTP tokenization is
+pretty trivial I think? and everything above tokenization we are already
+handling. basically the primitive we need is length-bounded regexp matching:
+try to match regexp, if it fails then wait for more data to arrive in
+buffer, raise HttpParseError if the buffer is already longer than the max
+permitted length.
+
+XX FIXME: it would be nice to support sending Connection: keep-alive headers
+back to HTTP 1.0 clients who have requested this:
+  https://en.wikipedia.org/wiki/HTTP_persistent_connection#HTTP_1.0
+though it's not clear whether this is actually useful. (Not clear any
+clients still use keep-alive, and even if they do it has problems with
+proxies.) But we should at least decide whether we're using it or not; if
+we're not then we should always send Connection: close when talking to
+HTTP/1.0 clients.
+
+XX FIXME: replace our RuntimeError's with some more specific "you are doing
+HTTP wrong" error like H2's ProtocolError. (As compared to HttpParseError,
+which is "your peer is doing HTTP wrong".)
+
+XX FIXME: we should error out if people try to pipeline as a client, since
+otherwise we will give silently subtly wrong behavior
+
+XX FIXME: better tracking for when one has really and truly processed a
+single request/response pair would be good.
+
+XX FIXME: might at that point make sense to split the client and server into
+two separate classes?
+
+headers to consider auto-supporting at the high-level:
+- Date: https://svn.tools.ietf.org/svn/wg/httpbis/specs/rfc7231.html#header.date
+    MUST be sent by origin servers who know what time it is
+    (clients don't bother)
+- Server
+- automagic compression
+
+should let handlers control timeouts
+
+################################################################
+
+Higher level stuff:
+- Timeouts: waiting for 100-continue, killing idle keepalive connections,
+    killing idle connections in general
+    basically just need a timeout when we block on read, and if it times out
+      then we close. should be settable in the APIs that block on read
+      (e.g. iterating over body).
+- Expect:
+    https://svn.tools.ietf.org/svn/wg/httpbis/specs/rfc7231.html#rfc.section.5.1.1
+  This is tightly integrated with flow control, not a lot we can do, except
+  maybe provide a method to be called before blocking waiting for the
+  request body?
+- Sending an error when things go wrong (esp. 400 Bad Request)
+
+- Transfer-Encoding: compress, gzip
+  - but unfortunately, libhttp_parser doesn't support these at all (just
+    ignores the Transfer-Encoding field and doesn't even do chunked parsing,
+    so totally unfixable)
+      https://stackapps.com/questions/916/why-content-encoding-gzip-rather-than-transfer-encoding-gzip
+    So... this sucks, but I guess we don't support it either.
+
+rules for upgrade are:
+- when you get back an message-complete, you have to check for the upgrade
+  flag
+- if it's set, then there's also some trailing-data provided
+- if you continue doing HTTP on the same socket, then you have to
+  receive_data that trailing data again
+maybe we should make this an opt-in thing in the constructor -- you have to
+say whether you're prepared for upgrade handling?
+
+also, after sending a message-complete on the server you then have to
+immediately call receive_data even if there's no new bytes to pass, because
+more responses might have been pipelined up.
+
+Connection shutdown is tricky. Quoth RFC 7230:
+
+"If a server performs an immediate close of a TCP connection, there is a
+significant risk that the client will not be able to read the last HTTP
+response. If the server receives additional data from the client on a fully
+closed connection, such as another request that was sent by the client
+before receiving the server's response, the server's TCP stack will send a
+reset packet to the client; unfortunately, the reset packet might erase the
+client's unacknowledged input buffers before they can be read and
+interpreted by the client's HTTP parser.
+
+"To avoid the TCP reset problem, servers typically close a connection in
+stages. First, the server performs a half-close by closing only the write
+side of the read/write connection. The server then continues to read from
+the connection until it receives a corresponding close by the client, or
+until the server is reasonably certain that its own TCP stack has received
+the client's acknowledgement of the packet(s) containing the server's last
+response. Finally, the server fully closes the connection."
+
+So this needs shutdown(2). This is what data_to_send's close means -- this
+complicated close dance.
+
+
+
+EndOfMessage is tricky:
+- upgrade trailing data handling
+- must immediately call receive_data(b"") before blocking on socket
+
+
+
+Implementing Expect: 100-continue on the client is also tricky: see RFC 7231
+5.1.1 for details, but in particular if you get a 417 then you have to drop
+the Expect: and then try again.
+
+On the server: HTTP/1.0 + Expect: 100-continue is like the 100-continue
+didn't even exist, you just ignore it.
+And if you want it to go away, you should send a 4xx + Connection: close +
+EOM and then we'll close it and the client won't send everything. Otherwise
+you have to read it all.
+#
+For any Expect: value besides 100-continue, it was originally intended that
+the server should blow up if it's unrecognized, but the RFC7xxx specs gave
+up on this because no-one implemented it, so now servers are free to
+blithely ignore unrecognized Expect: values.
+
+Client sends (regex):
+  Request Data* EndOfMessage
+Server sends (regex):
+  InformationalResponse* Response Data* EndOfMessage
+They are linked in two places:
+- client has wait-for-100-continue state (not shown) where the transition
+  out is receiving a InformationalResponse or Response (or timeout)
+- *both* EndOfMessage's have to arrive before *either* machine returns to
+  the start state.

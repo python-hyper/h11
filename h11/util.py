@@ -1,10 +1,7 @@
-__all__ = ["asciify", "asciify_headers"]
+__all__ = ["bytesify"]
 
-# used for methods, urls, and headers
-def asciify(s):
+# used for methods, urls, header names, and header values
+def bytesify(s):
     if isinstance(s, str):
         s = s.encode("ascii")
-    return s
-
-def asciify_headers(headers):
-    return [(asciify(f), asciify(v)) for (f, v) in headers]
+    return bytes(s)

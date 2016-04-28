@@ -2,6 +2,7 @@
 # which takes in bytes and emits h11.events objects.
 
 from .events import *
+from .headers import Headers
 # Note: in case we ever replace libhttp_parser with something else, we should
 # ensure that our "something else" enforces an anti-DoS size limit on
 # header size (like libhttp_parser does).
@@ -53,12 +54,12 @@ def collect_data(event_type, event):
     return bytes(data), event
 
 def decode_headers(event):
-    headers = []
+    headers = Headers()
     # headers are optional, so it's possible to return early with no headers
     while event[0] == "header-field-data":
         field, event = yield from collect_data("header-field-data", event)
         value, event = yield from collect_data("header-value-data", event)
-        headers.append((field, value))
+        headers.add(field, value)
     return headers, event
 
 # Main loop for the libhttp_parser low-level -> high level event transduction
