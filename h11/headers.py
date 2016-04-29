@@ -1,4 +1,5 @@
-from .util import ProtocolError, bytesify
+import re
+from .util import ProtocolError, bytesify, validate
 
 # Facts
 # -----
@@ -46,6 +47,8 @@ from .util import ProtocolError, bytesify
 # occurs repeatedly. But, of course, they can't necessarily be spit by
 # .split(b","), because quoting.
 
+_content_length_re = re.compile(rb"^[0-9]+$")
+
 def normalize_and_validate(headers):
     new_headers = []
     saw_content_length = False
@@ -54,11 +57,11 @@ def normalize_and_validate(headers):
         name = bytesify(name)
         value = bytesify(value)
         name_lower = name.lower()
-        if name_lower == b"content-encoding":
+        if name_lower == b"content-length":
             if saw_content_length:
                 raise ProtocolError("multiple Content-Length headers")
             validate(_content_length_re, value, "bad Content-Length")
-            content_length_seen = True
+            saw_content_length = True
         if name_lower == b"transfer-encoding":
             if saw_transfer_encoding:
                 raise ProtocolError(
@@ -66,7 +69,7 @@ def normalize_and_validate(headers):
             if value.lower() != b"chunked":
                 raise ProtocolError(
                     "Only Transfer-Encoding: chunked is supported")
-            transfer_encoding_count += 1
+            saw_transfer_encoding = True
         new_headers.append((name, value))
     return new_headers
 

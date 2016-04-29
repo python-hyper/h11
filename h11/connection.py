@@ -4,11 +4,6 @@
 # client sending a Request triggers both the client to move to SENDING-BODY
 # and the server to move to SENDING-RESPONSE.)
 
-import collections
-
-__all__ = ["Connection"]
-
-from .util import bytesify, Sentinel
 # Import all event types
 from .events import *
 # Import all states
@@ -19,6 +14,8 @@ from .headers import (
 from .receivebuffer import ReceiveBuffer
 from .reading import READERS
 from .writing import WRITERS
+
+__all__ = ["Connection"]
 
 # If we ever have this much buffered without it making a complete parseable
 # event, we error out.
@@ -71,27 +68,27 @@ def _clean_up_response_headers_for_sending(response, *, response_to):
         # overwrote it -- this would be naughty of them, but the HTTP spec
         # says that if our peer does this then we have to fix it instead of
         # erroring out, so we'll accord the user the same respect).
-        _set_comma_header(response.headers, "Content-Length", [])
+        set_comma_header(response.headers, "Content-Length", [])
         # If we're sending the response, the request came from the wire, so it
         # should have an attached http_version
         assert hasattr(response_to, "http_version")
         if response_to.http_version < "1.1":
-            _set_comma_header(response.headers, "Transfer-Encoding", [])
+            set_comma_header(response.headers, "Transfer-Encoding", [])
             # This is actually redundant ATM, since currently we always send
             # Connection: close when talking to HTTP/1.0 peers. But let's be
             # defensive just in case we add Connection: keep-alive support
             # later:
             do_close = True
         else:
-            _set_comma_header(response.headers,
-                              "Transfer-Encoding", ["chunked"])
+            set_comma_header(response.headers,
+                             "Transfer-Encoding", ["chunked"])
 
     # Set Connection: close if we need it.
     connection = set(get_comma_header(response.headers, "Connection"))
     if do_close and b"close" not in connection:
         connection.discard(b"keep-alive")
         connection.add(b"close")
-        _set_comma_header(response.headers, "Connection", sorted(connection))
+        set_comma_header(response.headers, "Connection", sorted(connection))
 
 ################################################################
 #

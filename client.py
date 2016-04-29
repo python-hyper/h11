@@ -6,7 +6,6 @@ import h11
 from urllib.parse import urlsplit
 
 def get_host_port(split):
-    split = urlsplit(url)
     if b":" in split.netloc:
         host, port_bytes = split.netloc.split(b":", 1)
         return host, int(port_bytes)
@@ -32,15 +31,15 @@ async def request(method, url, body=b""):
     host, port = get_host_port(split)
     target = get_target(split)
     headers = [
-        ("Host": host),
-        ("User-Agent": "curiosittp/0.0.0"),
+        ("Host", host),
+        ("User-Agent", "curiosittp/0.0.0"),
     ]
     if hasattr(body, "__aiter__"):
         headers.append(("Transfer-Encoding", "chunked"))
     else:
         headers.append(("Content-Length", body))
 
-    if split.scheme = b"https":
+    if split.scheme == b"https":
         ssl_args = {"ssl": True, "server_hostname": host}
     else:
         ssl_args = {}

@@ -5,10 +5,8 @@
 #
 # Don't subclass these. Stuff will break.
 
-import re
-
 from . import headers
-from .util import bytesify, ProtocolError, validate
+from .util import bytesify, ProtocolError
 
 __all__ = [
     "Request",
@@ -19,8 +17,6 @@ __all__ = [
     "ConnectionClosed",
 ]
 
-
-_content_length_re = re.compile(rb"^[0-9]+$")
 
 class _EventBundle:
     _fields = []

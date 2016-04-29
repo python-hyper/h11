@@ -14,12 +14,12 @@
 # - a reader
 # - or, for body readers, a dict of per-framing reader factories
 
-__all__ = ["READERS"]
-
 import re
 from .util import ProtocolError, validate
 from .state import CLIENT, SERVER, IDLE, SEND_RESPONSE, SEND_BODY
 from .events import *
+
+__all__ = ["READERS"]
 
 # https://svn.tools.ietf.org/svn/wg/httpbis/specs/rfc7230.html#whitespace
 #  OWS            = *( SP / HTAB )

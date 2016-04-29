@@ -7,11 +7,11 @@
 # - a writer
 # - or, for body writers, a dict of framin-dependent writer factories
 
-__all__ = ["WRITERS"]
-
 from .util import ProtocolError
 from .events import Data, EndOfMessage
 from .state import CLIENT, SERVER, IDLE, SEND_RESPONSE, SEND_BODY
+
+__all__ = ["WRITERS"]
 
 def write_headers(headers, write):
     for name, value in headers:
@@ -29,9 +29,9 @@ def write_request(request, write):
 
 # Shared between InformationalResponse and Response
 def write_any_response(response, write):
-    if request.http_version != b"1.1":
+    if response.http_version != b"1.1":
         raise ProtocolError("I only send HTTP/1.1")
-    status_bytes = str(event.status).encode("ascii")
+    status_bytes = str(response.status_code).encode("ascii")
     # We don't bother sending ascii status messages like "OK"; they're
     # optional and ignored by the protocol. (But the space after the numeric
     # status code is mandatory.)

@@ -44,7 +44,7 @@ class ConnectionState:
             CLIENT: PartyMachine(
                 party=CLIENT,
                 initial_state=IDLE,
-                transitions = {
+                transitions={
                     IDLE: {
                         (CLIENT, Request): SEND_BODY,
                         (CLIENT, ConnectionClosed): CLOSED,
@@ -61,7 +61,7 @@ class ConnectionState:
             SERVER: PartyMachine(
                 party=SERVER,
                 initial_state=IDLE,
-                transitions = {
+                transitions={
                     IDLE: {
                         (CLIENT, Request): SEND_RESPONSE,
                         (SERVER, ConnectionClosed): CLOSED,
