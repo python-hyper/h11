@@ -1,3 +1,6 @@
+* add client_waiting_for_100_continue
+* add explicit reset step before things go back to IDLE
+
 * Closure
 
 You or other side can close (send ConnectionClosed()) at any time.

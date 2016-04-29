@@ -1,5 +1,5 @@
 from .events import *
-from .util import Sentinel
+from .util import ProtocolError, Sentinel
 
 __all__ = ["ConnectionState"]
 
@@ -56,6 +56,7 @@ class ConnectionState:
                     DONE: {
                         (CLIENT, ConnectionClosed): CLOSED,
                     },
+                    CLOSED: {},
                 }),
             SERVER: PartyMachine(
                 party=SERVER,
@@ -76,7 +77,8 @@ class ConnectionState:
                     DONE: {
                         (SERVER, ConnectionClosed): CLOSED,
                     },
-            }),
+                    CLOSED: {},
+                }),
         }
 
     def state(self, party):

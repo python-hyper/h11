@@ -9,8 +9,10 @@ import collections
 __all__ = ["Connection"]
 
 from .util import bytesify, Sentinel
+# Import all event types
 from .events import *
-from .state import ConnectionState, CLIENT, SERVER, CLOSED
+# Import all states
+from .state import *
 from .headers import (
     get_comma_header, set_comma_header, get_framing_headers, should_close,
 )
@@ -85,7 +87,7 @@ def _clean_up_response_headers_for_sending(response, *, response_to):
                               "Transfer-Encoding", ["chunked"])
 
     # Set Connection: close if we need it.
-    connection = set(_get_comma_header(response.headers, "Connection"))
+    connection = set(get_comma_header(response.headers, "Connection"))
     if do_close and b"close" not in connection:
         connection.discard(b"keep-alive")
         connection.add(b"close")
@@ -125,8 +127,8 @@ class Connection:
             self._them = CLIENT
         # Callables for converting data->events or vice-versa given the
         # current state
-        self._writer = None
-        self._reader = None
+        self._writer = self._get_state_obj(self._us, WRITERS)
+        self._reader = self._get_state_obj(self._them, READERS)
         # Data that should be sent when possible
         self._data_to_send = []
         self._send_is_closed = False
@@ -145,8 +147,8 @@ class Connection:
             return obj
         # Otherwise, obj is a dict of factories for body readers/writers
         assert state is SEND_BODY
-        request = self._cstate.request
-        response = self._cstate.response
+        request = self._request
+        response = self._response
         if (party is SERVER
             and not _response_allows_body(response, response_to=request)):
             # Body is empty, no matter what headers say
@@ -159,7 +161,7 @@ class Connection:
         if content_length:
             return obj["content-length"](content_length)
         if type(event) is Request:
-            return obj["http/1.0"]
+            return obj["http/1.0"]()
         else:
             return obj["content-length"](0)
 
@@ -199,7 +201,7 @@ class Connection:
         # The two magical auto-close situations:
         if ((self.server_state is DONE
              and self.our_state is not CLOSED
-             and (should_close(self.request) or should_close(self.response)))
+             and (should_close(self._request) or should_close(self._response)))
             or
              self.our_state in (IDLE, DONE) and self.their_state is CLOSED):
             self.send(ConnectionClosed())
@@ -277,7 +279,7 @@ class Connection:
         # and then call it after. Special case: sending ConnectionClosed()
         # skips the writer.
         writer = self._writer
-        self._process_event(self._me, event)
+        self._process_event(self._us, event)
         if type(event) is ConnectionClosed:
             self._send(None)
         else:

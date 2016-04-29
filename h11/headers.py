@@ -143,12 +143,12 @@ def get_framing_headers(headers):
     # We assume that headers has already been through the validation in
     # events.py, so no multiple headers, Content-Length actually is an
     # integer, Transfer-Encoding is "chunked" or nothing, etc.
-    transfer_encodings = _get_comma_header(headers, "Transfer-Encoding")
+    transfer_encodings = get_comma_header(headers, "Transfer-Encoding")
     if transfer_encodings:
         assert transfer_encodings == [b"chunked"]
         return b"chunked", None
 
-    content_lengths = _get_comma_header(headers, "Content-Length")
+    content_lengths = get_comma_header(headers, "Content-Length")
     if content_lengths:
         return None, int(content_lengths[0])
     else:
@@ -156,7 +156,7 @@ def get_framing_headers(headers):
 
 def has_expect_100_continue(request):
     # Expect: 100-continue is case *sensitive*
-    expect = _get_comma_header(request.headers, "Expect", lowercase=False)
+    expect = get_comma_header(request.headers, "Expect", lowercase=False)
     return (b"100-continue" in expect)
 
 # RFC 7230's rules for connection lifecycles:
@@ -172,9 +172,9 @@ def has_expect_100_continue(request):
 # - If someone says Connection: close, we will close
 # - If someone uses HTTP/1.0, we will close.
 def should_close(event):
-    connection = _get_comma_header(event.headers, "Connection")
+    connection = get_comma_header(event.headers, "Connection")
     if b"close" in connection:
         return True
-    if getattr(event, "http_version", "1.1") < "1.1":
+    if getattr(event, "http_version", b"1.1") < b"1.1":
         return True
     return False

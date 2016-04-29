@@ -49,7 +49,8 @@ class BodyWriter:
             self.send_data(event.data, write)
         elif type(event) is EndOfMessage:
             self.send_eom(event.headers, write)
-        assert False
+        else:
+            assert False
 
 #
 # These are all careful not to do anything to 'data' except call len(data) and

@@ -148,19 +148,20 @@ status_line = (
     br" "
     br"(?P<status_code>%(status_code)s)"
     br" "
-    br"(?P<reason_phrase>%(reason_phrase)s)"
+    br"%(reason_phrase)s"
     br"$"
     % {
         b"http_version": http_version,
         b"status_code": status_code,
         b"reason_phrase": reason_phrase,
     })
+status_line_re = re.compile(status_line)
 
 def maybe_read_from_SEND_RESPONSE_server(buf):
-    lines = maybe_extract_lines(buf)
+    lines = buf.maybe_extract_lines()
     if lines is None:
         return None
-    matches = validate(response_line_re, lines[0])
+    matches = validate(status_line_re, lines[0])
     status_code = matches["status_code"] = int(matches["status_code"])
     class_ = InformationalResponse if status_code < 200 else Response
     return class_(headers=list(_decode_header_lines(lines[1:])), **matches)
@@ -199,7 +200,7 @@ class ChunkedReader:
 
     def __call__(self, buf):
         if self._reading_trailer:
-            lines = maybe_extract_lines(buf)
+            lines = buf.maybe_extract_lines()
             if lines is None:
                 return None
             return EndOfMessage(headers=list(_decode_header_lines(lines)))
