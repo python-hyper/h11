@@ -25,104 +25,12 @@ we need to close after this request/response. (Basically: someone has
 Connection: close set, or is using HTTP/1.0.)
 2) if we're in DONE or IDLE, and the other side is CLOSED.
 
-
-* If we switch to our own parser:
-
-Just always stop parsing at EndOfMessage. Either return any trailing data as part of the event, or else keep a public .unprocessed_data attribute that the user can pull out if they're throwing us away to switch to a new protocol.
-
-and get rid of upgrade entirely, that's the user's problem
-
-
-how would this look?
-
-at each moment we have the local state +
-
-expecting:
-- Request
-- InformationalResponse or Response
-- Data or EndOfMessage
-
-WAIT_FOR_100 carries the same parametrization as SENDING_BODY
-
-maybe WAIT_FOR_100 should be a separate bit, given that it doesn't actually block client progress... or even a server state? or yeah just a flag I guess.
-
-client state, server state, wait_for_100 flag
-
-to read a request:
-- read until crlf, then parse
-to read an (Informational)Response
-- read until crlf, then parse
-  - then read headers
-to read Data-or-EndOfMessage in HTTP10 mode:
-- read any data, or EOF
-to read Data-or-EndOfMessage in Content-Length mode:
-- read any data
-
-should merge states for client and server, and just have different transition tables
-
-in general need to pass in EOF and error out if can't consume it...
-there is one place where it's necessary (HTTP10 mode), some places it isn't an error (when connection is in CLOSED/IDLE/WAIT_FOR_REQUEST)
-
-
-encode: depends on message, state (for DATA)
-
-
-yield
-
-* thoroughly integrating the high-level state machine
-
-maybe it should know the framing -- SENDING_BODY should have body framing as part of it? (maybe even stash the bytes-remaining part of the content-length directly into the state, logically)
-state_metadata
-
-it should trigger socket close
-
-maybe move each event's parse and serialization logic next to each other in the same layer?
-
-* Error reporting
-
-should have a single HttpError that we raise consistently from all the low-level code
-and then at the top-level entry points we wrap everything in
-
-  with errors_are_misuse:
-
-or
-
-  with errors_are_peer:
-
-and that translates the HttpError into HttpUsageError versus HttpBrokenPeer
-
-and add thorough checking (sufficient for validating untrusted peer) into the Event constructors
-- e.g. require a Host header in HTTP/1.1 Request objects
-- validate Content-Length is numeric and Transfer-Encoding is chunked here and both occur at most once
-  (can't validate Content-Length + Transfer-Encoding override here though)
-  -- this will let us drastically simplify get_framing_headers
-validate that header names match the HTTP/1.1 'token' regex
-
-I guess the one tricky point is if users create Events directly -- so maybe the lowlevel code emits the usage error, and then we switch it to brokenpeer with a context manager around receive_data?
-
 * other notes
 
 XX FIXME: sendfile support?
   maybe switch data_to_send to returning an iterable of stuff-to-do, which
     could be a mix of bytes-likes, sendfile objects, and CloseSocket
   and Data could accept sendfile objects as a .data field
-
-XX FIXME: once we have the high-level state machine in place, using it to
-drive our own lowlevel parser might not be that hard... it already knows
-(better than libhttp_parser!) things like "next is a chunked-encoded body",
-and if we are allowed to buffer and have context then HTTP tokenization is
-pretty trivial I think? and everything above tokenization we are already
-handling. basically the primitive we need is length-bounded regexp matching:
-try to match regexp, if it fails then wait for more data to arrive in
-buffer, raise HttpParseError if the buffer is already longer than the max
-permitted length.
-
-XX FIXME: replace our RuntimeError's with some more specific "you are doing
-HTTP wrong" error like H2's ProtocolError. (As compared to HttpParseError,
-which is "your peer is doing HTTP wrong".)
-
-XX FIXME: might at that point make sense to split the client and server into
-two separate classes?
 
 headers to consider auto-supporting at the high-level:
 - Date: https://svn.tools.ietf.org/svn/wg/httpbis/specs/rfc7231.html#header.date
