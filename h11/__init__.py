@@ -9,5 +9,6 @@
 # This is all based on node.js's libhttp_parser code for the core HTTP
 # parsing, which is wrapped in _libhttp_parser.pyx
 
+from .util import ProtocolError, RemoteProtocolError
 from .events import *
 from .connection import *

@@ -1,5 +1,4 @@
-from .events import *
-from .util import bytesify
+from .util import ProtocolError, bytesify
 
 # Facts
 # -----
@@ -47,6 +46,30 @@ from .util import bytesify
 # occurs repeatedly. But, of course, they can't necessarily be spit by
 # .split(b","), because quoting.
 
+def normalize_and_validate(headers):
+    new_headers = []
+    saw_content_length = False
+    saw_transfer_encoding = False
+    for name, value in headers:
+        name = bytesify(name)
+        value = bytesify(value)
+        name_lower = name.lower()
+        if name_lower == b"content-encoding":
+            if saw_content_length:
+                raise ProtocolError("multiple Content-Length headers")
+            validate(_content_length_re, value, "bad Content-Length")
+            content_length_seen = True
+        if name_lower == b"transfer-encoding":
+            if saw_transfer_encoding:
+                raise ProtocolError(
+                    "multiple Transfer-Encoding headers")
+            if value.lower() != b"chunked":
+                raise ProtocolError(
+                    "Only Transfer-Encoding: chunked is supported")
+            transfer_encoding_count += 1
+        new_headers.append((name, value))
+    return new_headers
+
 def get_comma_header(headers, name, *, lowercase=True):
     # Should only be used for headers whose value is a list of comma-separated
     # values. Use lowercase=True for case-insensitive ones.
@@ -82,37 +105,30 @@ def get_comma_header(headers, name, *, lowercase=True):
     # "100-continue". Splitting on commas is harmless. But, must set
     # lowercase=False.
     #
+    out = []
     name = bytesify(name).lower()
     for found_name, found_raw_value in headers:
-        found_name = bytesify(found_name).lower()
+        found_name = found_name.lower()
         if found_name == name:
-            found_raw_value = bytesify(found_raw_value)
             if lowercase:
                 found_raw_value = found_raw_value.lower()
             for found_split_value in found_raw_value.split(b","):
                 found_split_value = found_split_value.strip()
                 if found_split_value:
-                    yield found_split_value
+                    out.append(found_split_value)
+    return out
 
+# XX FIXME: this in-place mutation bypasses the header validation code...
 def set_comma_header(headers, name, new_values):
-    name = bytesify(name).lower()
+    name = bytesify(name)
+    name_lower = name.lower()
     new_headers = []
     for found_name, found_raw_value in headers:
-        if bytesify(found_name).lower() != name:
+        if found_name.lower() != name_lower:
             new_headers.append((found_name, found_raw_value))
     for new_value in new_values:
         new_headers.append((name, new_value))
     headers[:] = new_headers
-
-################################################################
-#
-# Body framing (Transfer-Encoding and Content-Length)
-#
-# Detailed rules for interpreting these headers are here:
-#
-#     https://tools.ietf.org/html/rfc7230#section-3.3.3
-#
-################################################################
 
 def get_framing_headers(headers):
     # Returns:
@@ -121,53 +137,24 @@ def get_framing_headers(headers):
     #
     # At least one will always be None.
     #
-    # Transfer-Encoding beats Content-Length, so check Transfer-Encoding
-    # first.
+    # Transfer-Encoding beats Content-Length (see RFC 7230 sec. 3.3.3), so
+    # check Transfer-Encoding first.
+    #
+    # We assume that headers has already been through the validation in
+    # events.py, so no multiple headers, Content-Length actually is an
+    # integer, Transfer-Encoding is "chunked" or nothing, etc.
     transfer_encodings = _get_comma_header(headers, "Transfer-Encoding")
-    if transfer_encodings not in ([], [b"chunked"]):
-        raise RuntimeError(
-            "unsupported Transfer-Encodings {!r}".format(transfer_encodings))
     if transfer_encodings:
+        assert transfer_encodings == [b"chunked"]
         return b"chunked", None
 
     content_lengths = _get_comma_header(headers, "Content-Length")
-    if len(content_lengths) > 1:
-        raise RuntimeError(
-            "encountered multiple Content-Length headers")
     if content_lengths:
         return None, int(content_lengths[0])
     else:
         return None, None
 
-def request_has_body(request):
-    assert isinstance(request, Request)
-    # Requests by default don't have bodies; needs a Transfer-Encoding, or a
-    # non-zero Content-Length.
-    transfer_encoding, content_length = get_framing_headers(request.headers)
-    if transfer_encoding is not None:
-        return True
-    if content_length is not None and content_length > 0:
-        return True
-    return False
-
-def response_has_body(response, *, response_to):
-    assert isinstance(response, (InformationalResponse, Response))
-    assert isinstance(response_to, Request)
-    # Responses by default *do* have bodies, except if they meet some
-    # particular criteria, or have Content-Length: 0
-    if (response.status_code < 200
-        or response.status_code in (204, 304)
-        or response_to.method == b"HEAD"
-        or (response_to.method == b"CONNECT"
-            and 200 <= response.status_code < 300)):
-        return False
-    _, content_length = get_framing_headers(request.headers)
-    if content_length is not None and content_length == 0:
-        return False
-    return True
-
 def has_expect_100_continue(request):
-    assert isinstance(request, Request)
     # Expect: 100-continue is case *sensitive*
     expect = _get_comma_header(request.headers, "Expect", lowercase=False)
     return (b"100-continue" in expect)
@@ -177,15 +164,14 @@ def has_expect_100_continue(request):
 #   must close.
 # - HTTP/1.1 defaults to keep-alive unless someone says Connection: close
 # - HTTP/1.0 defaults to close unless both sides say Connection: keep-alive
-#   (and even this is a mess -- e.g. if you're proxy then this is illegal).
+#   (and even this is a mess -- e.g. if you're implementing a proxy then
+#   sending Connection: keep-alive is forbidden).
 #
 # We simplify life by simply not supporting keep-alive with HTTP/1.0 peers. So
 # our rule is:
 # - If someone says Connection: close, we will close
-# - If someone uses HTTP 1.0, we will close.
+# - If someone uses HTTP/1.0, we will close.
 def should_close(event):
-    # NB: InformationalResponse should not come through here
-    assert isinstance(event, (Request, Response))
     connection = _get_comma_header(event.headers, "Connection")
     if b"close" in connection:
         return True

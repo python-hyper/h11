@@ -1,16 +1,14 @@
-# High level events that we emit as our external interface for reading HTTP
-# streams, loosely inspired by the corresponding events in hyper-h2:
+# High level events that make up HTTP/1.1 conversations. Loosely inspired by
+# the corresponding events in hyper-h2:
+#
 #     http://python-hyper.org/h2/en/stable/api.html#events
+#
+# Don't subclass these. Stuff will break.
 
-# XX FIXME:
-# - standardize the optional stuff as being parse_metadata or something
-#   (peer_info? wire_info? pragma?)
-# - maybe if we get our own parser we can turn of the upgrade= field in
-#   EndOfMessage too and just have trailing_data unconditionally? leave
-#   upgrade to the higher level to figure out?
+import re
 
-from .util import bytesify
-from .headers import Headers
+from . import headers
+from .util import bytesify, ProtocolError, validate
 
 __all__ = [
     "Request",
@@ -18,39 +16,49 @@ __all__ = [
     "Response",
     "Data",
     "EndOfMessage",
+    "ConnectionClosed",
 ]
 
+
+_content_length_re = re.compile(rb"^[0-9]+$")
+
 class _EventBundle:
-    _required = []
-    _optional = []
+    _fields = []
+    _defaults = {}
 
     def __init__(self, **kwargs):
-        allowed = set(self._required + self._optional)
+        allowed = set(self._fields)
         for kwarg in kwargs:
             if kwarg not in allowed:
                 raise TypeError(
                     "unrecognized kwarg {} for {}"
                     .format(kwarg, self.__class__.__name__))
-        for field in self._required:
+        required = allowed.difference(self._defaults)
+        for field in required:
             if field not in kwargs:
                 raise TypeError(
                     "missing required kwarg {} for {}"
                     .format(kwarg, self.__class__.__name__))
+        self.__dict__.update(self._defaults)
         self.__dict__.update(kwargs)
 
         # Special handling for some fields
-        if "headers" in self.__dict__:
-            if not isinstance(headers, Headers):
-                self.headers = Headers(self.headers)
 
-        for field in ["method", "client_method", "url"]:
+        if "headers" in self.__dict__:
+            self.headers = headers.normalize_and_validate(self.headers)
+
+        for field in ["method", "target", "http_version"]:
             if field in self.__dict__:
                 self.__dict__[field] = bytesify(self.__dict__[field])
-                if b" " in self.__dict__[field]:
-                    raise ValueError(
-                        "HTTP url {!r} is invalid -- urls cannot contain "
-                        "spaces (see RFC 7230 sec. 3.1.1)"
-                        .format(path))
+
+        if "status_code" in self.__dict__:
+            if not isinstance(self.status_code, int):
+                raise ProtocolError("status code must be integer")
+
+        self._validate()
+
+    def _validate(self):
+        pass
 
     def __repr__(self):
         name = self.__class__.__name__
@@ -64,37 +72,55 @@ class _EventBundle:
         return (self.__class__ == other.__class__
                 and self.__dict__ == other.__dict__)
 
+
 class Request(_EventBundle):
-    _required = ["method", "url", "headers"]
-    _optional = ["http_version"]
+    _fields = ["method", "target", "headers", "http_version"]
+    _defaults = {"http_version": b"1.1"}
+
+    def _validate(self):
+        if self.http_version == b"1.1":
+            for name, value in self.headers:
+                if name.lower() == b"host":
+                    break
+            else:
+                raise ProtocolError("Missing mandatory Host: header")
+
 
 class _ResponseBase(_EventBundle):
-    _required = ["status_code", "headers"]
-    _optional = ["http_version"]
+    _fields = ["status_code", "headers", "http_version"]
+    _defaults = {"http_version": b"1.1"}
+
 
 class InformationalResponse(_ResponseBase):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def _validate(self):
         if not (100 <= self.status_code < 200):
-            raise ValueError(
+            raise ProtocolError(
                 "InformationalResponse status_code should be in range "
-                "[100, 200), but got {}"
+                "[100, 200), not {}"
                 .format(self.status_code))
+
 
 class Response(_ResponseBase):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        if not (200 <= self.status_code):
-            raise ValueError(
-                "Response status_code should be >= 200, but got {}"
+    def _validate(self):
+        if not (200 <= self.status_code < 600):
+            raise ProtocolError(
+                "Response status_code should be in range [200, 600), not {}"
                 .format(self.status_code))
 
+
 class Data(_EventBundle):
-    _required = ["data"]
+    _fields = ["data"]
+
 
 # XX FIXME: "A recipient MUST ignore (or consider as an error) any fields that
 # are forbidden to be sent in a trailer, since processing them as if they were
 # present in the header section might bypass external security filters."
 # https://svn.tools.ietf.org/svn/wg/httpbis/specs/rfc7230.html#chunked.trailer.part
-class EndOfMessage:
-    _optional = ["headers", "upgrade", "trailing_data"]
+# Unfortunately, the list of forbidden fields is long and vague :-/
+class EndOfMessage(_EventBundle):
+    _fields = ["headers"]
+    _defaults = {"headers": []}
+
+
+class ConnectionClosed(_EventBundle):
+    pass
