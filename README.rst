@@ -88,6 +88,12 @@ lines-of-code than the old parser wrapper, is pure Python, uses no
 exotic language syntax, and has more features. It's too bad really,
 that old state machine was really slick.)
 
+I don't know how fast it is. I haven't benchmarked or profiled it, so
+it's probably got some stupid hot spots. But I did try to avoid
+fundamentally bad decisions here, e.g., I believe that all the parsing
+algorithms are linear-time (even in the face of pathologies like
+slowloris) and there are no byte-by-byte loops.
+
 I worked hard to keep things simple. Currently it's ~700
 lines-of-code, and I'm annoyed that I haven't figured out how to make
 it simpler. You can easily read and understand the whole thing in less
