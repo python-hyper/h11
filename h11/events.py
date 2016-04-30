@@ -68,6 +68,8 @@ class _EventBundle:
         return (self.__class__ == other.__class__
                 and self.__dict__ == other.__dict__)
 
+    def __hash__(self):
+        return hash(self.__class__) ^ hash(tuple(self.items()))
 
 class Request(_EventBundle):
     _fields = ["method", "target", "headers", "http_version"]
