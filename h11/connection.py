@@ -97,21 +97,6 @@ def _clean_up_response_headers_for_sending(response, *, response_to):
 #
 ################################################################
 
-# Downstream users might have significant per-chunk overhead when sending
-# bytes (e.g. in an async framework where they have to call await for each
-# piece). And in the common case these are all bytes/bytearrays. So we
-# opportunistically attempt to merge pieces together before returning them.
-# XX FIXME: check if this is really an optimization...
-def _try_combine_bytes(pieces):
-    if len(pieces) < 2:
-        return pieces
-    for piece in pieces:
-        if not isinstance(piece, (bytes, bytearray)):
-            return pieces
-    else:
-        # All bytes/bytearray
-        return [b"".join(pieces)]
-
 class Connection:
     def __init__(self, *, client_side):
         self._client_side = client_side
@@ -127,9 +112,6 @@ class Connection:
         # current state
         self._writer = self._get_state_obj(self._us, WRITERS)
         self._reader = self._get_state_obj(self._them, READERS)
-        # Data that should be sent when possible
-        self._data_to_send = []
-        self._send_is_closed = False
         # Holds any unprocessed received data
         self._receive_buffer = ReceiveBuffer()
         self._receive_buffer_closed = False
@@ -261,24 +243,10 @@ class Connection:
         self._receive_buffer.compress()
         return events
 
-    def data_to_send(self):
-        "Returns an iterable over bytes-like objects or ConnectionClosed"
-        out = self._data_to_send
-        self._data_to_send = []
-        return _try_combine_bytes(out)
-
-    def _send(self, data):
-        # state machine shouldn't allow us to reach _send after going to
-        # CLOSED
-        assert not self._send_is_closed
-        if data is None:
-            self._send_is_closed = True
-        self._data_to_send.append(data)
-
-    def send(self, event):
+    def send(self, event, *, combine=True):
         if type(event) is Response:
             _clean_up_response_headers_for_sending(
-                event, response_to=self._cstate.request)
+                event, response_to=self._request)
         # We want to process the event locally before actually sending it, so
         # that if processing it throws an error then nothing happens. But
         # processing it may change self._writer. So we save self._writer now
@@ -287,6 +255,11 @@ class Connection:
         writer = self._writer
         self._process_event(self._us, event)
         if type(event) is ConnectionClosed:
-            self._send(None)
+            return None
         else:
-            writer(event, self._send)
+            data_list = []
+            writer(event, data_list.append)
+            if combine:
+                return b"".join(data_list)
+            else:
+                return data_list
