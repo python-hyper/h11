@@ -1,0 +1,8 @@
+digraph {
+  IDLE [label="IDLE\nstart state"]
+  IDLE -> SEND_BODY [label="Request event"]
+  SEND_BODY -> SEND_BODY [label="Data event"]
+  SEND_BODY -> DONE [label="EndOfMessage event"]
+
+  DONE -> IDLE [weight=0, label="reset()"]
+}

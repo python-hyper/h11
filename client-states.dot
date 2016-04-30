@@ -1,0 +1,15 @@
+digraph {
+  IDLE [label="IDLE\nstart state"]
+  IDLE -> SEND_BODY [label="Request event"]
+  SEND_BODY -> SEND_BODY [label="Data event"]
+  SEND_BODY -> DONE [label="EndOfMessage event"]
+
+  DONE -> CLOSED [label="ConnectionClosed event", weight=0]
+  MUST_CLOSE -> CLOSED [label="ConnectionClosed event", weight=0]
+  IDLE -> CLOSED [label="ConnectionClosed event", weight=0]
+
+  IDLE -> MUST_CLOSE [label="peer state is CLOSED", weight=0]
+  DONE -> MUST_CLOSE [label="(see text)"]
+
+  DONE -> IDLE [label="reset()", weight=0]
+}
