@@ -1,5 +1,20 @@
-* add client_waiting_for_100_continue
+* don't quite have upgrade/CONNECT stuff working right -- really do need to pause the reader exacty after the relevant event
+
+have a paused state, either "until-unpause" or "until-finished"
+emit some sort of Paused token if call receive_data while in paused state
+
+what if we read everything, it takes us to DONE, we pause, and then we get an EOF?
+maybe pause should only happen if there is pending data in the buffer?
+
 * add explicit reset step before things go back to IDLE
+
+* automagically sending CloseConnection() is a bit broken
+
+because there's no way for the user to know that some data has magically materialized in data_to_send()
+
+maybe instead we should have a MUST_CLOSE state that we transition to automagically, and cannot escape except to CLOSED. This would also work more symmetrically across the two sides.
+
+(these are state machines governing what a given side *sends*, so closed means "won't send any more")
 
 * Closure
 
