@@ -34,11 +34,19 @@ But if you want to do an orderly shutdown, then you should do
 and then wait for conn.data_to_send() to give you a None, at which point you
 can close the connection (clients) or call shutdown and wait (servers).
 
+^^ actually this makes no sense -- no reason to ever send ConnectionClosed(), because conn.data_to_send() is always fully up-to-date with no internal buffering. If there were internal buffering then nothing would work, because we have no way to signal that more data is available. So this is a fundamental guarantee of the API, which means that any time you could do send(ConnectionClosed()), you could also just close the connection. I guess the one exception would be if send() and data_to_send() were like, in different threads, so this was a communication channel between them... but Connection objects aren't even thread-safe.
+
 In addition, h11 will automatically issue a close in two cases.
 1) when the server reaches DONE, and the HTTP/1.1 spec says that
 we need to close after this request/response. (Basically: someone has
 Connection: close set, or is using HTTP/1.0.)
 2) if we're in DONE or IDLE, and the other side is CLOSED.
+^^ this also makes no sense -- if we spontaneously emit some data_to_send, then there's no way for the user to know this. So we can't do that.
+
+Instead, we should add a new state MUST_CLOSE, and the rules:
+
+1) when a party reaches DONE, and the HTTP/1.1 spec says that they must close, then they automagically go to the MUST_CLOSE state
+2) if either party is in DONE or IDLE and the other is in CLOSED, then the party that is not CLOSED automatically goes to the MUST_CLOSE state
 
 * other notes
 
