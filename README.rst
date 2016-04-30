@@ -17,9 +17,10 @@ with it involves:
 
 2) Writing some code that uses ``conn.data_to_send()`` and
    ``conn.receive_data()`` to shuffle bytes between the
-   ``h11.Connection`` and whatever your favorite socket library is
-   (could be synchronous, threaded, asynchronous, whatever -- h11
-   won't judge you).
+   ``h11.Connection`` and your favorite network API. That API could be
+   anything you want: synchronous, threaded, asynchronous, or your own
+   implementation of `RFC 6214 <https://tools.ietf.org/html/rfc6214>`_
+   -- h11 won't judge you.
 
 3) Then, sending and receiving high-level HTTP "events". (You send
    them with ``conn.send()``, and receive them as the return value
