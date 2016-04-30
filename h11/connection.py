@@ -10,6 +10,7 @@ from .events import *
 from .state import *
 from .headers import (
     get_comma_header, set_comma_header, get_framing_headers, should_close,
+    has_expect_100_continue,
 )
 from .receivebuffer import ReceiveBuffer
 from .reading import READERS
@@ -136,6 +137,8 @@ class Connection:
         # various places
         self._request = None
         self._response = None
+        # Public API
+        self.client_waiting_for_100_continue = False
 
     def _get_state_obj(self, party, obj_dict):
         state = self._cstate.state(party)
@@ -186,8 +189,14 @@ class Connection:
 
         if type(event) is Request:
             self._request = event
+
         if type(event) is Response:
             self._response = event
+
+        if type(event) is Request and has_expect_100_continue(event):
+                self.client_waiting_for_100_continue = True
+        if type(event) in (InformationalResponse, Response):
+            self.client_waiting_for_100_continue = False
 
         if self._us in changed:
             self._writer = self._get_state_obj(self._us, WRITERS)
