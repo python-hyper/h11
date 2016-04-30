@@ -9,7 +9,8 @@ digraph {
   IDLE -> CLOSED [label="ConnectionClosed event", weight=0]
 
   IDLE -> MUST_CLOSE [label="peer state is CLOSED", weight=0]
-  DONE -> MUST_CLOSE [label="(see text)"]
+  DONE -> MUST_CLOSE [label="peer state is CLOSED", weight=0]
+  DONE -> MUST_CLOSE [label="keep-alive disabled", weight=1]
 
   DONE -> IDLE [label="reset()", weight=0]
 }
