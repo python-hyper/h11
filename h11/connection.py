@@ -12,8 +12,8 @@ from .state import *
 from .util import ProtocolError
 from .state import ConnectionState
 from .headers import (
-    get_comma_header, set_comma_header, get_framing_headers,
-    has_expect_100_continue,
+    get_comma_header, set_comma_header,
+    framing_headers, has_expect_100_continue,
 )
 from .receivebuffer import ReceiveBuffer
 from .readers import READERS
@@ -61,7 +61,10 @@ def _response_allows_body(request_method, response):
         return True
 
 
-def _server_switched_protocol(request_method, event):
+# Detects if the server just switched the protocol. (The client can't switch
+# the protocol; the client can only request that the server switch the
+# protocol.)
+def _switched_protocol(request_method, event):
     if (type(event) is Response
         and request_method == b"CONNECT"
         and 200 <= event.status_code < 300):
@@ -173,7 +176,7 @@ class Connection:
             # Body is empty, no matter what the headers say (e.g. HEAD)
             return send_body_dict["content-length"](0)
         # Otherwise, trust the headers
-        (transfer_encoding, content_length) = get_framing_headers(event.headers)
+        (transfer_encoding, content_length) = framing_headers(event.headers)
         if transfer_encoding is not None:
             assert transfer_encoding == b"chunked"
             return send_body_dict["chunked"]()
@@ -190,8 +193,7 @@ class Connection:
     def _process_event(self, role, event):
         # First, pass the event through the state machine to make sure it
         # succeeds.
-        switched_protocol =_server_switched_protocol(self._request_method,
-                                                     event)
+        switched_protocol =_switched_protocol(self._request_method, event)
         old_states = dict(self._cstate.states)
         self._cstate.process_event(role, type(event), switched_protocol)
 
@@ -352,7 +354,7 @@ class Connection:
         headers = list(response.headers)
         need_close = False
 
-        _, effective_content_length = get_framing_headers(headers)
+        _, effective_content_length = framing_headers(headers)
         if (response_allows_body(self._request_method, response)
             and effective_content_length is None):
             # This response has a body of unknown length.

@@ -134,7 +134,7 @@ def set_comma_header(headers, name, new_values):
         new_headers.append((name, new_value))
     headers[:] = new_headers
 
-def get_framing_headers(headers):
+def framing_headers(headers):
     # Returns:
     #
     #   effective_transfer_encoding, effective_content_length

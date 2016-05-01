@@ -148,9 +148,9 @@ class ConnectionState:
                         self.states[r] = MUST_CLOSE
 
             # State-triggered transitions
-            old_states = (self.states[CLIENT], self.states[SERVER])
-            new_states = STATE_TRIGGERED_TRANSITIONS.get(old_states, old_states)
-            (self.states[CLIENT], self.states[SERVER]) = new_states
+            old = (self.states[CLIENT], self.states[SERVER])
+            new = STATE_TRIGGERED_TRANSITIONS.get(old, old)
+            (self.states[CLIENT], self.states[SERVER]) = new
 
             if self.states == start_states:
                 # Fixed point reached
