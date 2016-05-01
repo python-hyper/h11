@@ -119,23 +119,23 @@ class Connection:
         self.client_is_waiting_for_100_continue = False
 
     def state_of(self, role):
-        return self._cstate.state(role)
+        return self._cstate.states[role]
 
     @property
     def client_state(self):
-        return self._cstate.state(CLIENT)
+        return self._cstate.states[CLIENT]
 
     @property
     def server_state(self):
-        return self._cstate.state(SERVER)
+        return self._cstate.states[SERVER]
 
     @property
     def our_state(self):
-        return self._cstate.state(self.our_role)
+        return self._cstate.states[self.our_role]
 
     @property
     def their_state(self):
-        return self._cstate.state(self.their_role)
+        return self._cstate.states[self.their_role]
 
     @property
     def they_are_waiting_for_100_continue(self):
@@ -156,7 +156,7 @@ class Connection:
         assert not self._cstate.client_requested_protocol_switch
 
     def _get_io_object(self, role, event, io_dict):
-        state = self._cstate.state(role)
+        state = self._cstate.states[role]
         if state is SEND_BODY:
             # Special case: the io_dict has a dict of reader/writer factories
             # that depend on the request/response framing.
@@ -189,9 +189,8 @@ class Connection:
         # succeeds.
         switched_protocol =_server_switched_protocol(self._request_method,
                                                      event)
-        changed = self._cstate.process_event(role,
-                                             type(event),
-                                             switched_protocol)
+        old_states = dict(self._cstate.states)
+        self._cstate.process_event(role, type(event), switched_protocol)
 
         # Then perform the updates triggered by it.
 
@@ -224,9 +223,9 @@ class Connection:
             self.client_is_waiting_for_100_continue = False
 
         # Update reader/writer
-        if self.our_role in changed:
+        if self.our_state != old_states[self.our_role]:
             self._writer = self._get_io_object(self.our_role, event, WRITERS)
-        if self.their_role in changed:
+        if self.their_state != old_states[self.their_role]:
             print("their state changed to", self.their_state)
             self._reader = self._get_io_object(self.their_role, event, READERS)
             print("new reader is ", self._reader)
@@ -241,7 +240,6 @@ class Connection:
     #           available (useful iff we were in Paused state)
     # - data -> bytes-like of data received
     def receive_data(self, data):
-        print("Received {} new bytes".format(len(data)))
         if data is not None:
             if data:
                 self._receive_buffer += data
@@ -257,6 +255,8 @@ class Connection:
             # if we have data in our buffer, then we definitely aren't getting
             # a ConnectionClosed() immediately and we need to pause.
             if state is DONE and self._receive_buffer:
+                # The Paused pseudo-event doesn't go through the state
+                # machine, because it's purely a local signal.
                 events.append(Paused(reason="need-reset"))
                 break
             if state is MIGHT_SWITCH_PROTOCOL:

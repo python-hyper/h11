@@ -12,152 +12,149 @@ for token in sentinels:
 
 __all__ += sentinels
 
-# Convention:
+# Rule 1: everything that affects the state machine and state transitions must
+# live here in this file. As much as possible goes into the FSA
+# representation, but for the bits that don't quite fit, the actual code and
+# state must nonetheless live here.
 #
-# Both machines see all events (i.e., client machine sees both client and
-# server events, server machine sees both client and server events). But their
-# default handling of an event depends on whose event it is: if the client
-# machine sees a client event that it has no transition for, that's an
-# error. But if the client machine sees a server event that it has no
-# transition for, then that's ignored. And similarly for the server.
-class RoleMachine:
-    def __init__(self, role, initial_state, transitions):
-        self.role = role
-        self.state = initial_state
-        self.transitions = transitions
+# Rule 2: this file does not know about what role we're playing; it only knows
+# about HTTP request/response cycles in the abstract. This ensures that we
+# don't cheat and apply different rules to local and remote parties.
 
-    # Returns True if state changed
-    def process_event(self, event_type):
-        old_state = self.state
-        new_state = self.transitions[self.state].get(event_type)
-        if new_state is None:
-            raise ProtocolError(
-                "illegal event type {} for {} in state {}"
-                .format(event_type.__name__, self.role, self.state))
-        self.state = new_state
-        return (old_state is not new_state)
+EVENT_TRIGGERED_TRANSITIONS = {
+    CLIENT: {
+        IDLE: {
+            Request: SEND_BODY,
+            ConnectionClosed: CLOSED,
+        },
+        SEND_BODY: {
+            Data: SEND_BODY,
+            EndOfMessage: DONE,
+        },
+        DONE: {
+            ConnectionClosed: CLOSED,
+        },
+        MUST_CLOSE: {
+            ConnectionClosed: CLOSED,
+        },
+        CLOSED: {},
+        MIGHT_SWITCH_PROTOCOL: {},
+        SWITCHED_PROTOCOL: {},
+    },
 
-# Rule 1: everything that affects state and state transitions must live
-# here. As much as possible goes into the FSA representation, but for the bits
-# that don't quite fit, the actual code and state must nonetheless live here.
-#
-# Rule 2: this class does not know about what role we're playing; it only
-# knows about HTTP request/response cycles in the abstract. This ensures that
-# we don't cheat and apply different rules to local and remote parties.
+    SERVER: {
+        IDLE: {
+            InformationalResponse: SEND_RESPONSE,
+            Response: SEND_BODY,
+            ConnectionClosed: CLOSED,
+        },
+        SEND_RESPONSE: {
+            InformationalResponse: SEND_RESPONSE,
+            Response: SEND_BODY,
+        },
+        SEND_BODY: {
+            Data: SEND_BODY,
+            EndOfMessage: DONE,
+        },
+        DONE: {
+            ConnectionClosed: CLOSED,
+        },
+        MUST_CLOSE: {
+            ConnectionClosed: CLOSED,
+        },
+        CLOSED: {},
+        SWITCHED_PROTOCOL: {},
+    },
+}
+
+# NB: there are also some special-case state-triggered transitions hard-coded
+# into _fire_state_triggered_transitions below.
+STATE_TRIGGERED_TRANSITIONS = {
+    # (Client state, Server state) -> (new Client state, new Server state)
+    (MIGHT_SWITCH_PROTOCOL, SWITCHED_PROTOCOL):
+        (SWITCHED_PROTOCOL, SWITCHED_PROTOCOL),
+    (MIGHT_SWITCH_PROTOCOL, SEND_BODY): (DONE, SEND_BODY),
+    (CLOSED, DONE): (CLOSED, MUST_CLOSE),
+    (CLOSED, IDLE): (CLOSED, MUST_CLOSE),
+    (DONE, CLOSED): (MUST_CLOSE, CLOSED),
+    (IDLE, CLOSED): (MUST_CLOSE, CLOSED),
+}
+
 class ConnectionState:
     def __init__(self):
         # Extra bits of state that don't quite fit into the state model.
 
         # If this is False then it enables the automatic DONE -> MUST_CLOSE
-        # transition. The only place this can change is when seeing a Request
-        # or a Response (so in IDLE or SEND_RESPONSE), so changes in it can
-        # never trigger a state transition -- we only need to check for it
-        # when entering DONE.
+        # transition. The only place this setting can change is when seeing a
+        # Request or a Response (so in IDLE or SEND_RESPONSE), so changes in
+        # it can never trigger a state transition -- we only need to check for
+        # it when entering DONE.
         self.keep_alive = True
 
         # If this is True, then it enables the automatic DONE ->
-        # MIGHT_SWITCH_PROTOCOL transition for the client only. The only
-        # place this can change is when seeing a Request, so the client cannot
-        # already be in DONE when it is set.
+        # MIGHT_SWITCH_PROTOCOL transition for the client only. The only place
+        # this setting can change is when seeing a Request, so the client
+        # cannot already be in DONE when it is set.
         self.client_requested_protocol_switch = False
 
-        # The state machines
-        self._machines = {
-            CLIENT: RoleMachine(
-                role=CLIENT,
-                initial_state=IDLE,
-                transitions={
-                    IDLE: {
-                        Request: SEND_BODY,
-                        ConnectionClosed: CLOSED,
-                    },
-                    SEND_BODY: {
-                        Data: SEND_BODY,
-                        EndOfMessage: DONE,
-                    },
-                    DONE: {
-                        ConnectionClosed: CLOSED,
-                    },
-                    MUST_CLOSE: {
-                        ConnectionClosed: CLOSED,
-                    },
-                    CLOSED: {},
-                }),
-            SERVER: RoleMachine(
-                role=SERVER,
-                initial_state=IDLE,
-                transitions={
-                    IDLE: {
-                        InformationalResponse: SEND_RESPONSE,
-                        Response: SEND_BODY,
-                        ConnectionClosed: CLOSED,
-                    },
-                    SEND_RESPONSE: {
-                        InformationalResponse: SEND_RESPONSE,
-                        Response: SEND_BODY,
-                    },
-                    SEND_BODY: {
-                        Data: SEND_BODY,
-                        EndOfMessage: DONE,
-                    },
-                    DONE: {
-                        ConnectionClosed: CLOSED,
-                    },
-                    MUST_CLOSE: {
-                        ConnectionClosed: CLOSED,
-                    },
-                    CLOSED: {},
-                }),
-        }
+        self.states = {CLIENT: IDLE, SERVER: IDLE}
 
-    def state(self, role):
-        return self._machines[role].state
-
-    # Returns set of parties who entered a new state
     def process_event(self, role, event_type, server_switched_protocol):
-        state_changes = set()
-        machine = self._machines[role]
+        # Handle event-triggered transitions
+        state = self.states[role]
+        try:
+            new_state = EVENT_TRIGGERED_TRANSITIONS[role][state][event_type]
+        except KeyError:
+            raise ProtocolError(
+                "can't handle event type {} for {} in state {}"
+                .format(event_type.__name__, role, self.states[role]))
+        self.states[role] = new_state
 
-        if machine.process_event(event_type):
-            state_changes.add(role)
+        self._fire_state_triggered_transitions(server_switched_protocol)
 
-        if server_switched_protocol:
-            assert role is SERVER
-            assert machine.state in (SEND_RESPONSE, SEND_BODY)
-            machine.state = SWITCHED_PROTOCOL
-            state_changes.add(role)
+    def _fire_state_triggered_transitions(self, server_switched_protocol):
+        # We apply these rules repeatedly until converging on a fixed point
+        while True:
+            start_states = dict(self.states)
 
-        if state_changes:
-            # Check for state-based transitions
-            if self.state(CLIENT) is MIGHT_SWITCH_PROTOCOL:
-                server_state = self.state(SERVER)
+            # Special cases that don't fit into the FSA formalism
 
-                if server_state is SWITCHED_PROTOCOL:
-                    self._machines[CLIENT].state = SWITCHED_PROTOCOL
-                    state_changes.add(CLIENT)
+            if server_switched_protocol:
+                assert role is SERVER
+                assert self.states[SERVER] in (SEND_RESPONSE, SEND_BODY)
+                self.states[SERVER] = SWITCHED_PROTOCOL
 
-                # This can put us in DONE, so it should come before the checks
-                # below that can trigger on DONE
-                if server_state is SEND_BODY:
-                    self._machines[CLIENT].state = DONE
-                    state_changes.add(CLIENT)
+            # It could happen that both these special-case transitions are
+            # enabled at the same time:
+            #
+            #    DONE -> MIGHT_SWITCH_PROTOCOL
+            #    DONE -> MUST_CLOSE
+            #
+            # For example, this will always be true of a HTTP/1.0 client
+            # requesting CONNECT.  If this happens, the protocol switch takes
+            # priority. From there the client will either go to
+            # SWITCHED_PROTOCOL, in which case it's none of our business when
+            # they close the connection, or else the server will deny the
+            # request, in which case the client will go back to DONE and then
+            # from there to MUST_CLOSE.
 
-            if (role is CLIENT and machine.state is DONE
-                and self.client_requested_protocol_switch):
-                machine.state = MIGHT_SWITCH_PROTOCOL
-                self.client_requested_protocol_switch = False
+            if self.client_requested_protocol_switch:
+                if self.states[CLIENT] is DONE:
+                    self.states[CLIENT] = MIGHT_SWITCH_PROTOCOL
 
-            if machine.state is DONE and not self.keep_alive:
-                machine.state = MUST_CLOSE
+            if not self.keep_alive:
+                for r in (CLIENT, SERVER):
+                    if self.states[r] is DONE:
+                        self.states[r] = MUST_CLOSE
 
-            # If at any point, one peer is DONE or IDLE and the other is CLOSED,
-            # then the DONE/IDLE peer goes to MUST_CLOSE
-            for a, b in [(CLIENT, SERVER), (SERVER, CLIENT)]:
-                if self.state(a) is CLOSED and self.state(b) in (DONE, IDLE):
-                    self._machines[b].state = MUST_CLOSE
-                    state_changes.add(b)
+            # State-triggered transitions
+            old_states = (self.states[CLIENT], self.states[SERVER])
+            new_states = STATE_TRIGGERED_TRANSITIONS.get(old_states, old_states)
+            (self.states[CLIENT], self.states[SERVER]) = new_states
 
-        return state_changes
+            if self.states == start_states:
+                # Fixed point reached
+                return
 
     @property
     def can_reuse(self):
@@ -178,3 +175,5 @@ class ConnectionState:
         for machine in self._machines.values():
             assert machine.state is DONE
             machine.state = IDLE
+        assert self.keep_alive
+        assert not self.client_requested_protocol_switch
