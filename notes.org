@@ -1,3 +1,43 @@
+todo:
+- [X] _get_state_obj needs major changes
+- [X] _clean_up_response_headers_for_sending ditto
+- [X] get rid of data_to_send
+- [ ] add/fix pause handling
+  - esp. for pipelining, + reset... maybe reset API should be shared with the Upgrade thing?
+- [ ] add support for detecting and pausing on Upgrade: ... and CONNECT or CONNECT response
+  - specifically:
+    - request CONNECT
+    - 2xx response to CONNECT
+      - this begins immediately after the headers -- 2xx response to CONNECT cannot have a body
+    - request with Upgrade: ... (but *not* response with Upgrade, that's just a hint saying 'btw you might try this next time)
+    - response with 101 Switching Protocols
+    - a server MUST ignore an Upgrade header field that is received in an HTTP/1.0 request
+    - you have to finish reading the Request before the upgrade takes effect ("A client cannot begin using an upgraded protocol on the connection until it has completely sent the request message")
+    - "If a server receives both an Upgrade and an Expect header field with the "100-continue" expectation (Section 5.1.1 of [RFC7231]), the server MUST send a 100 (Continue) response before sending a 101 (Switching Protocols) response."
+
+XX since it's legal to send a 400 Bad Request without successfully receiving a Request, the current state machine is wrong, and the server should just start out in SEND_RESPONSE or the equivalent. And once we do this, we can rip out a lot of machinery from the state machine, since this is the last bit of cross-party dependency.
+
+XX TODO:
+   A server MUST NOT send a Transfer-Encoding header field in any
+   response with a status code of 1xx (Informational) or 204 (No
+   Content).  A server MUST NOT send a Transfer-Encoding header field in
+   any 2xx (Successful) response to a CONNECT request (Section 4.3.6 of
+   [RFC7231]).
+
+   A server MUST NOT send a Content-Length header field in any response
+   with a status code of 1xx (Informational) or 204 (No Content).  A
+   server MUST NOT send a Content-Length header field in any 2xx
+   (Successful) response to a CONNECT request (Section 4.3.6 of
+   [RFC7231]).
+
+* should we drop data_to_send and just have send() return the data to send? is there any point in the current buffering charade?
+
+this would make the actual guarantees much clearer -- we can't stash data into the buffer behind your back, you don't have to worry about it, when the data arrives and where it goes is totally under your control.
+
+YES
+it can have a combine_data=True -> returns bytes
+False -> returns iterable of pieces
+
 * don't quite have upgrade/CONNECT stuff working right -- really do need to pause the reader exacty after the relevant event
 
 have a paused state, either "until-unpause" or "until-finished"
@@ -5,6 +45,8 @@ emit some sort of Paused token if call receive_data while in paused state
 
 what if we read everything, it takes us to DONE, we pause, and then we get an EOF?
 maybe pause should only happen if there is pending data in the buffer?
+
+should the Paused token contain the trailing data?
 
 * add explicit reset step before things go back to IDLE
 

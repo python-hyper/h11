@@ -92,15 +92,12 @@ class Http10Writer(BodyWriter):
         # no need to close the socket ourselves, that will be taken care of by
         # Connection: close machinery
 
-BODY_WRITERS = {
-    "chunked": ChunkedWriter,
-    "content-length": ContentLengthWriter,
-    "http/1.0": Http10Writer,
-}
-
 WRITERS = {
     (CLIENT, IDLE): write_request,
     (SERVER, SEND_RESPONSE): write_any_response,
-    (CLIENT, SEND_BODY): BODY_WRITERS,
-    (SERVER, SEND_BODY): BODY_WRITERS,
+    SEND_BODY: {
+        "chunked": ChunkedWriter,
+        "content-length": ContentLengthWriter,
+        "http/1.0": Http10Writer,
+    },
 }

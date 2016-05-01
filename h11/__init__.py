@@ -17,5 +17,7 @@ __all__ = ["ProtocolError", "Connection",
            # Event types
            "Request", "InformationalResponse", "Response",
            "Data", "EndOfMessage", "ConnectionClosed",
-           # Party states
+           # Peer role identifiers
+           "CLIENT", "SERVER",
+           # Peer states
            "IDLE", "SEND_RESPONSE", "SEND_BODY", "DONE", "CLOSED"]

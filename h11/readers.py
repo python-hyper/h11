@@ -222,15 +222,12 @@ class ChunkedReader:
             self._bytes_in_chunk -= len(data)
             return Data(data=data)
 
-BODY_READERS = {
-    "chunked": ChunkedReader,
-    "content-length": ContentLengthReader,
-    "http/1.0": Http10Reader,
-}
-
 READERS = {
     (CLIENT, IDLE): maybe_read_from_IDLE_client,
     (SERVER, SEND_RESPONSE): maybe_read_from_SEND_RESPONSE_server,
-    (CLIENT, SEND_BODY): BODY_READERS,
-    (SERVER, SEND_BODY): BODY_READERS,
+    SEND_BODY: {
+        "chunked": ChunkedReader,
+        "content-length": ContentLengthReader,
+        "http/1.0": Http10Reader,
+    },
 }

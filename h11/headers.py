@@ -16,15 +16,7 @@ from .util import ProtocolError, bytesify, validate
 # octets in field content (obs-text) as opaque data."
 # And it deprecates all non-ascii values
 #
-# "A server MUST reject any received request message that contains whitespace
-# between a header field-name and colon with a response code of 400 (Bad
-# Request). A proxy MUST remove any such whitespace from a response message
-# before forwarding the message downstream."
-# libhttp_parser doesn't care though, if you give it
-#   b"Hello : there\r\n"
-# you get back {"b"Hello ": b"there"}
-# (i.e. it strips the whitespace around the value, but not around the field
-# name)
+# Leading/trailing whitespace in header names is forbidden
 #
 # Values get leading/trailing whitespace stripped
 #
@@ -35,7 +27,6 @@ from .util import ProtocolError, bytesify, validate
 # Order is important:
 # "a proxy MUST NOT change the order of these field values when forwarding a
 # message."
-# Sigh.
 #
 # Multiple occurences of the same header:
 # "A sender MUST NOT generate multiple header fields with the same field name
@@ -44,7 +35,7 @@ from .util import ProtocolError, bytesify, validate
 # special exception]" - RFC 7230. (cookies are in RFC 6265)
 #
 # So every header aside from Set-Cookie can be merged by b", ".join if it
-# occurs repeatedly. But, of course, they can't necessarily be spit by
+# occurs repeatedly. But, of course, they can't necessarily be split by
 # .split(b","), because quoting.
 
 _content_length_re = re.compile(rb"^[0-9]+$")
@@ -57,6 +48,16 @@ def normalize_and_validate(headers):
         name = bytesify(name)
         value = bytesify(value)
         name_lower = name.lower()
+        # "No whitespace is allowed between the header field-name and colon.
+        # In the past, differences in the handling of such whitespace have led
+        # to security vulnerabilities in request routing and response
+        # handling.  A server MUST reject any received request message that
+        # contains whitespace between a header field-name and colon with a
+        # response code of 400 (Bad Request).  A proxy MUST remove any such
+        # whitespace from a response message before forwarding the message
+        # downstream." -- https://tools.ietf.org/html/rfc7230#section-3.2.4
+        if name.strip() != name:
+            raise ProtocolError("Illegal header name {}".format(name))
         if name_lower == b"content-length":
             if saw_content_length:
                 raise ProtocolError("multiple Content-Length headers")
@@ -161,23 +162,3 @@ def has_expect_100_continue(request):
     # Expect: 100-continue is case *sensitive*
     expect = get_comma_header(request.headers, "Expect", lowercase=False)
     return (b"100-continue" in expect)
-
-# RFC 7230's rules for connection lifecycles:
-# - If either side says they want to close the connection, then the connection
-#   must close.
-# - HTTP/1.1 defaults to keep-alive unless someone says Connection: close
-# - HTTP/1.0 defaults to close unless both sides say Connection: keep-alive
-#   (and even this is a mess -- e.g. if you're implementing a proxy then
-#   sending Connection: keep-alive is forbidden).
-#
-# We simplify life by simply not supporting keep-alive with HTTP/1.0 peers. So
-# our rule is:
-# - If someone says Connection: close, we will close
-# - If someone uses HTTP/1.0, we will close.
-def should_close(event):
-    connection = get_comma_header(event.headers, "Connection")
-    if b"close" in connection:
-        return True
-    if getattr(event, "http_version", b"1.1") < b"1.1":
-        return True
-    return False
