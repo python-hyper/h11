@@ -227,7 +227,7 @@ class Connection:
         if self.our_role in changed:
             self._writer = self._get_io_object(self.our_role, event, WRITERS)
         if self.their_role in changed:
-            print("their state changed")
+            print("their state changed to", self.their_state)
             self._reader = self._get_io_object(self.their_role, event, READERS)
             print("new reader is ", self._reader)
 
@@ -241,6 +241,7 @@ class Connection:
     #           available (useful iff we were in Paused state)
     # - data -> bytes-like of data received
     def receive_data(self, data):
+        print("Received {} new bytes".format(len(data)))
         if data is not None:
             if data:
                 self._receive_buffer += data
@@ -250,6 +251,7 @@ class Connection:
         events = []
         while True:
             state = self.their_state
+            print("Looping in state", state)
             # We don't pause immediately when they enter DONE, because even in
             # DONE state we can still process a ConnectionClosed() event. But
             # if we have data in our buffer, then we definitely aren't getting
@@ -264,7 +266,16 @@ class Connection:
                 events.append(Paused(reason="switched-protocol"))
                 break
             if not self._receive_buffer and self._receive_buffer_closed:
-                event = ConnectionClosed()
+                print("processing close")
+                if hasattr(self._reader, "read_eof"):
+                    print("{!r} has read_eof".format(self._reader))
+                    event = self._reader.read_eof()
+                    print("read_eof() returned", event)
+                elif state is CLOSED:
+                    break
+                else:
+                    print("{!r} does NOT have read_eof".format(self._reader))
+                    event = ConnectionClosed()
             else:
                 if self._reader is None:
                     if self._receive_buffer:
@@ -276,19 +287,21 @@ class Connection:
                         # problem, nothing to do, perhaps they'll close it in
                         # a moment.
                         break
+                print("calling reader", self._reader)
                 event = self._reader(self._receive_buffer)
-                if event is None:
-                    if len(self._receive_buffer) > HTTP_MAX_BUFFER_SIZE:
-                        # 414 is "Request-URI Too Long" which is not quite
-                        # accurate because we'll also issue this if someone
-                        # tries to send e.g. a megabyte of headers, but
-                        # whatever.
-                        raise ProtocolError("Receive buffer too long",
-                                            error_status_hint=414)
-                    break
+                print("it returned:", event)
+            if event is None:
+                if len(self._receive_buffer) > HTTP_MAX_BUFFER_SIZE:
+                    # 414 is "Request-URI Too Long" which is not quite
+                    # accurate because we'll also issue this if someone tries
+                    # to send e.g. a megabyte of headers, but whatever.
+                    raise ProtocolError("Receive buffer too long",
+                                        error_status_hint=414)
+                break
             self._process_event(self.their_role, event)
             events.append(event)
         self._receive_buffer.compress()
+        print("Returning {} new events".format(len(events)))
         return events
 
     def send(self, event, *, combine=True):
