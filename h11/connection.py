@@ -173,15 +173,17 @@ class Connection:
             return send_body_dict["content-length"](0)
         # Otherwise, trust the headers
         (transfer_encoding, content_length) = get_framing_headers(event.headers)
-        if transfer_encoding:
+        if transfer_encoding is not None:
             assert transfer_encoding == b"chunked"
             return send_body_dict["chunked"]()
-        if content_length:
+        elif content_length is not None:
             return send_body_dict["content-length"](content_length)
-        if type(event) is Response:
-            return send_body_dict["http/1.0"]()
         else:
-            return send_body_dict["content-length"](0)
+            # no framing headers provided
+            if type(event) is Response:
+                return send_body_dict["http/1.0"]()
+            else:
+                return send_body_dict["content-length"](0)
 
     # All events and state machine updates go through here.
     def _process_event(self, role, event):
