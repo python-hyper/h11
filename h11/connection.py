@@ -300,6 +300,8 @@ class Connection:
                 break
             self._process_event(self.their_role, event)
             events.append(event)
+            if type(event) is ConnectionClosed:
+                break
         self._receive_buffer.compress()
         print("Returning {} new events".format(len(events)))
         return events
