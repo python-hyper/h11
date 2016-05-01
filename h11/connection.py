@@ -166,6 +166,7 @@ class Connection:
             # for this state
             return io_dict.get((role, state))
 
+    # XX this is still pretty messy
     def _get_send_body_object(self, role, event, send_body_dict):
         if (type(event) is Response
             and not _response_allows_body(self._request_method, event)):
@@ -241,6 +242,7 @@ class Connection:
     # - None -> no new data, just check for whether any events have become
     #           available (useful iff we were in Paused state)
     # - data -> bytes-like of data received
+    # XX this method is a tangled bramble
     def receive_data(self, data):
         if data is not None:
             if data:
