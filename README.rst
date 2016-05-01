@@ -1,6 +1,6 @@
-[please don't look at this it doesn't have tests yet. the code is
-there but it doesn't actually work. i feel like you just caught me
-without my clothes on.]
+[how did you find this repo? please don't look at this it doesn't have
+tests yet. the code is there but it probably doesn't work. i feel like
+you just caught me without my clothes on. please come back next week.]
 
 h11
 ===
@@ -115,10 +115,13 @@ avoid fundamentally bad decisions, e.g., I believe that all the
 parsing algorithms remain linear-time even in the face of pathological
 input like slowloris, and there are no byte-by-byte loops.
 
-Most of the energy invested in this so far has been spent on trying to
-keep things simple. Currently it's <800 lines-of-code, and I'm annoyed
-that I haven't figured out how to make it simpler. You can easily read
-and understand the whole thing in less than an hour.
+Currently the whole library is ~800 lines-of-code. You can easily read
+and understand the whole thing in less than an hour.  Most of the
+energy invested in this so far has been spent on trying to keep things
+simple by minimizing special-cases and ad hoc state manipulation; even
+though it is now quite small and simple, I'm still annoyed that I
+haven't figured out how to make it even smaller and
+simpler. (Unfortunately, HTTP does not lend itself to simplicity.)
 
 *How do I try it?*
 
@@ -138,13 +141,14 @@ MIT
 Some technical minutia for HTTP nerds
 -------------------------------------
 
-Of the headers defined in RFC 7230, the ones h11 knows and cares about
-are: ``Connection:``, ``Transfer-Encoding:``, ``Content-Length:``,
-``Host:``, ``Upgrade:``, and ``Expect:`` (which is really from `RFC
-7231 <https://tools.ietf.org/html/rfc7231#section-5.1.1>`_ but
+Of the headers defined in RFC 7230, the ones h11 knows and has some
+special-case logic to care about are: ``Connection:``,
+``Transfer-Encoding:``, ``Content-Length:``, ``Host:``, ``Upgrade:``,
+and ``Expect:`` (which is really from `RFC 7231
+<https://tools.ietf.org/html/rfc7231#section-5.1.1>`_ but
 whatever). The other headers in RFC 7230 are ``TE:``, ``Trailer:``,
-and ``Via:``; h11 supports these in the sense that it ignores them and
-there's really nothing else for it to do.
+and ``Via:``; h11 also supports these in the sense that it ignores
+them and that's really all it should be doing.
 
 Transfer-Encoding support: we only know ``chunked``, not ``gzip`` or
 ``deflate``. We're in good company in this: node.js at least doesn't
@@ -152,17 +156,14 @@ handle anything besides ``chunked`` either. So I'm not too worried
 about this being a problem in practice. But I'm not majorly opposed to
 adding support for more features here either.
 
-This is all the headers defined in RFC 7230 except for:
-``TE`` (irrelevant because we don't support any ``Transfer-Encoding``
-besides ``chunked``), ``Trailer`` (nothing for us to do)
-
 Protocol changing/upgrading: h11 has has full support for
 transitioning to a new protocol, via either Upgrade: headers (e.g.,
 ``Upgrade: websocket``) or the ``CONNECT`` method. Note that this
-*doesn't* mean that h11 actually implements the WebSocket protocol --
-though a no-I/O h2-style WebSocket implementation would indeed be
-pretty sweet, someone should do that. It just means that h11 has the
-hooks needed to let you implement hand-off to a different protocol.
+*doesn't* mean that h11 actually *implements* the WebSocket protocol
+-- though a no-I/O h2-style WebSocket implementation would indeed be
+pretty sweet, someone should definitely implement that. It just means
+that h11 has the hooks needed to let you implement hand-off to a
+different protocol.
 
 Currently we implement support for "obsolete line folding" when
 reading HTTP headers. This is an optional part of the spec --
@@ -170,21 +171,22 @@ conforming HTTP/1.1 implementations MUST NOT send continuation lines,
 and conforming HTTP/1.1 servers MAY send 400 Bad Request responses
 back at clients who do send them (`ref
 <https://tools.ietf.org/html/rfc7230#section-3.2.4>`_). I'm tempted to
-remove it, though, since it adds some complicated and ugly code right
-at the center of the request/response parsing loop, and I'm not sure
-whether anyone actually needs it. Unfortunately a few major
-implementations that I spot-checked (node.js, go) do still seem to
-support it, so it's not clear.
+remove it, since it adds some complicated and ugly code right at the
+center of the request/response parsing loop, and I'm not sure whether
+anyone actually needs it. Unfortunately a few major implementations
+that I spot-checked (node.js, go) do still seem to support it, so it
+might or might not be obsolete in practice -- it's hard to know.
 
 Cute trick: we also support ``sendfile``. Or at least, we give you the
 tools you need to support ``sendfile``. Specifically, the payload of a
 ``Data`` event can be any object that has a ``__len__``, and we'll
-pass it back out unchanged. So this is useful for e.g. if you want to
-use ``os.sendfile`` to send some data: pass in a placeholder object
-like ``conn.send(Data(data=placeholder), combine=False)`` and you'll
-get back a list of things-to-send, which will be a mixture
-``bytes``-like objects containing any framing stuff + your original
-object. Then your write loop can be like::
+pass it back out unchanged at the appropriate place in the output
+stream. So this is useful for e.g. if you want to use ``os.sendfile``
+to send some data: pass in a placeholder object like
+``conn.send(Data(data=placeholder), combine=False)`` and you'll get
+back a list of things-to-send, which will be a mixture ``bytes``-like
+objects containing any framing stuff + your original object. Then your
+write loop can be like::
 
     for piece in data_pieces:
         if isinstance(piece, FilePlaceholder):
@@ -198,25 +200,28 @@ Connection lifecycle
 
 We fully support HTTP/1.1 keep-alive.
 
-We a little bit of support for HTTP/1.1 pipelining -- basically the
-minimum that's required by the standard, i.e., in server mode we can
+We have a little bit of support for HTTP/1.1 pipelining -- basically
+the minimum that's required by the standard. In server mode we can
 handle pipelined requests in a serial manner, responding completely to
-each request before reading the next. Client mode doesn't support
-pipelining at all. As far as I can tell, this matches the state of the
-art in all the major HTTP implementations: the consensus seems to be
-that HTTP/1.1 pipelining was a nice try but unworkable in practice,
-and if you really need pipelining to work then instead of trying to
-fix HTTP/1.1 you should switch to HTTP/2.0. Now that I know more about
-how HTTP works internally I'm inclined to agree.
+each request before reading the next (and our API is designed to make
+it easy for servers to keep this straight). Client mode doesn't
+support pipelining at all. As far as I can tell, this matches the
+state of the art in all the major HTTP implementations: the consensus
+seems to be that HTTP/1.1 pipelining was a nice try but unworkable in
+practice, and if you really need pipelining to work then instead of
+trying to fix HTTP/1.1 you should switch to HTTP/2.0. (Now that I know
+more about how HTTP works internally I'm inclined to agree.)
 
 The HTTP/1.0 Connection: keep-alive pseudo-standard is currently not
 supported. (Note that this only affects h11 as a server, because h11
 as a client always speaks HTTP/1.1.) Supporting this would be
 possible, but it's fragile and finicky and I'm suspicious that if we
 leave it out then no-one will notice or care. HTTP/1.1 is now almost
-old enough to vote in the United States. I get that people sometimes
-write HTTP/1.0 clients because they don't want to deal with annoying
-stuff like chunked encoding, and I completely sympathize with that,
-but I'm guessing that you're not going to find too many people these
-days who care desperately about keep-alive *and at the same time* are
-too lazy to implement Transfer-Encoding: chunked.
+old enough to vote in United States elections. I get that people
+sometimes write HTTP/1.0 clients because they don't want to deal with
+annoying stuff like chunked encoding, and I completely sympathize with
+that, but I'm guessing that you're not going to find too many people
+these days who care desperately about keep-alive *and at the same
+time* are too lazy to implement Transfer-Encoding: chunked. Still,
+this would be my bet as to the missing feature that people are most
+likely to eventually complain about...
