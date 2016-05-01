@@ -9,8 +9,11 @@ inspired by `hyper-h2 <https://lukasa.co.uk/2015/10/The_New_Hyper/>`_.
 
 This is a pure protocol library; like h2, it contains no IO code
 whatsoever. (I highly recommend `that blog post for context on what
-this means <https://lukasa.co.uk/2015/10/The_New_Hyper/>`_.) Working
-with it involves:
+this means and the motivation for doing things this way
+<https://lukasa.co.uk/2015/10/The_New_Hyper/>`_.) This is a toolkit
+for building tools that speak HTTP; it's not something that out of the
+box is going to replace ``requests`` or ``twisted.web`` or
+whatever. Working with it involves:
 
 1) Creating an ``h11.Connection`` object to track the state of a
    single HTTP/1.1 connection.
@@ -55,11 +58,13 @@ HTTP stack from scratch.
 Also I wanted to play with `Curio
 <https://curio.readthedocs.io/en/latest/tutorial.html>`_, which has no
 HTTP library, and I was feeling inspired by Curio's elegantly
-featureful minimalism and h2's elegant architecture.
+featureful minimalism and Corey's call-to-arms.
 
 Also, perhaps most importantly, I was sick and needed a gloriously
 pointless yak-shaving project to distract me from all the things I
-should have been doing instead.
+should have been doing instead. Perhaps it won't turn out to be quite
+as pointless as all that, but either way at least I learned some
+stuff.
 
 *Should I use it?*
 
@@ -77,37 +82,41 @@ solid implementation of the first "chapter" of the HTTP/1.1 spec: `RFC
 <https://tools.ietf.org/html/rfc7230>`_. That is, it mostly focuses on
 implementing HTTP at the level of taking bytes on and off the wire,
 and the headers related to that, and tries to be anal about spec
-conformance. It doesn't know about conditional GETs, range requests,
-content negotiation, or URL routing. But it does know how to take care
-of framing and cross-version differences in keep-alive handling and
-the "obsolete line folding" rule, so you can focus on that other
-stuff. (Specifically, the headers it knows about are: ``Connection:``,
-``Transfer-Encoding:``, ``Content-Length:``, and ``Expect:`` (which is
-really from `RFC 7231
-<https://tools.ietf.org/html/rfc7231#section-5.1.1>`_ but whatever).
+conformance. It doesn't know about URL routing, conditional GETs,
+cross-origin cookie policies, or content negotiation. But it does know
+how to take care of framing, cross-version differences in keep-alive
+handling, and the "obsolete line folding" rule, so you can focus your
+energies on the hard / interesting parts for your
+application. (Specifically, the headers it knows about are:
+``Connection:``, ``Transfer-Encoding:``, ``Content-Length:``, and
+``Expect:`` (which is really from `RFC 7231
+<https://tools.ietf.org/html/rfc7231#section-5.1.1>`_ but whatever).)
 
-It's pure Python. Currently it requires Python 3.5, though it wouldn't
-be hard to expand this to support other versions, including
-2.7. (Originally it had a Cython wrapper for `http-parser
+It's pure Python, and has no dependencies outside of the standard
+library.
+
+Currently it requires Python 3.5, though it wouldn't be hard to expand
+this to support other versions, including 2.7. (Originally it had a
+Cython wrapper for `http-parser
 <https://github.com/nodejs/http-parser>`_ and a beautiful nested state
 machine implemented with ``yield from`` to postprocess the output. But
-I had to take these out -- the new parser is fewer lines-of-code than
-the old parser wrapper, is pure Python, uses no exotic language
+I had to take these out -- the new *parser* needs fewer lines-of-code
+than the old *parser wrapper*, is pure Python, uses no exotic language
 syntax, and has more features. It's too bad really, that old state
 machine was really slick.)
 
-I don't know how fast it is. I haven't benchmarked or profiled it, so
-it's probably got some stupid hot spots, and I've been trying to err
-on the side of simplicity and robustness instead of
-micro-optimization. But I did try to avoid fundamentally bad
-decisions, e.g., I believe that all the parsing algorithms are
-linear-time (even in the face of pathological input like slowloris)
-and there are no byte-by-byte loops.
+I don't know how fast it is. I haven't benchmarked or profiled it yet,
+so it's probably got a few pointless hot spots, and I've been trying
+to err on the side of simplicity and robustness instead of
+micro-optimization. But at the architectural level I tried hard to
+avoid fundamentally bad decisions, e.g., I believe that all the
+parsing algorithms remain linear-time even in the face of pathological
+input like slowloris, and there are no byte-by-byte loops.
 
-I worked hard to keep things simple. Currently it's ~700
-lines-of-code, and I'm annoyed that I haven't figured out how to make
-it simpler. You can easily read and understand the whole thing in less
-than an hour.
+Most of the energy invested in this so far has been spent on trying to
+keep things simple. Currently it's ~700 lines-of-code, and I'm annoyed
+that I haven't figured out how to make it simpler. You can easily read
+and understand the whole thing in less than an hour.
 
 *How do I try it?*
 
@@ -124,8 +133,8 @@ and go from there.
 MIT
 
 
-Technical minutia for HTTP nerds
---------------------------------
+Some technical minutia for HTTP nerds
+-------------------------------------
 
 Transfer-Encoding support: we only know ``chunked``, not ``gzip`` or
 ``deflate``. We're in good company in this: node.js doesn't handle
@@ -133,8 +142,13 @@ anything besides ``chunked`` either. So I'm not too worried about
 this being a problem in practice. I'm not majorly opposed to adding
 support for more features here either, though.
 
-Protocol changing/upgrading: we have full support for transitioning to
-a new protocol (e.g. ``Upgrade: websocket`` or ``CONNECT``).
+Protocol changing/upgrading: not quite implemented yet, but I plan to
+have full support for transitioning to a new protocol (e.g. ``Upgrade:
+websocket`` or ``CONNECT``). [Note: this doesn't mean that h11 will
+actually implement the WebSocket protocol -- though a no-IO h2-style
+WebSocket implementation would indeed be pretty sweet, someone should
+do that. It just means that h11 will have the hooks needed to let you
+implement hand-off to a different protocol.]
 
 Currently we implement support for "obsolete line folding" when
 reading HTTP headers. This is an optional part of the spec --
@@ -144,7 +158,25 @@ back at clients who do send them (`ref
 <https://tools.ietf.org/html/rfc7230#section-3.2.4>`_). I'm tempted to
 remove it, though, since it adds some complicated and ugly code right
 at the center of the request/response parsing loop, and I'm not sure
-whether anyone actually needs it.
+whether anyone actually needs it. Unfortunately a few major
+implementations that I spot-checked (node.js, go) do still seem to
+support it, so it's not clear.
+
+Cute trick: we also support ``sendfile``. Or at least, we give you the
+tools you need to support ``sendfile``. Specifically, the payload of a
+``Data`` event can be any object that has a ``__len__``, and we'll
+pass it back out unchanged. So this is useful for e.g. if you want to
+use ``os.sendfile`` to send some data: pass in a placeholder object
+like ``conn.send(Data(data=placeholder), combine=False)`` and you'll
+get back a list of things-to-send, which will be a mixture
+``bytes``-like objects containing any framing stuff + your original
+object. Then your write loop can be like::
+
+    for piece in data_pieces:
+        if isinstance(piece, FilePlaceholder):
+            sock.sendfile(*piece.sendfile_args())
+        else:
+            sock.sendall(piece)
 
 
 Connection lifecycle
@@ -152,22 +184,25 @@ Connection lifecycle
 
 We fully support HTTP/1.1 keep-alive.
 
-We have minimal support for HTTP/1.1 pipelining -- basically what's
-required by the standard, i.e., in server mode we can handle pipelined
-requests in a purely serial manner. Client mode doesn't support it at
-all. This seems to be the state of the art in all the major HTTP
-implementations; the consensus seems to be that HTTP/1.1 pipelining
-was a nice try but broken in practice, and if you really need
-pipelining then HTTP/2.0 is the way to go.
+We a little bit of support for HTTP/1.1 pipelining -- basically the
+minimum that's required by the standard, i.e., in server mode we can
+handle pipelined requests in a serial manner, responding completely to
+each request before reading the next. Client mode doesn't support
+pipelining at all. As far as I can tell, this matches the state of the
+art in all the major HTTP implementations: the consensus seems to be
+that HTTP/1.1 pipelining was a nice try but unworkable in practice,
+and if you really need pipelining to work then instead of trying to
+fix HTTP/1.1 you should switch to HTTP/2.0. Now that I know more about
+how HTTP works internally I'm inclined to agree.
 
-The obsolete HTTP/1.0 Connection: keep-alive pseudo-standard is
-currently not supported. (Note that this only affects h11 as a server,
-because h11 as a client always speaks HTTP/1.1.) Supporting this would
-be possible, but it's fragile and finicky and I'm skeptical that
-anyone cares. HTTP/1.1 is now almost old enough to vote in the United
-States. I get that people sometimes write HTTP/1.0 clients because
-they don't want to deal with stuff like chunked encoding, and I
-completely sympathize with that, but I'm guessing that the
-intersection of people who care desperately about keep-alive and the
-people who are too lazy to implement Transfer-Encoding: chunked is
-pretty small.
+The HTTP/1.0 Connection: keep-alive pseudo-standard is currently not
+supported. (Note that this only affects h11 as a server, because h11
+as a client always speaks HTTP/1.1.) Supporting this would be
+possible, but it's fragile and finicky and I'm suspicious that if we
+leave it out then no-one will notice or care. HTTP/1.1 is now almost
+old enough to vote in the United States. I get that people sometimes
+write HTTP/1.0 clients because they don't want to deal with annoying
+stuff like chunked encoding, and I completely sympathize with that,
+but I'm guessing that you're not going to find too many people these
+days who care desperately about keep-alive *and at the same time* are
+too lazy to implement Transfer-Encoding: chunked.
