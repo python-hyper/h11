@@ -5,15 +5,18 @@ h11
 ===
 
 This is a little HTTP/1.1 library written from scratch in Python,
-inspired by `hyper-h2 <https://lukasa.co.uk/2015/10/The_New_Hyper/>`_.
+heavily inspired by `hyper-h2
+<https://lukasa.co.uk/2015/10/The_New_Hyper/>`_.
 
 This is a pure protocol library; like h2, it contains no IO code
 whatsoever. (I highly recommend `that blog post for context on what
 this means and the motivation for doing things this way
 <https://lukasa.co.uk/2015/10/The_New_Hyper/>`_.) This is a toolkit
-for building tools that speak HTTP; it's not something that out of the
-box is going to replace ``requests`` or ``twisted.web`` or
-whatever. Working with it involves:
+for building tools that speak HTTP: it's not something that out of the
+box is going to replace ``requests`` or ``twisted.web`` or whatever,
+but if you're implementing something like ``requests`` or
+``twisted.web`` then you might find it useful. At a high level,
+working with it involves:
 
 1) Creating an ``h11.Connection`` object to track the state of a
    single HTTP/1.1 connection.
@@ -25,7 +28,7 @@ whatever. Working with it involves:
    implementation of `RFC 6214 <https://tools.ietf.org/html/rfc6214>`_
    -- h11 won't judge you.
 
-3) Then, sending and receiving high-level HTTP "events". (You send
+3) Now you can send and receive high-level HTTP "events". (You send
    them with ``conn.send()``, and receive them as the return value
    from ``conn.receive_data()``.) For example, a client might
    instantiate and then send a ``h11.Request`` object, then zero or
@@ -53,22 +56,21 @@ issues in `aiohttp <https://aiohttp.readthedocs.io/>`_, so rather than
 spend a few hours debugging them I spent a few days writing my own
 HTTP stack from scratch.
 
-*...that's a terrible answer.*
+*...that's a terrible reason.*
 
 Also I wanted to play with `Curio
 <https://curio.readthedocs.io/en/latest/tutorial.html>`_, which has no
 HTTP library, and I was feeling inspired by Curio's elegantly
-featureful minimalism and Corey's call-to-arms.
+featureful minimalism and Corey's call-to-arms blog-post.
 
-Also, perhaps most importantly, I was sick and needed a gloriously
-pointless yak-shaving project to distract me from all the things I
-should have been doing instead. Perhaps it won't turn out to be quite
-as pointless as all that, but either way at least I learned some
-stuff.
+Also, most importantly, I was sick and needed a gloriously pointless
+yak-shaving project to distract me from all the things I should have
+been doing instead. Perhaps it won't turn out to be quite as pointless
+as all that, but either way at least I learned some stuff.
 
 *Should I use it?*
 
-Probably not; it's just a few days hack at this point.
+Probably not; it's just a few-days-old hack at this point.
 
 *Should I play with it?*
 
@@ -86,16 +88,15 @@ conformance. It doesn't know about URL routing, conditional GETs,
 cross-origin cookie policies, or content negotiation. But it does know
 how to take care of framing, cross-version differences in keep-alive
 handling, and the "obsolete line folding" rule, so you can focus your
-energies on the hard / interesting parts for your
-application. (Specifically, the headers it knows about are:
-``Connection:``, ``Transfer-Encoding:``, ``Content-Length:``, and
-``Expect:`` (which is really from `RFC 7231
-<https://tools.ietf.org/html/rfc7231#section-5.1.1>`_ but whatever).)
+energies on the hard / interesting parts for your application, and it
+tries to support the full specification in the sense that any app that
+can be written while conforming to the spec should be able to use
+h11.
 
 It's pure Python, and has no dependencies outside of the standard
 library.
 
-Currently it requires Python 3.5, though it wouldn't be hard to expand
+Currently it only supports Python 3.5, though it wouldn't be hard to expand
 this to support other versions, including 2.7. (Originally it had a
 Cython wrapper for `http-parser
 <https://github.com/nodejs/http-parser>`_ and a beautiful nested state
@@ -114,7 +115,7 @@ parsing algorithms remain linear-time even in the face of pathological
 input like slowloris, and there are no byte-by-byte loops.
 
 Most of the energy invested in this so far has been spent on trying to
-keep things simple. Currently it's ~700 lines-of-code, and I'm annoyed
+keep things simple. Currently it's <800 lines-of-code, and I'm annoyed
 that I haven't figured out how to make it simpler. You can easily read
 and understand the whole thing in less than an hour.
 
@@ -136,19 +137,31 @@ MIT
 Some technical minutia for HTTP nerds
 -------------------------------------
 
-Transfer-Encoding support: we only know ``chunked``, not ``gzip`` or
-``deflate``. We're in good company in this: node.js doesn't handle
-anything besides ``chunked`` either. So I'm not too worried about
-this being a problem in practice. I'm not majorly opposed to adding
-support for more features here either, though.
+Of the headers defined in RFC 7230, the ones h11 knows and cares about
+are: ``Connection:``, ``Transfer-Encoding:``, ``Content-Length:``,
+``Host:``, ``Upgrade:``, and ``Expect:`` (which is really from `RFC
+7231 <https://tools.ietf.org/html/rfc7231#section-5.1.1>`_ but
+whatever). The other headers in RFC 7230 are ``TE:``, ``Trailer:``,
+and ``Via:``; h11 supports these in the sense that it ignores them and
+there's really nothing else for it to do.
 
-Protocol changing/upgrading: not quite implemented yet, but I plan to
-have full support for transitioning to a new protocol (e.g. ``Upgrade:
-websocket`` or ``CONNECT``). [Note: this doesn't mean that h11 will
-actually implement the WebSocket protocol -- though a no-IO h2-style
-WebSocket implementation would indeed be pretty sweet, someone should
-do that. It just means that h11 will have the hooks needed to let you
-implement hand-off to a different protocol.]
+Transfer-Encoding support: we only know ``chunked``, not ``gzip`` or
+``deflate``. We're in good company in this: node.js at least doesn't
+handle anything besides ``chunked`` either. So I'm not too worried
+about this being a problem in practice. But I'm not majorly opposed to
+adding support for more features here either.
+
+This is all the headers defined in RFC 7230 except for:
+``TE`` (irrelevant because we don't support any ``Transfer-Encoding``
+besides ``chunked``), ``Trailer`` (nothing for us to do)
+
+Protocol changing/upgrading: h11 has has full support for
+transitioning to a new protocol, via either Upgrade: headers (e.g.,
+``Upgrade: websocket``) or the ``CONNECT`` method. Note that this
+*doesn't* mean that h11 actually implements the WebSocket protocol --
+though a no-I/O h2-style WebSocket implementation would indeed be
+pretty sweet, someone should do that. It just means that h11 has the
+hooks needed to let you implement hand-off to a different protocol.
 
 Currently we implement support for "obsolete line folding" when
 reading HTTP headers. This is an optional part of the spec --

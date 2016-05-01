@@ -224,6 +224,7 @@ class ChunkedReader:
 
 READERS = {
     (CLIENT, IDLE): maybe_read_from_IDLE_client,
+    (SERVER, IDLE): maybe_read_from_SEND_RESPONSE_server,
     (SERVER, SEND_RESPONSE): maybe_read_from_SEND_RESPONSE_server,
     SEND_BODY: {
         "chunked": ChunkedReader,

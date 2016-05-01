@@ -1,22 +1,3 @@
-todo:
-- [X] _get_state_obj needs major changes
-- [X] _clean_up_response_headers_for_sending ditto
-- [X] get rid of data_to_send
-- [ ] add/fix pause handling
-  - esp. for pipelining, + reset... maybe reset API should be shared with the Upgrade thing?
-- [ ] add support for detecting and pausing on Upgrade: ... and CONNECT or CONNECT response
-  - specifically:
-    - request CONNECT
-    - 2xx response to CONNECT
-      - this begins immediately after the headers -- 2xx response to CONNECT cannot have a body
-    - request with Upgrade: ... (but *not* response with Upgrade, that's just a hint saying 'btw you might try this next time)
-    - response with 101 Switching Protocols
-    - a server MUST ignore an Upgrade header field that is received in an HTTP/1.0 request
-    - you have to finish reading the Request before the upgrade takes effect ("A client cannot begin using an upgraded protocol on the connection until it has completely sent the request message")
-    - "If a server receives both an Upgrade and an Expect header field with the "100-continue" expectation (Section 5.1.1 of [RFC7231]), the server MUST send a 100 (Continue) response before sending a 101 (Switching Protocols) response."
-
-XX since it's legal to send a 400 Bad Request without successfully receiving a Request, the current state machine is wrong, and the server should just start out in SEND_RESPONSE or the equivalent. And once we do this, we can rip out a lot of machinery from the state machine, since this is the last bit of cross-party dependency.
-
 XX TODO:
    A server MUST NOT send a Transfer-Encoding header field in any
    response with a status code of 1xx (Informational) or 204 (No
@@ -29,34 +10,6 @@ XX TODO:
    server MUST NOT send a Content-Length header field in any 2xx
    (Successful) response to a CONNECT request (Section 4.3.6 of
    [RFC7231]).
-
-* should we drop data_to_send and just have send() return the data to send? is there any point in the current buffering charade?
-
-this would make the actual guarantees much clearer -- we can't stash data into the buffer behind your back, you don't have to worry about it, when the data arrives and where it goes is totally under your control.
-
-YES
-it can have a combine_data=True -> returns bytes
-False -> returns iterable of pieces
-
-* don't quite have upgrade/CONNECT stuff working right -- really do need to pause the reader exacty after the relevant event
-
-have a paused state, either "until-unpause" or "until-finished"
-emit some sort of Paused token if call receive_data while in paused state
-
-what if we read everything, it takes us to DONE, we pause, and then we get an EOF?
-maybe pause should only happen if there is pending data in the buffer?
-
-should the Paused token contain the trailing data?
-
-* add explicit reset step before things go back to IDLE
-
-* automagically sending CloseConnection() is a bit broken
-
-because there's no way for the user to know that some data has magically materialized in data_to_send()
-
-maybe instead we should have a MUST_CLOSE state that we transition to automagically, and cannot escape except to CLOSED. This would also work more symmetrically across the two sides.
-
-(these are state machines governing what a given side *sends*, so closed means "won't send any more")
 
 * Closure
 
@@ -76,7 +29,8 @@ But if you want to do an orderly shutdown, then you should do
 and then wait for conn.data_to_send() to give you a None, at which point you
 can close the connection (clients) or call shutdown and wait (servers).
 
-^^ actually this makes no sense -- no reason to ever send ConnectionClosed(), because conn.data_to_send() is always fully up-to-date with no internal buffering. If there were internal buffering then nothing would work, because we have no way to signal that more data is available. So this is a fundamental guarantee of the API, which means that any time you could do send(ConnectionClosed()), you could also just close the connection. I guess the one exception would be if send() and data_to_send() were like, in different threads, so this was a communication channel between them... but Connection objects aren't even thread-safe.
+^^ actually this makes no sense -- it's not necessary to ever send ConnectionClosed(), because conn.data_to_send() is always fully up-to-date with no internal buffering. If there were internal buffering then nothing would work, because we have no way to signal that more data is available. So the lack of buffering is a fundamental guarantee of the API, which means that any time you could do send(ConnectionClosed()), you could also just close the connection. I guess the one exception would be if send() and data_to_send() were like, in different threads, so this was a communication channel between them... but Connection objects aren't even thread-safe.
+Oh, but you definitely should send ConnectionClosed() if you're doing a half-shutdown and continuing to read.
 
 In addition, h11 will automatically issue a close in two cases.
 1) when the server reaches DONE, and the HTTP/1.1 spec says that
@@ -90,12 +44,7 @@ Instead, we should add a new state MUST_CLOSE, and the rules:
 1) when a party reaches DONE, and the HTTP/1.1 spec says that they must close, then they automagically go to the MUST_CLOSE state
 2) if either party is in DONE or IDLE and the other is in CLOSED, then the party that is not CLOSED automatically goes to the MUST_CLOSE state
 
-* other notes
-
-XX FIXME: sendfile support?
-  maybe switch data_to_send to returning an iterable of stuff-to-do, which
-    could be a mix of bytes-likes, sendfile objects, and CloseSocket
-  and Data could accept sendfile objects as a .data field
+* notes for building something on top of this
 
 headers to consider auto-supporting at the high-level:
 - Date: https://svn.tools.ietf.org/svn/wg/httpbis/specs/rfc7231.html#header.date
@@ -121,26 +70,6 @@ Higher level stuff:
   request body?
 - Sending an error when things go wrong (esp. 400 Bad Request)
 
-- Transfer-Encoding: compress, gzip
-  - but unfortunately, libhttp_parser doesn't support these at all (just
-    ignores the Transfer-Encoding field and doesn't even do chunked parsing,
-    so totally unfixable)
-      https://stackapps.com/questions/916/why-content-encoding-gzip-rather-than-transfer-encoding-gzip
-    So... this sucks, but I guess we don't support it either.
-
-rules for upgrade are:
-- when you get back an message-complete, you have to check for the upgrade
-  flag
-- if it's set, then there's also some trailing-data provided
-- if you continue doing HTTP on the same socket, then you have to
-  receive_data that trailing data again
-maybe we should make this an opt-in thing in the constructor -- you have to
-say whether you're prepared for upgrade handling?
-
-also, after sending a message-complete on the server you then have to
-immediately call receive_data even if there's no new bytes to pass, because
-more responses might have been pipelined up.
-
 Connection shutdown is tricky. Quoth RFC 7230:
 
 "If a server performs an immediate close of a TCP connection, there is a
@@ -162,13 +91,6 @@ response. Finally, the server fully closes the connection."
 
 So this needs shutdown(2). This is what data_to_send's close means -- this
 complicated close dance.
-
-
-
-EndOfMessage is tricky:
-- upgrade trailing data handling
-- must immediately call receive_data(b"") before blocking on socket
-
 
 
 Implementing Expect: 100-continue on the client is also tricky: see RFC 7231

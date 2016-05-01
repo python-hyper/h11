@@ -1,18 +1,21 @@
 digraph {
-  IDLE [label="IDLE\nstart state"]
-  IDLE -> SEND_RESPONSE [label="client sends Request event"]
-  SEND_RESPONSE -> SEND_RESPONSE [label="InformationalResponse event"]
-  SEND_RESPONSE -> SEND_BODY [label="Response event"]
-  SEND_BODY -> SEND_BODY [label="Data event"]
-  SEND_BODY -> DONE [label="EndOfMessage event"]
+  IDLE [label="IDLE\ninitial state"]
+  IDLE -> SEND_RESPONSE [label="InformationalResponse"]
+  IDLE -> SEND_BODY [label="Response"]
+  SEND_RESPONSE -> SEND_RESPONSE [label="InformationalResponse"]
+  SEND_RESPONSE -> SEND_BODY [label="Response"]
+  SEND_BODY -> SEND_BODY [label="Data"]
+  SEND_BODY -> DONE [label="EndOfMessage"]
 
-  DONE -> CLOSED [label="ConnectionClosed event", weight=0]
-  MUST_CLOSE -> CLOSED [label="ConnectionClosed event", weight=0]
-  IDLE -> CLOSED [label="ConnectionClosed event", weight=0]
+  DONE -> CLOSED [label="ConnectionClosed"]
+  MUST_CLOSE -> CLOSED [label="ConnectionClosed"]
+  IDLE -> CLOSED [label="ConnectionClosed"]
 
-  IDLE -> MUST_CLOSE [label="peer state is CLOSED", weight=0]
-  DONE -> MUST_CLOSE [label="peer state is CLOSED", weight=0]
-  DONE -> MUST_CLOSE [label="keep-alive disabled", weight=1]
+  IDLE -> MUST_CLOSE [label=<<i>peer state is CLOSED</i>>]
+  DONE -> MUST_CLOSE [label=<<i>peer state is CLOSED</i>>]
+  DONE -> MUST_CLOSE [label=<<i>keep-alive disabled</i>>]
 
-  DONE -> IDLE [label="reset()", weight=0]
+  DONE -> SWITCHED
+
+  DONE -> IDLE [label="prepare_to_reuse()", weight=0]
 }

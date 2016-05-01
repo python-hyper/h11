@@ -159,6 +159,11 @@ def get_framing_headers(headers):
         return None, None
 
 def has_expect_100_continue(request):
+    # https://tools.ietf.org/html/rfc7231#section-5.1.1
+    # "A server that receives a 100-continue expectation in an HTTP/1.0 request
+    # MUST ignore that expectation."
+    if request.http_version < b"1.1":
+        return False
     # Expect: 100-continue is case *sensitive*
     expect = get_comma_header(request.headers, "Expect", lowercase=False)
     return (b"100-continue" in expect)

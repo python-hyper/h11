@@ -8,6 +8,7 @@
 from . import headers
 from .util import bytesify, ProtocolError
 
+# Everything in __all__ gets re-exported as part of the h11 public API.
 __all__ = [
     "Request",
     "InformationalResponse",
@@ -15,6 +16,7 @@ __all__ = [
     "Data",
     "EndOfMessage",
     "ConnectionClosed",
+    "Paused",
 ]
 
 
@@ -122,3 +124,6 @@ class EndOfMessage(_EventBundle):
 
 class ConnectionClosed(_EventBundle):
     pass
+
+class Paused(_EventBundle):
+    _fields = ["reason"]

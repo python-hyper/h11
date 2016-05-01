@@ -1,10 +1,12 @@
 from .events import *
 from .util import ProtocolError, Sentinel
 
-__all__ = ["ConnectionState"]
+# Everything in __all__ gets re-exported as part of the h11 public API.
+__all__ = []
 
-sentinels = ("CLIENT SERVER"
-             "IDLE SEND_RESPONSE SEND_BODY DONE MUST_CLOSE CLOSED").split()
+sentinels = ("CLIENT SERVER "
+             "IDLE SEND_RESPONSE SEND_BODY DONE MUST_CLOSE CLOSED "
+             "MIGHT_SWITCH_PROTOCOL SWITCHED_PROTOCOL").split()
 for token in sentinels:
     globals()[token] = Sentinel(token)
 
@@ -25,17 +27,13 @@ class RoleMachine:
         self.transitions = transitions
 
     # Returns True if state changed
-    def process_event(self, role, event):
+    def process_event(self, event_type):
         old_state = self.state
-        key = (role, type(event))
-        new_state = self.transitions[self.state].get(key)
+        new_state = self.transitions[self.state].get(event_type)
         if new_state is None:
-            if role is not self.role:
-                new_state = old_state
-            else:
-                raise ProtocolError(
-                    "illegal event {} in state {}:{}"
-                    .format(key, self.role, self.state))
+            raise ProtocolError(
+                "illegal event type {} for {} in state {}"
+                .format(event_type.__name__, self.role, self.state))
         self.state = new_state
         return (old_state is not new_state)
 
@@ -48,13 +46,21 @@ class RoleMachine:
 # we don't cheat and apply different rules to local and remote parties.
 class ConnectionState:
     def __init__(self):
-        # An extra bit of state that doesn't quite fit into the model. If this
-        # is False then it means enables the automatic DONE -> MUST_CLOSE
+        # Extra bits of state that don't quite fit into the state model.
+
+        # If this is False then it enables the automatic DONE -> MUST_CLOSE
         # transition. The only place this can change is when seeing a Request
         # or a Response (so in IDLE or SEND_RESPONSE), so changes in it can
         # never trigger a state transition -- we only need to check for it
         # when entering DONE.
         self.keep_alive = True
+
+        # If this is True, then it enables the automatic DONE ->
+        # MIGHT_SWITCH_PROTOCOL transition for the client only. The only
+        # place this can change is when seeing a Request, so the client cannot
+        # already be in DONE when it is set.
+        self.client_requested_protocol_switch = False
+
         # The state machines
         self._machines = {
             CLIENT: RoleMachine(
@@ -62,18 +68,18 @@ class ConnectionState:
                 initial_state=IDLE,
                 transitions={
                     IDLE: {
-                        (CLIENT, Request): SEND_BODY,
-                        (CLIENT, ConnectionClosed): CLOSED,
+                        Request: SEND_BODY,
+                        ConnectionClosed: CLOSED,
                     },
                     SEND_BODY: {
-                        (CLIENT, Data): SEND_BODY,
-                        (CLIENT, EndOfMessage): DONE,
+                        Data: SEND_BODY,
+                        EndOfMessage: DONE,
                     },
                     DONE: {
-                        (CLIENT, ConnectionClosed): CLOSED,
+                        ConnectionClosed: CLOSED,
                     },
                     MUST_CLOSE: {
-                        (CLIENT, ConnectionClosed): CLOSED,
+                        ConnectionClosed: CLOSED,
                     },
                     CLOSED: {},
                 }),
@@ -82,22 +88,23 @@ class ConnectionState:
                 initial_state=IDLE,
                 transitions={
                     IDLE: {
-                        (CLIENT, Request): SEND_RESPONSE,
-                        (SERVER, ConnectionClosed): CLOSED,
+                        InformationalResponse: SEND_RESPONSE,
+                        Response: SEND_BODY,
+                        ConnectionClosed: CLOSED,
                     },
                     SEND_RESPONSE: {
-                        (SERVER, InformationalResponse): SEND_RESPONSE,
-                        (SERVER, Response): SEND_BODY,
+                        InformationalResponse: SEND_RESPONSE,
+                        Response: SEND_BODY,
                     },
                     SEND_BODY: {
-                        (SERVER, Data): SEND_BODY,
-                        (SERVER, EndOfMessage): DONE,
+                        Data: SEND_BODY,
+                        EndOfMessage: DONE,
                     },
                     DONE: {
-                        (SERVER, ConnectionClosed): CLOSED,
+                        ConnectionClosed: CLOSED,
                     },
                     MUST_CLOSE: {
-                        (SERVER, ConnectionClosed): CLOSED,
+                        ConnectionClosed: CLOSED,
                     },
                     CLOSED: {},
                 }),
@@ -107,22 +114,49 @@ class ConnectionState:
         return self._machines[role].state
 
     # Returns set of parties who entered a new state
-    def process_event(self, role, event):
+    def process_event(self, role, event_type, server_switched_protocol):
         state_changes = set()
-        for machine in self._machines.values():
-            if machine.process_event(role, event):
-                state_changes.add(machine.role)
-                # If a machine is in DONE and self.must_close is set, then it
-                # jumps straight to MUST_CLOSE
-                if machine.state is DONE and not self.keep_alive:
-                    machine.state = MUST_CLOSE
-        # If at any point, one peer is DONE or IDLE and the other is CLOSED,
-        # then the DONE/IDLE peer goes to MUST_CLOSE
+        machine = self._machines[role]
+
+        if machine.process_event(event_type):
+            state_changes.add(role)
+
+        if server_switched_protocol:
+            assert role is SERVER
+            assert machine.state in (SEND_RESPONSE, SEND_BODY)
+            machine.state = SWITCHED_PROTOCOL
+            state_changes.add(role)
+
         if state_changes:
+            # Check for state-based transitions
+            if self.state(CLIENT) is MIGHT_SWITCH_PROTOCOL:
+                server_state = self.state(SERVER)
+
+                if server_state is SWITCHED_PROTOCOL:
+                    self._machines[CLIENT].state = SWITCHED_PROTOCOL
+                    state_changes.add(CLIENT)
+
+                # This can put us in DONE, so it should come before the checks
+                # below that can trigger on DONE
+                if server_state is SEND_BODY:
+                    self._machines[CLIENT].state = DONE
+                    state_changes.add(CLIENT)
+
+            if (role is CLIENT and machine.state is DONE
+                and self.client_requested_protocol_switch):
+                machine.state = MIGHT_SWITCH_PROTOCOL
+                self.client_requested_protocol_switch = False
+
+            if machine.state is DONE and not self.keep_alive:
+                machine.state = MUST_CLOSE
+
+            # If at any point, one peer is DONE or IDLE and the other is CLOSED,
+            # then the DONE/IDLE peer goes to MUST_CLOSE
             for a, b in [(CLIENT, SERVER), (SERVER, CLIENT)]:
                 if self.state(a) is CLOSED and self.state(b) in (DONE, IDLE):
                     self._machines[b].state = MUST_CLOSE
                     state_changes.add(b)
+
         return state_changes
 
     @property
@@ -138,7 +172,7 @@ class ConnectionState:
             return "now"
         return "maybe-later"
 
-    def prepare_for_reuse(self):
+    def prepare_to_reuse(self):
         if self.can_reuse != "now":
             raise ProtocolError("not in a reusable state")
         for machine in self._machines.values():

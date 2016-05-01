@@ -1,16 +1,21 @@
 digraph {
   IDLE [label="IDLE\nstart state"]
-  IDLE -> SEND_BODY [label="Request event"]
-  SEND_BODY -> SEND_BODY [label="Data event"]
-  SEND_BODY -> DONE [label="EndOfMessage event"]
+  IDLE -> SEND_BODY [label="Request"]
+  SEND_BODY -> SEND_BODY [label="Data"]
+  SEND_BODY -> DONE [label="EndOfMessage"]
 
-  DONE -> CLOSED [label="ConnectionClosed event", weight=0]
-  MUST_CLOSE -> CLOSED [label="ConnectionClosed event", weight=0]
-  IDLE -> CLOSED [label="ConnectionClosed event", weight=0]
+  DONE -> CLOSED [label="ConnectionClosed"]
+  MUST_CLOSE -> CLOSED [label="ConnectionClosed"]
+  IDLE -> CLOSED [label="ConnectionClosed"]
 
-  IDLE -> MUST_CLOSE [label="peer state is CLOSED", weight=0]
-  DONE -> MUST_CLOSE [label="peer state is CLOSED", weight=0]
-  DONE -> MUST_CLOSE [label="keep-alive disabled", weight=1]
+  IDLE -> MUST_CLOSE [label=<<i>Server state is CLOSED</i>>]
+  DONE -> MUST_CLOSE [label=<<i>Server state is CLOSED</i>>]
+  DONE -> MUST_CLOSE [label=<<i>Keep-alive disabled</i>>]
 
-  DONE -> IDLE [label="reset()", weight=0]
+  DONE -> MIGHT_SWITCH_PROTOCOL [label=<<i>Requested Upgrade: or CONNECT</i>>]
+  MIGHT_SWITCH_PROTOCOL -> DONE [label=<<i>Server state is SEND_BODY</i>>]
+  MIGHT_SWITCH_PROTOCOL -> SWITCHED_PROTOCOL [
+     label=<<i>Server state is SWITCHED_PROTOCOL</i>>]
+
+  DONE -> IDLE [label=<<i>prepare_to_reuse()</i>>]
 }
