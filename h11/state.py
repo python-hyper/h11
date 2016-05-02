@@ -37,7 +37,9 @@ EVENT_TRIGGERED_TRANSITIONS = {
         MUST_CLOSE: {
             ConnectionClosed: CLOSED,
         },
-        CLOSED: {},
+        CLOSED: {
+            ConnectionClosed: CLOSED,
+        },
         MIGHT_SWITCH_PROTOCOL: {},
         SWITCHED_PROTOCOL: {},
     },
@@ -62,7 +64,9 @@ EVENT_TRIGGERED_TRANSITIONS = {
         MUST_CLOSE: {
             ConnectionClosed: CLOSED,
         },
-        CLOSED: {},
+        CLOSED: {
+            ConnectionClosed: CLOSED,
+        },
         SWITCHED_PROTOCOL: {},
     },
 }
