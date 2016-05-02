@@ -177,3 +177,78 @@ class ConnectionState:
             machine.state = IDLE
         assert self.keep_alive
         assert not self.client_requested_protocol_switch
+
+
+_EVENT_COLOR = "#002092"
+_STATE_COLOR = "#017517"
+_SPECIAL_COLOR = "#7600a1"
+def _make_dot(role, path):
+    with open(path, "w") as f:
+        f.write(
+"""digraph {
+  graph [fontname = "Lato"]
+  node [fontname = "Lato"]
+  edge [fontname = "Lato"]
+
+  IDLE [label=<IDLE<BR/><i>start state</i>>]
+""")
+
+        def edge(source, target, label, color, italicize=False, weight=1):
+            if italicize:
+                quoted_label = "<<i>{}</i>>".format(label)
+            else:
+                quoted_label = '"{}"'.format(label)
+            f.write(
+                '{source} -> {target} [\n'
+                '  label={quoted_label},\n'
+                '  color="{color}", fontcolor="{color}",\n'
+                '  weight={weight},\n'
+                ']\n'
+                .format(**locals()))
+
+        CORE_EVENTS = {Request, InformationalResponse,
+                       Response, Data, EndOfMessage}
+
+        for (source_state, t) in EVENT_TRIGGERED_TRANSITIONS[role].items():
+            for (event_type, target_state) in t.items():
+                weight = 1
+                if (event_type in CORE_EVENTS
+                    and source_state is not target_state):
+                    weight = 10
+                # exception
+                if (event_type is Response and source_state is IDLE):
+                    weight = 1
+                edge(source_state, target_state, event_type.__name__,
+                     _EVENT_COLOR, weight=weight)
+
+        for source_pair, target_pair in STATE_TRIGGERED_TRANSITIONS.items():
+            if role is CLIENT:
+                (our_source, their_source) = source_pair
+                (our_target, their_target) = target_pair
+            else:
+                (their_source, our_source) = source_pair
+                (their_target, our_target) = target_pair
+            if our_source is our_target:
+                continue
+            edge(our_source, our_target,
+                 "peer in {}".format(their_source),
+                 _STATE_COLOR)
+
+        if role is CLIENT:
+            edge(DONE, MIGHT_SWITCH_PROTOCOL,
+                 "Upgrade: or <BR/>CONNECT",
+                 _SPECIAL_COLOR,
+                 italicize=True)
+        else:
+            edge(SEND_RESPONSE, SWITCHED_PROTOCOL, "101 Switching protocols",
+                 _SPECIAL_COLOR, italicize=True)
+            edge(SEND_BODY, SWITCHED_PROTOCOL, "2xx CONNECT",
+                 _SPECIAL_COLOR, italicize=True)
+
+
+        edge(DONE, MUST_CLOSE, "keep-alive<BR/>disabled", _SPECIAL_COLOR,
+             italicize=True)
+        edge(DONE, IDLE, "prepare_to_reuse()", _SPECIAL_COLOR,
+             italicize=True)
+
+        f.write("\n}\n")
