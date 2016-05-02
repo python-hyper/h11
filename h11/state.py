@@ -121,7 +121,8 @@ class ConnectionState:
         while True:
             start_states = dict(self.states)
 
-            # Special cases that don't fit into the FSA formalism
+            # Special cases that don't fit into the FSA formalism.
+            # If you change these, make sure to also update _make_dot below.
 
             if server_switched_protocol:
                 assert role is SERVER
@@ -186,8 +187,8 @@ class ConnectionState:
 _EVENT_COLOR = "#002092"
 _STATE_COLOR = "#017517"
 _SPECIAL_COLOR = "#7600a1"
-def _make_dot(role, path):
-    with open(path, "w") as f:
+def _make_dot(role, out_path):
+    with open(out_path, "w") as f:
         f.write(
 """digraph {
   graph [fontname = "Lato"]
@@ -248,7 +249,6 @@ def _make_dot(role, path):
                  _SPECIAL_COLOR, italicize=True)
             edge(SEND_BODY, SWITCHED_PROTOCOL, "2xx CONNECT",
                  _SPECIAL_COLOR, italicize=True)
-
 
         edge(DONE, MUST_CLOSE, "keep-alive<BR/>disabled", _SPECIAL_COLOR,
              italicize=True)

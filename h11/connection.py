@@ -388,29 +388,3 @@ class Connection:
                 set_comma_header(headers, "Connection", sorted(connection))
 
         response.headers = headers
-
-    # XX maybe take this out? I guess real servers will have to have some more
-    # serious thing, like wanting to handle stuff like 'raise Error(404)' as
-    # part of their API? and specifying the body? and providing Date: and
-    # Server: headers? and ...
-    def maybe_send_error_response(self, exception, headers):
-        if self.our_role is not SERVER:
-            return b""
-        if self.our_state not in (IDLE, SEND_RESPONSE):
-            return b""
-
-        if isinstance(exception, ProtocolError):
-            status_code = exception.error_status_hint
-        elif isinstance(exception, TimeoutError):
-            # 408 Request Timeout -- maybe not 100% accurate but hopefully
-            # close enough.
-            status_code = 408
-        else:
-            # 500 Internal Server Error
-            status_code = 500
-
-        set_comma_header(headers, "Content-Length", [b"0"])
-        set_comma_header(headers, "Connection", [b"close"])
-        data = self.send(Response(status_code=status_code, headers=headers))
-        data += self.send(EndOfMessage())
-        return data
