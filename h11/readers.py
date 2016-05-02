@@ -181,17 +181,6 @@ class ContentLengthReader:
         return Data(data=data)
 
 
-class Http10Reader:
-    def __call__(self, buf):
-        data = buf.maybe_extract_at_most(999999999)
-        if data is None:
-            return None
-        return Data(data)
-
-    def read_eof(self):
-        return EndOfMessage()
-
-
 chunk_header_re = re.compile(br"(?P<count>[0-9]{1,20})\r\n")
 class ChunkedReader:
     def __init__(self):
@@ -221,6 +210,18 @@ class ChunkedReader:
                 return None
             self._bytes_in_chunk -= len(data)
             return Data(data=data)
+
+
+class Http10Reader:
+    def __call__(self, buf):
+        data = buf.maybe_extract_at_most(999999999)
+        if data is None:
+            return None
+        return Data(data)
+
+    def read_eof(self):
+        return EndOfMessage()
+
 
 READERS = {
     (CLIENT, IDLE): maybe_read_from_IDLE_client,
