@@ -1,5 +1,3 @@
-can we make the state-triggered transitions table-based?
-
 XX TODO:
    A server MUST NOT send a Transfer-Encoding header field in any
    response with a status code of 1xx (Informational) or 204 (No
