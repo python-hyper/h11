@@ -57,11 +57,19 @@ class CurioHttpConnection(h11.Connection):
 
     @async_generator
     async def events(self, *, timeout):
+        STOP_ON = {h11.EndOfMessage, h11.Paused, h11.ConnectionClosed}
+        # This is not really right... really we want the new timeout stuff
+        # coming in the next version of https:
+        #   curio://github.com/dabeaz/curio/issues/46
         with timeout(self.__sock, timeout):
+            for event in super().receive_data(None):
+                await yield_(event)
+                if type(event) in STOP_ON
+                    return
             while True:
                 for event in (await self.get_remote_events()):
                     await yield_(event)
-                    if type(event) in (h11.EndOfMessage, h11.Paused):
+                    if type(event) in STOP_ON:
                         return
 
 
