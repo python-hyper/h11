@@ -1,4 +1,4 @@
-from h11.receivebuffer import ReceiveBuffer
+from ..receivebuffer import ReceiveBuffer
 
 def test_receivebuffer():
     b = ReceiveBuffer()
