@@ -65,12 +65,12 @@ def test_events():
     req = Request(method="GET", target="/",
                   headers=[("a", "b"), ("hOSt", "example.com")],
                   http_version="1.1")
-    # Maybe we should normalize header capitalization? For now we don't.
-    assert req.headers == [(b"a", b"b"), (b"hOSt", b"example.com")]
+    # we normalize header capitalization
+    assert req.headers == [(b"a", b"b"), (b"host", b"example.com")]
 
     ir = InformationalResponse(status_code=100, headers=[("Host", "a")])
     assert ir.status_code == 100
-    assert ir.headers == [(b"Host", b"a")]
+    assert ir.headers == [(b"host", b"a")]
     assert ir.http_version == b"1.1"
 
     with pytest.raises(ProtocolError):

@@ -20,13 +20,15 @@ from .util import ProtocolError, bytesify, validate
 #
 # Values get leading/trailing whitespace stripped
 #
-# Content-Disposition actually needs to contain unicode; it has a terrifically
-#   weird way of encoding the filename itself as ascii (and even this still
-#   has lots of cross-browser incompatibilities)
+# Content-Disposition actually needs to contain unicode semantically; to
+# accomplish this it has a terrifically weird way of encoding the filename
+# itself as ascii (and even this still has lots of cross-browser
+# incompatibilities)
 #
 # Order is important:
 # "a proxy MUST NOT change the order of these field values when forwarding a
-# message."
+# message"
+# (and there are several headers where the order indicates a preference)
 #
 # Multiple occurences of the same header:
 # "A sender MUST NOT generate multiple header fields with the same field name
@@ -37,6 +39,21 @@ from .util import ProtocolError, bytesify, validate
 # So every header aside from Set-Cookie can be merged by b", ".join if it
 # occurs repeatedly. But, of course, they can't necessarily be split by
 # .split(b","), because quoting.
+#
+# Given all this mess (case insensitive, duplicates allowed, order is
+# important, ...), there doesn't appear to be any standard way to handle
+# headers in Python -- they're almost like dicts, but... actually just
+# aren't. For now we punt and just use a super simple representation: headers
+# are a list of pairs
+#
+#   [(name1, value1), (name2, value2), ...]
+#
+# where all entries are bytestrings, names are lowercase and have no
+# leading/trailing whitespace, and values are bytestrings with no
+# leading/trailing whitespace. Searching and updating are done via naive O(n)
+# methods.
+#
+# Maybe a dict-of-lists would be better?
 
 _content_length_re = re.compile(rb"^[0-9]+$")
 
@@ -45,9 +62,8 @@ def normalize_and_validate(headers):
     saw_content_length = False
     saw_transfer_encoding = False
     for name, value in headers:
-        name = bytesify(name)
-        value = bytesify(value)
-        name_lower = name.lower()
+        name = bytesify(name).lower()
+        value = bytesify(value).strip()
         # "No whitespace is allowed between the header field-name and colon.
         # In the past, differences in the handling of such whitespace have led
         # to security vulnerabilities in request routing and response
@@ -58,16 +74,18 @@ def normalize_and_validate(headers):
         # downstream." -- https://tools.ietf.org/html/rfc7230#section-3.2.4
         if name.strip() != name:
             raise ProtocolError("Illegal header name {}".format(name))
-        if name_lower == b"content-length":
+        if name == b"content-length":
             if saw_content_length:
                 raise ProtocolError("multiple Content-Length headers")
             validate(_content_length_re, value, "bad Content-Length")
             saw_content_length = True
-        if name_lower == b"transfer-encoding":
+        if name == b"transfer-encoding":
             if saw_transfer_encoding:
-                raise ProtocolError(
-                    "multiple Transfer-Encoding headers")
-            if value.lower() != b"chunked":
+                raise ProtocolError("multiple Transfer-Encoding headers")
+            # "All transfer-coding names are case-insensitive"
+            # -- https://tools.ietf.org/html/rfc7230#section-4
+            value = value.lower()
+            if value != b"chunked":
                 raise ProtocolError(
                     "Only Transfer-Encoding: chunked is supported")
             saw_transfer_encoding = True
@@ -112,7 +130,6 @@ def get_comma_header(headers, name, *, lowercase=True):
     out = []
     name = bytesify(name).lower()
     for found_name, found_raw_value in headers:
-        found_name = found_name.lower()
         if found_name == name:
             if lowercase:
                 found_raw_value = found_raw_value.lower()
@@ -122,17 +139,15 @@ def get_comma_header(headers, name, *, lowercase=True):
                     out.append(found_split_value)
     return out
 
-# XX FIXME: this in-place mutation bypasses the header validation code...
 def set_comma_header(headers, name, new_values):
-    name = bytesify(name)
-    name_lower = name.lower()
+    name = bytesify(name).lower()
     new_headers = []
     for found_name, found_raw_value in headers:
-        if found_name.lower() != name_lower:
+        if found_name != name:
             new_headers.append((found_name, found_raw_value))
     for new_value in new_values:
         new_headers.append((name, new_value))
-    headers[:] = new_headers
+    headers[:] = normalize_and_validate(new_headers)
 
 def framing_headers(headers):
     # Returns:

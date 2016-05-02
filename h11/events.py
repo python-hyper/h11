@@ -78,7 +78,7 @@ class Request(_EventBundle):
     def _validate(self):
         if self.http_version == b"1.1":
             for name, value in self.headers:
-                if name.lower() == b"host":
+                if name == b"host":
                     break
             else:
                 raise ProtocolError("Missing mandatory Host: header")
