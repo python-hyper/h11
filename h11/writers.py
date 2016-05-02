@@ -94,6 +94,7 @@ class Http10Writer(BodyWriter):
 
 WRITERS = {
     (CLIENT, IDLE): write_request,
+    (SERVER, IDLE): write_any_response,
     (SERVER, SEND_RESPONSE): write_any_response,
     SEND_BODY: {
         "chunked": ChunkedWriter,
