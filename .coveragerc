@@ -1,0 +1,11 @@
+[run]
+branch=True
+source=h11
+omit=
+  setup.py
+
+[report]
+exclude_lines =
+  pragma: no cover
+  ^def test_
+precision = 1
