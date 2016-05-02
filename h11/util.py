@@ -1,4 +1,4 @@
-__all__ = ["bytesify"]
+__all__ = ["ProtocolError", "validate", "Sentinel", "bytesify"]
 
 # This indicates either that you tried to do something that HTTP/1.1 says is
 # illegal, or that your peer did. Either way, you should probably close the
