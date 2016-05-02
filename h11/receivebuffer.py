@@ -48,7 +48,7 @@ class ReceiveBuffer:
         self._start += len(out)
         return out
 
-    def maybe_extract_until_next_new(self, needle):
+    def maybe_extract_until_next(self, needle):
         # Returns extracted bytes on success (advancing offset), or None on
         # failure
         if self._looked_for == needle:
@@ -72,7 +72,7 @@ class ReceiveBuffer:
             self._start += 2
             return []
         else:
-            data = self.maybe_extract_until_next_new(b"\r\n\r\n")
+            data = self.maybe_extract_until_next(b"\r\n\r\n")
             if data is None:
                 return None
             lines = data.split(b"\r\n")

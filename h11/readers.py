@@ -207,7 +207,7 @@ class ChunkedReader:
         else:
             # Refill our chunk count
             if self._bytes_in_chunk == 0:
-                chunk_header = buf.maybe_extract_until_next_new(b"\r\n")
+                chunk_header = buf.maybe_extract_until_next(b"\r\n")
                 if chunk_header is None:
                     return None
                 matches = validate(chunk_header_re, chunk_header)
