@@ -17,8 +17,11 @@ def test_event_bundle():
     t = T(a=1, b=0)
     assert repr(t) == "T(a=1, b=0)"
     assert t == T(a=1, b=0)
+    assert not (t == T(a=2, b=0))
     assert not (t != T(a=1, b=0))
-    assert hash(t) == hash(T(a=1, b=0))
+    assert (t != T(a=2, b=0))
+    with pytest.raises(TypeError):
+        hash(t)
 
     # check defaults
     t = T(a=10)
