@@ -166,8 +166,8 @@ class ConnectionState:
         if not self.keep_alive:
             # We will definitely end up in MUST_CLOSE; DONE is unreachable
             return "never"
-        states = {m.state for m in self._machines.values()}
-        doomed_states = {MUST_CLOSE, CLOSED}
+        states = set(self.states.values())
+        doomed_states = {MUST_CLOSE, CLOSED, SWITCHED_PROTOCOL}
         if states.intersection(doomed_states):
             return "never"
         if states == {DONE}:
@@ -177,11 +177,12 @@ class ConnectionState:
     def prepare_to_reuse(self):
         if self.can_reuse != "now":
             raise ProtocolError("not in a reusable state")
-        for machine in self._machines.values():
-            assert machine.state is DONE
-            machine.state = IDLE
+
+        assert self.states == {CLIENT: DONE, SERVER: DONE}
         assert self.keep_alive
         assert not self.client_requested_protocol_switch
+
+        self.states = {CLIENT: IDLE, SERVER: IDLE}
 
 
 _EVENT_COLOR = "#002092"
