@@ -6,6 +6,11 @@ still not 100% happy with prepare_to_reuse
 
 should move the dot drawing code into docs/
 
+XX the HTTP_MAX_BUFFER_SIZE should probably be configurable
+(and possibly lowered by default)
+
+pondering moving headers to be (default)dict of lowercase bytestrings -> ordered lists of bytestrings
+
 XX TODO:
    A server MUST NOT send a Transfer-Encoding header field in any
    response with a status code of 1xx (Informational) or 204 (No
