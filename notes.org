@@ -11,6 +11,8 @@ XX TODO:
    (Successful) response to a CONNECT request (Section 4.3.6 of
    [RFC7231]).
 
+http://coad.measurement-factory.com/details.html
+
 * Closure
 
 You or other side can close (send ConnectionClosed()) at any time.
