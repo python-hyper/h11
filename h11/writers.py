@@ -49,7 +49,7 @@ class BodyWriter:
             self.send_data(event.data, write)
         elif type(event) is EndOfMessage:
             self.send_eom(event.headers, write)
-        else:
+        else: # pragma: no cover
             assert False
 
 #
@@ -69,6 +69,8 @@ class ContentLengthWriter(BodyWriter):
         write(data)
 
     def send_eom(self, headers, write):
+        if self._length != 0:
+            raise ProtocolError("Too little data for declared Content-Length")
         if headers:
             raise ProtocolError("Content-Length and trailers don't mix")
 

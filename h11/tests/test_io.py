@@ -43,10 +43,13 @@ SIMPLE_CASES = [
      b"HTTP/1.1 101 \r\n\r\n"),
 ]
 
-def tw(writer, obj, expected):
+def dowrite(writer, obj):
     got_list = []
     writer(obj, got_list.append)
-    got = b"".join(got_list)
+    return b"".join(got_list)
+
+def tw(writer, obj, expected):
+    got = dowrite(writer, obj)
     assert got == expected
 
 def makebuf(data):
@@ -275,3 +278,47 @@ def test_ChunkedReader():
                   + b"xxxxx" + b"\r\n"
                   + b"0; random=\"junk\"; some=more\r\n\r\n",
                   [Data(data=b"xxxxx"), EndOfMessage()])
+
+def test_ContentLengthWriter():
+    w = ContentLengthWriter(5)
+    assert dowrite(w, Data(data=b"123")) == b"123"
+    assert dowrite(w, Data(data=b"45")) == b"45"
+    assert dowrite(w, EndOfMessage()) == b""
+
+    w = ContentLengthWriter(5)
+    with pytest.raises(ProtocolError):
+        dowrite(w, Data(data=b"123456"))
+
+    w = ContentLengthWriter(5)
+    dowrite(w, Data(data=b"123"))
+    with pytest.raises(ProtocolError):
+        dowrite(w, Data(data=b"456"))
+
+    w = ContentLengthWriter(5)
+    dowrite(w, Data(data=b"123"))
+    with pytest.raises(ProtocolError):
+        dowrite(w, EndOfMessage())
+
+    w = ContentLengthWriter(5)
+    dowrite(w, Data(data=b"123")) == b"123"
+    dowrite(w, Data(data=b"45")) == b"45"
+    with pytest.raises(ProtocolError):
+        dowrite(w, EndOfMessage(headers=[("Etag", "asdf")]))
+
+def test_ChunkedWriter():
+    w = ChunkedWriter()
+    assert dowrite(w, Data(data=b"aaa")) == b"3\r\naaa\r\n"
+    assert dowrite(w, Data(data=b"a" * 20)) == b"14\r\n" + b"a" * 20 + b"\r\n"
+
+    assert dowrite(w, EndOfMessage()) == b"0\r\n\r\n"
+
+    assert (dowrite(w, EndOfMessage(headers=[("Etag", "asdf"), ("a", "b")]))
+            == b"0\r\netag: asdf\r\na: b\r\n\r\n")
+
+def test_Http10Writer():
+    w = Http10Writer()
+    assert dowrite(w, Data(data=b"1234")) == b"1234"
+    assert dowrite(w, EndOfMessage()) == b""
+
+    with pytest.raises(ProtocolError):
+        dowrite(w, EndOfMessage(headers=[("Etag", "asdf")]))
