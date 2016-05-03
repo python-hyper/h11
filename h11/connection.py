@@ -1,8 +1,5 @@
-# We model the joint state of the client and server as a pair of finite state
-# automata: one for the client and one for the server. Transitions in each
-# machine can be triggered by either local or remote events. (For example, the
-# client sending a Request triggers both the client to move to SENDING-BODY
-# and the server to move to SENDING-RESPONSE.)
+# This contains the main Connection class. Everything in h11 revolves around
+# this.
 
 # Import all event types
 from .events import *
@@ -23,10 +20,16 @@ from .writers import WRITERS
 __all__ = ["Connection"]
 
 # If we ever have this much buffered without it making a complete parseable
-# event, we error out.
-# Value copied from node.js's http_parser.c's HTTP_MAX_HEADER_SIZE (Headers
-# are the only time we really buffer, so the effect is the same.)
-HTTP_MAX_BUFFER_SIZE = 80 * 1024
+# event, we error out. The only time we really buffer is when reading the
+# request/reponse line + headers together, so this is effectively the limit on
+# the size of that.
+#
+# Some precedents for defaults:
+# - node.js: 80 * 1024
+# - tomcat: 8 * 1024
+# - IIS: 16 * 1024
+# - Apache: <8 KiB per line>
+HTTP_DEFAULT_MAX_BUFFER_SIZE = 16 * 1024
 
 # RFC 7230's rules for connection lifecycles:
 # - If either side says they want to close the connection, then the connection
@@ -93,7 +96,8 @@ def _client_requests_protocol_switch(event):
 ################################################################
 
 class Connection:
-    def __init__(self, our_role):
+    def __init__(self, our_role, max_buffer_size=HTTP_DEFAULT_MAX_BUFFER_SIZE):
+        self._max_buffer_size = HTTP_DEFAULT_MAX_BUFFER_SIZE
         # State and role tracking
         if our_role not in (CLIENT, SERVER):
             raise ValueError(
@@ -297,7 +301,7 @@ class Connection:
                 event = self._reader(self._receive_buffer)
                 print("it returned:", event)
             if event is None:
-                if len(self._receive_buffer) > HTTP_MAX_BUFFER_SIZE:
+                if len(self._receive_buffer) > self._max_buffer_size:
                     # 414 is "Request-URI Too Long" which is not quite
                     # accurate because we'll also issue this if someone tries
                     # to send e.g. a megabyte of headers, but whatever.
