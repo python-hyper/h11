@@ -1,3 +1,11 @@
+can_reuse sounds like it should be boolean :-( :-(
+  reuseable? also bool
+  reuse_schedule
+  reuse_when
+still not 100% happy with prepare_to_reuse
+
+should move the dot drawing code into docs/
+
 XX TODO:
    A server MUST NOT send a Transfer-Encoding header field in any
    response with a status code of 1xx (Informational) or 204 (No
