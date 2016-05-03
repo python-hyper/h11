@@ -14,7 +14,10 @@ from ..writers import (
 from ..readers import (
     READERS,
     ContentLengthReader, ChunkedReader, Http10Reader,
+    _obsolete_line_fold,
 )
+
+from .helpers import normalize_data_events
 
 SIMPLE_CASES = [
     ((CLIENT, IDLE),
@@ -60,11 +63,9 @@ def tr(reader, data, expected):
     # Incrementally growing buffer
     buf = ReceiveBuffer()
     for i in range(len(data)):
+        assert reader(buf) is None
         buf += data[i:i + 1]
-        if len(buf) < len(data):
-            assert reader(buf) is None
-        else:
-            assert reader(buf) == expected
+    assert reader(buf) == expected
 
     # Extra
     buf = makebuf(data)
@@ -116,3 +117,161 @@ def test_readers_unusual():
        b"HTTP/1.0 200 OK\r\nSome: header\r\n\r\n",
        Response(status_code=200, headers=[("Some", "header")],
                 http_version="1.0"))
+
+    # single-character header values (actually disallowed by the ABNF in RFC
+    # 7230 -- this is a bug in the standard that we originally copied...)
+    tr(READERS[SERVER, SEND_RESPONSE],
+       b"HTTP/1.0 200 OK\r\n"
+       b"Foo: a a a a a \r\n\r\n",
+       Response(status_code=200, headers=[("Foo", "a a a a a")],
+                http_version="1.0"))
+
+    tr(READERS[SERVER, SEND_RESPONSE],
+       b"HTTP/1.0 200 OK\r\n"
+       b"Foo: \t \t \r\n\r\n",
+       Response(status_code=200, headers=[("Foo", "")],
+                http_version="1.0"))
+
+    # obsolete line folding
+    tr(READERS[CLIENT, IDLE],
+       b"HEAD /foo HTTP/1.1\r\n"
+       b"Host: example.com\r\n"
+       b"Some: multi-line\r\n"
+       b" header\r\n"
+       b"\tnonsense\r\n"
+       b"    \t   \t\tI guess\r\n"
+       b"Connection: close\r\n\r\n",
+       Request(method="HEAD", target="/foo",
+               headers=[
+                   ("Host", "example.com"),
+                   ("Some", "multi-line header nonsense I guess"),
+                   ("Connection", "close"),
+                   ]))
+
+    with pytest.raises(ProtocolError):
+        tr(READERS[CLIENT, IDLE],
+           b"HEAD /foo HTTP/1.1\r\n"
+           b"  folded: line\r\n\r\n",
+           None)
+
+    with pytest.raises(ProtocolError):
+        tr(READERS[CLIENT, IDLE],
+           b"HEAD /foo HTTP/1.1\r\n"
+           b"foo  : line\r\n\r\n",
+           None)
+    with pytest.raises(ProtocolError):
+        tr(READERS[CLIENT, IDLE],
+           b"HEAD /foo HTTP/1.1\r\n"
+           b"foo\t: line\r\n\r\n",
+           None)
+    with pytest.raises(ProtocolError):
+        tr(READERS[CLIENT, IDLE],
+           b"HEAD /foo HTTP/1.1\r\n"
+           b"foo\t: line\r\n\r\n",
+           None)
+    with pytest.raises(ProtocolError):
+        tr(READERS[CLIENT, IDLE],
+           b"HEAD /foo HTTP/1.1\r\n"
+           b": line\r\n\r\n",
+           None)
+
+
+def test__obsolete_line_fold_bytes():
+    # _obsolete_line_fold has a defensive cast to bytearray, which is
+    # necessary to protect against O(n^2) behavior in case anyone ever passes
+    # in regular bytestrings... but right now we never pass in regular
+    # bytestrings. so this test just exists to get some coverage on that
+    # defensive cast.
+    assert (list(_obsolete_line_fold([b"aaa", b"bbb", b"  ccc", b"ddd"]))
+                 == [b"aaa", bytearray(b"bbb ccc"), b"ddd"])
+
+
+def _run_reader_iter(reader, buf, do_eof):
+    while True:
+        event = reader(buf)
+        if event is None:
+            break
+        yield event
+        # body readers have undefined behavior after returning EndOfMessage,
+        # because this changes the state so they don't get called again
+        if type(event) is EndOfMessage:
+            break
+    if do_eof:
+        assert not buf
+        yield reader.read_eof()
+
+def _run_reader(*args):
+    events = list(_run_reader_iter(*args))
+    return normalize_data_events(events)
+
+def t_body_reader(thunk, data, expected, do_eof=False):
+    # Simple: consume whole thing
+    print("Test 1")
+    buf = makebuf(data)
+    assert _run_reader(thunk(), buf, do_eof) == expected
+
+    # Incrementally growing buffer
+    print("Test 2")
+    reader = thunk()
+    buf = ReceiveBuffer()
+    events = []
+    for i in range(len(data)):
+        events += _run_reader(reader, buf, False)
+        buf += data[i:i + 1]
+    events += _run_reader(reader, buf, do_eof)
+    assert normalize_data_events(events) == expected
+
+    is_complete = any(type(event) is EndOfMessage for event in expected)
+    if is_complete and not do_eof:
+        buf = makebuf(data + b"trailing")
+        assert _run_reader(thunk(), buf, False) == expected
+
+
+def test_ContentLengthReader():
+    t_body_reader(lambda: ContentLengthReader(0),
+                  b"",
+                  [EndOfMessage()])
+
+    t_body_reader(lambda: ContentLengthReader(10),
+                  b"0123456789",
+                  [Data(data=b"0123456789"), EndOfMessage()])
+
+def test_Http10Reader():
+    t_body_reader(Http10Reader, b"", [EndOfMessage()], do_eof=True)
+    t_body_reader(Http10Reader, b"asdf",
+                  [Data(data=b"asdf"), EndOfMessage()], do_eof=True)
+
+def test_ChunkedReader():
+    t_body_reader(ChunkedReader, b"0\r\n\r\n", [EndOfMessage()])
+
+    t_body_reader(ChunkedReader,
+                  b"0\r\nSome: header\r\n\r\n",
+                  [EndOfMessage(headers=[("Some", "header")])])
+
+    t_body_reader(ChunkedReader,
+                  b"5\r\n01234\r\n"
+                  + b"10\r\n0123456789abcdef\r\n"
+                  + b"0\r\n"
+                  + b"Some: header\r\n\r\n",
+                  [Data(data=b"012340123456789abcdef"),
+                   EndOfMessage(headers=[("Some", "header")])])
+
+    t_body_reader(ChunkedReader,
+                  b"5\r\n01234\r\n"
+                  + b"10\r\n0123456789abcdef\r\n"
+                  + b"0\r\n\r\n",
+                  [Data(data=b"012340123456789abcdef"), EndOfMessage()])
+
+    # handles upper and lowercase hex
+    t_body_reader(ChunkedReader,
+                  b"aA\r\n"
+                  + b"x" * 0xaa + b"\r\n"
+                  + b"0\r\n\r\n",
+                  [Data(data=b"x" * 0xaa), EndOfMessage()])
+
+    # handles (and discards) "chunk extensions" omg wtf
+    t_body_reader(ChunkedReader,
+                  b"5; hello=there\r\n"
+                  + b"xxxxx" + b"\r\n"
+                  + b"0; random=\"junk\"; some=more\r\n\r\n",
+                  [Data(data=b"xxxxx"), EndOfMessage()])

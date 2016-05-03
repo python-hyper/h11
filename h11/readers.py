@@ -39,6 +39,8 @@ token = rb"[-!#$%&%&'*+.^_`|~0-9a-zA-Z]+"
 #  field-name     = token
 field_name = token
 
+# The standard says:
+#
 #  field-value    = *( field-content / obs-fold )
 #  field-content  = field-vchar [ 1*( SP / HTAB ) field-vchar ]
 #  field-vchar    = VCHAR / obs-text
@@ -53,12 +55,22 @@ field_name = token
 #
 # https://svn.tools.ietf.org/svn/wg/httpbis/specs/rfc7230.html#rule.quoted-string
 #   obs-text       = %x80-FF
+#
+# However, the standard definition of field-content is WRONG! It disallows
+# fields containing a single visible character surrounded by whitespace,
+# e.g. "foo a bar".
+#
+# See: https://www.rfc-editor.org/errata_search.php?rfc=7230&eid=4189
+#
+# So our definition of field_content attempts to fix it up...
 vchar_or_obs_text = rb"[\x21-\xff]"
 field_vchar = vchar_or_obs_text
-field_content = rb"%(field_vchar)s([ \t]+%(field_vchar)s)?" % {
+field_content = rb"%(field_vchar)s+(?:[ \t]+%(field_vchar)s+)*" % {
     b"field_vchar": field_vchar,
 }
-field_value = rb"(%(field_content)s)*" % {b"field_content": field_content}
+# We handle obs-fold at a different level, and our fixed-up field_content
+# already grows to swallow the whole value, so ? instead of *
+field_value = rb"(%(field_content)s)?" % {b"field_content": field_content}
 
 #  header-field   = field-name ":" OWS field-value OWS
 header_field = (
@@ -76,6 +88,8 @@ header_field = (
     })
 header_field_re = re.compile(header_field)
 
+# Remember that this has to run in O(n) time -- so e.g. the bytearray cast is
+# critical.
 obs_fold_re = re.compile(rb"[ \t]+")
 def _obsolete_line_fold(lines):
     it = iter(lines)
@@ -88,7 +102,7 @@ def _obsolete_line_fold(lines):
             if not isinstance(last, bytearray):
                 last = bytearray(last)
             last += b" "
-            last += line[match.endpos:]
+            last += line[match.end():]
         else:
             if last is not None:
                 yield last
@@ -181,10 +195,33 @@ class ContentLengthReader:
         return Data(data=data)
 
 
-chunk_header_re = re.compile(br"(?P<count>[0-9]{1,20})\r\n")
+HEXDIG = br"[0-9A-Fa-f]"
+# Actually
+#
+#      chunk-size     = 1*HEXDIG
+#
+# but we impose an upper-limit to avoid ridiculosity. len(str(2**64)) == 20
+chunk_size = br"(%(HEXDIG)s){1,20}" % {b"HEXDIG": HEXDIG}
+# Actually
+#
+#     chunk-ext      = *( ";" chunk-ext-name [ "=" chunk-ext-val ] )
+#
+# but we aren't parsing the things so we don't really care.
+chunk_ext = br";.*"
+chunk_header = (
+    br"(?P<chunk_size>%(chunk_size)s)"
+    br"(?P<chunk_ext>%(chunk_ext)s)?"
+    br"\r\n"
+    % {b"chunk_size": chunk_size, b"chunk_ext": chunk_ext})
+
+chunk_header_re = re.compile(chunk_header)
 class ChunkedReader:
     def __init__(self):
         self._bytes_in_chunk = 0
+        # After reading a chunk, we have to throw away the trailing \r\n; if
+        # this is >0 then we discard that many bytes before resuming regular
+        # de-chunkification.
+        self._bytes_to_discard = 0
         self._reading_trailer = False
 
     def __call__(self, buf):
@@ -193,23 +230,34 @@ class ChunkedReader:
             if lines is None:
                 return None
             return EndOfMessage(headers=list(_decode_header_lines(lines)))
-        else:
-            # Refill our chunk count
-            if self._bytes_in_chunk == 0:
-                chunk_header = buf.maybe_extract_until_next(b"\r\n")
-                if chunk_header is None:
-                    return None
-                matches = validate(chunk_header_re, chunk_header)
-                self._bytes_in_chunk = int(matches["count"], base=16)
-                if self._bytes_in_chunk == 0:
-                    self._reading_trailer = True
-                    return self(buf)
-            assert self._bytes_in_chunk > 0
-            data = buf.maybe_extract_at_most(self._bytes_in_chunk)
+        if self._bytes_to_discard > 0:
+            data = buf.maybe_extract_at_most(self._bytes_to_discard)
             if data is None:
                 return None
-            self._bytes_in_chunk -= len(data)
-            return Data(data=data)
+            self._bytes_to_discard -= len(data)
+            if self._bytes_to_discard > 0:
+                return None
+            # else, fall through and read some more
+        assert self._bytes_to_discard == 0
+        if self._bytes_in_chunk == 0:
+            # We need to refill our chunk count
+            chunk_header = buf.maybe_extract_until_next(b"\r\n")
+            if chunk_header is None:
+                return None
+            matches = validate(chunk_header_re, chunk_header)
+            # XX FIXME: we discard chunk extensions. Does anyone care?
+            self._bytes_in_chunk = int(matches["chunk_size"], base=16)
+            if self._bytes_in_chunk == 0:
+                self._reading_trailer = True
+                return self(buf)
+        assert self._bytes_in_chunk > 0
+        data = buf.maybe_extract_at_most(self._bytes_in_chunk)
+        if data is None:
+            return None
+        self._bytes_in_chunk -= len(data)
+        if self._bytes_in_chunk == 0:
+            self._bytes_to_discard = 2
+        return Data(data=data)
 
 
 class Http10Reader:
@@ -217,7 +265,7 @@ class Http10Reader:
         data = buf.maybe_extract_at_most(999999999)
         if data is None:
             return None
-        return Data(data)
+        return Data(data=data)
 
     def read_eof(self):
         return EndOfMessage()

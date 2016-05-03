@@ -156,6 +156,14 @@ handle anything besides ``chunked`` either. So I'm not too worried
 about this being a problem in practice. But I'm not majorly opposed to
 adding support for more features here either.
 
+When parsing chunked encoding, we parse but discard "chunk
+extensions". This is an extremely obscure feature that allows
+arbitrary metadata to be interleaved into a chunked transfer
+stream. This metadata has no standard uses, and proxies are allowed to
+strip it out. I don't think anyone will notice this lack, but it could
+be added if someone really wants it; I just ran out of energy for
+implementing weirdo features no-one uses.
+
 Protocol changing/upgrading: h11 has has full support for
 transitioning to a new protocol, via either Upgrade: headers (e.g.,
 ``Upgrade: websocket``) or the ``CONNECT`` method. Note that this
