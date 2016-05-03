@@ -156,7 +156,7 @@ class Connection:
         # beyond a single request/response cycle
         assert not self.client_is_waiting_for_100_continue
         assert self._cstate.keep_alive
-        assert not self._cstate.client_requested_protocol_switch
+        assert not self._cstate.client_requested_protocol_switch_pending
 
     def _get_io_object(self, role, event, io_dict):
         state = self._cstate.states[role]
@@ -218,7 +218,7 @@ class Connection:
 
         # client side of Upgrade/CONNECT
         if type(event) is Request and _client_requests_protocol_switch(event):
-            self._cstate.client_requested_protocol_switch = True
+            self._cstate.client_requested_protocol_switch_pending = True
         # server side of Upgrade/CONNECT is handled above
 
         # 100-continue

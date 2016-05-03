@@ -99,11 +99,17 @@ class ConnectionState:
         # it when entering DONE.
         self.keep_alive = True
 
-        # If this is True, then it enables the automatic DONE ->
-        # MIGHT_SWITCH_PROTOCOL transition for the client only. The only place
-        # this setting can change is when seeing a Request, so the client
-        # cannot already be in DONE when it is set.
-        self.client_requested_protocol_switch = False
+        # The client Request might suggest switching protocols, but even if
+        # this takes effect it doesn't happen until after the client has
+        # finished sending their full message. So we need some way to carry
+        # that information forward from the Request to the EndOfMessage, and
+        # that's what this variable is for. If True, it enables the automatic
+        # DONE -> MIGHT_SWITCH_PROTOCOL transition for the client only, and
+        # then unsets itself.
+        #
+        # The only place this setting can change is when seeing a Request, so
+        # the client cannot already be in DONE when it is set.
+        self.client_requested_protocol_switch_pending = False
 
         self.states = {CLIENT: IDLE, SERVER: IDLE}
 
@@ -121,6 +127,8 @@ class ConnectionState:
         # - if we send a Response (e.g 400 can't parse your request), and then
         #   get a Request, then something has gone horrible wrong and we
         #   should raise an error.
+        # XX FIXME: if this second transition errors out, then the first
+        # transition currently does *not* get unwound -- is this a problem?
         if event_type is Request:
             assert role is CLIENT
             self._fire_event_triggered_transitions(SERVER, event_type)
@@ -145,9 +153,9 @@ class ConnectionState:
             # If you change these, make sure to also update _make_dot below.
 
             if server_switched_protocol:
-                assert role is SERVER
                 assert self.states[SERVER] in (SEND_RESPONSE, SEND_BODY)
                 self.states[SERVER] = SWITCHED_PROTOCOL
+                server_switched_protocol = False
 
             # It could happen that both these special-case transitions are
             # enabled at the same time:
@@ -163,9 +171,10 @@ class ConnectionState:
             # request, in which case the client will go back to DONE and then
             # from there to MUST_CLOSE.
 
-            if self.client_requested_protocol_switch:
+            if self.client_requested_protocol_switch_pending:
                 if self.states[CLIENT] is DONE:
                     self.states[CLIENT] = MIGHT_SWITCH_PROTOCOL
+                    self.client_requested_protocol_switch_pending = False
 
             if not self.keep_alive:
                 for r in (CLIENT, SERVER):
@@ -200,7 +209,7 @@ class ConnectionState:
 
         assert self.states == {CLIENT: DONE, SERVER: DONE}
         assert self.keep_alive
-        assert not self.client_requested_protocol_switch
+        assert not self.client_requested_protocol_switch_pending
 
         self.states = {CLIENT: IDLE, SERVER: IDLE}
 
