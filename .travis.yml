@@ -1,0 +1,13 @@
+language: python
+python:
+  - 3.5
+sudo: false
+
+before_install:
+  - pip install pytest pytest-cov codecov
+
+script:
+  - py.test --cov=h11 --cov-config=.coveragerc h11
+
+after_success:
+  - codecov
