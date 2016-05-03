@@ -47,6 +47,8 @@ EVENT_TRIGGERED_TRANSITIONS = {
     SERVER: {
         IDLE: {
             InformationalResponse: SEND_RESPONSE,
+            # Special case triggered by CLIENT -- see discussion below
+            Request: SEND_RESPONSE,
             Response: SEND_BODY,
             ConnectionClosed: CLOSED,
         },
@@ -75,9 +77,11 @@ EVENT_TRIGGERED_TRANSITIONS = {
 # into _fire_state_triggered_transitions below.
 STATE_TRIGGERED_TRANSITIONS = {
     # (Client state, Server state) -> (new Client state, new Server state)
+    # Protocol negotiation
     (MIGHT_SWITCH_PROTOCOL, SWITCHED_PROTOCOL):
         (SWITCHED_PROTOCOL, SWITCHED_PROTOCOL),
     (MIGHT_SWITCH_PROTOCOL, SEND_BODY): (DONE, SEND_BODY),
+    # Socket shutdown
     (CLOSED, DONE): (CLOSED, MUST_CLOSE),
     (CLOSED, IDLE): (CLOSED, MUST_CLOSE),
     (DONE, CLOSED): (MUST_CLOSE, CLOSED),
@@ -104,7 +108,25 @@ class ConnectionState:
         self.states = {CLIENT: IDLE, SERVER: IDLE}
 
     def process_event(self, role, event_type, server_switched_protocol):
-        # Handle event-triggered transitions
+        self._fire_event_triggered_transitions(role, event_type)
+        # Special case: the server state does get to see Request events. This
+        # is necessary because a server in a hasn't-recieved-a-request state
+        # is different from one in a has-received-a-request state. For example:
+        # - if we've haven't received a Request, closing our end is fine; if
+        #   we have, then it's a protocol error
+        # - if we haven't received a Request, and the remote end closes, then
+        #   we will never receive a Request so we should go to MUST_CLOSE. If
+        #   we have received a Request and the remote end closes, we should
+        #   continue responding as normal.
+        # - if we send a Response (e.g 400 can't parse your request), and then
+        #   get a Request, then something has gone horrible wrong and we
+        #   should raise an error.
+        if event_type is Request:
+            assert role is CLIENT
+            self._fire_event_triggered_transitions(SERVER, event_type)
+        self._fire_state_triggered_transitions(server_switched_protocol)
+
+    def _fire_event_triggered_transitions(self, role, event_type):
         state = self.states[role]
         try:
             new_state = EVENT_TRIGGERED_TRANSITIONS[role][state][event_type]
@@ -113,8 +135,6 @@ class ConnectionState:
                 "can't handle event type {} for {} in state {}"
                 .format(event_type.__name__, role, self.states[role]))
         self.states[role] = new_state
-
-        self._fire_state_triggered_transitions(server_switched_protocol)
 
     def _fire_state_triggered_transitions(self, server_switched_protocol):
         # We apply these rules repeatedly until converging on a fixed point
@@ -218,14 +238,19 @@ def _make_dot(role, out_path):
         for (source_state, t) in EVENT_TRIGGERED_TRANSITIONS[role].items():
             for (event_type, target_state) in t.items():
                 weight = 1
+                color = _EVENT_COLOR
                 if (event_type in CORE_EVENTS
                     and source_state is not target_state):
                     weight = 10
                 # exception
                 if (event_type is Response and source_state is IDLE):
                     weight = 1
+                if role is SERVER and event_type is Request:
+                    # The weird special case
+                    color = _SPECIAL_COLOR
+                    weight = 5
                 edge(source_state, target_state, event_type.__name__,
-                     _EVENT_COLOR, weight=weight)
+                     color, weight=weight)
 
         for source_pair, target_pair in STATE_TRIGGERED_TRANSITIONS.items():
             if role is CLIENT:
