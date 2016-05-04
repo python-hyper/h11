@@ -335,3 +335,5 @@ def test_100_continue():
 # protocol switching and trailing_data
 # close handling
 # sendfile silliness
+# error states
+# end-to-end versus independent implementations?
