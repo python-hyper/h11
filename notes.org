@@ -2,14 +2,22 @@ can_reuse sounds like it should be boolean :-( :-(
   reuseable? also bool
   reuse_schedule
   reuse_when
+and maybe it should tell you what needs to happen -- I guess server is mostly interested in "is this reusable now", "could it be made reusable just by reading from the socket" (or maybe even just "is this reusable now")
+client ditto?
+  which is: I'm in DONE (this automatically handles keep-alive issue)
+our problem is we have two false answers and one true answer
+maybe we should invert it so we have two true answers and one false answer:
+  in_use = {False, "drain", "something something closed? meh"}
+
+for non-reuse-related reasons, server also is interested in knowing whether the handler actually completed a response, because if not then it should log an error
+server also needs to check for MUST_CLOSE and actually close when it sees it (or I guess maybe this is the same response as any other non-DONE state when the handler returns?)
+
 still not 100% happy with prepare_to_reuse
 
 should move the dot drawing code into docs/
 
-XX the HTTP_MAX_BUFFER_SIZE should probably be configurable
-(and possibly lowered by default)
-
 pondering moving headers to be (default)dict of lowercase bytestrings -> ordered lists of bytestrings
+I guess we should get some benchmarks/profiles first, since one of the motivations would be to eliminate all these linear scans and reallocations we use when dealing with headers
 
 XX TODO:
    A server MUST NOT send a Transfer-Encoding header field in any

@@ -133,5 +133,7 @@ def test_Connection_basics():
 # reuse
 # pipelining
 # response header munging
+# - including HTTP/1.1 versus HTTP/1.0
 # protocol switching
 # close handling
+# sendfile silliness
