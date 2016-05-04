@@ -64,7 +64,7 @@ writing my own HTTP stack from scratch.
 
 *...that's a terrible reason.*
 
-Well, ok. And I wanted to play with `Curio
+Well, ok... I also wanted to play with `Curio
 <https://curio.readthedocs.io/en/latest/tutorial.html>`_, which has no
 HTTP library, and I was feeling inspired by Curio's elegantly
 featureful minimalism and Corey's call-to-arms blog-post.
@@ -253,6 +253,13 @@ likely to eventually complain about...
 
 Trippy state machine diagrams
 .............................
+
+We model the state of a HTTP/1.1 connection as a pair of linked state
+machines, one for each of the peers. Blue is an "event" sent by that
+peer, green is a transition triggered by the (client state, server
+state) tuple taking on a particular value, and purple is special
+cases. (TODO: make the doc build automatically re-run the code that
+regenerates these from the source. Once we have a doc build...)
 
 Client side:
 
