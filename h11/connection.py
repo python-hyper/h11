@@ -360,7 +360,7 @@ class Connection:
         need_close = False
 
         _, effective_content_length = framing_headers(headers)
-        if (response_allows_body(self._request_method, response)
+        if (_response_allows_body(self._request_method, response)
             and effective_content_length is None):
             # This response has a body of unknown length.
             # If our peer is HTTP/1.1, we use Transfer-Encoding: chunked

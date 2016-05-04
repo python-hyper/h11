@@ -9,6 +9,8 @@ from ..connection import (
     Connection,
 )
 
+from .helpers import ConnectionPair
+
 def test__keep_alive():
     assert _keep_alive(
         Request(method="GET", target="/", headers=[("Host", "Example.com")]))
@@ -86,3 +88,38 @@ def test__client_requests_protocol_switch():
                 target="/websocket",
                 headers=[("Host", "example.com"),
                          ("Upgrade", "websocket")]))
+
+
+def test_Connection_basics():
+    p = ConnectionPair()
+    assert p.conn[CLIENT].our_role is CLIENT
+    assert p.conn[CLIENT].their_role is SERVER
+    assert p.conn[SERVER].our_role is SERVER
+    assert p.conn[SERVER].their_role is CLIENT
+
+    data, _ = p.send(CLIENT,
+                     Request(method="GET", target="/",
+                             headers=[("Host", "example.com"),
+                                      ("Content-Length", "10")]))
+    assert data == (
+        b"GET / HTTP/1.1\r\n"
+        b"host: example.com\r\n"
+        b"content-length: 10\r\n\r\n")
+
+    for conn in p.conns:
+        assert conn.state_of(CLIENT) is SEND_BODY
+        assert conn.state_of(SERVER) is SEND_RESPONSE
+        assert conn.can_reuse == "maybe-later"
+    assert p.conn[CLIENT].our_state is SEND_BODY
+    assert p.conn[CLIENT].their_state is SEND_RESPONSE
+    assert p.conn[SERVER].our_state is SEND_RESPONSE
+    assert p.conn[SERVER].their_state is SEND_BODY
+
+    data, _ = p.send(SERVER,
+                     Response(status_code=200,
+                              headers=[("Content-Length", "11")]))
+    assert data == b"HTTP/1.1 200 \r\ncontent-length: 11\r\n\r\n"
+
+# HTTP/1.0
+# 100-continue
+# reuse
