@@ -6,34 +6,43 @@ heavily inspired by `hyper-h2
 <https://lukasa.co.uk/2015/10/The_New_Hyper/>`_.
 
 This is a pure protocol library; like h2, it contains no IO code
-whatsoever. (I highly recommend `that blog post for context on what
+whatsoever. I highly recommend `that blog post for context on what
 this means and the motivation for doing things this way
-<https://lukasa.co.uk/2015/10/The_New_Hyper/>`_.) This is a toolkit
-for building tools that speak HTTP: it's not something that out of the
-box is going to replace ``requests`` or ``twisted.web`` or whatever,
-but if you're implementing something like ``requests`` or
-``twisted.web`` then you might find it useful. At a high level,
-working with it involves:
+<https://lukasa.co.uk/2015/10/The_New_Hyper/>`_. But basically the
+idea is that by doing things this way, you can hook h11 up to your
+favorite network API, and that could be anything you want:
+synchronous, threaded, asynchronous, or your own implementation of
+`RFC 6214 <https://tools.ietf.org/html/rfc6214>`_ -- h11 won't judge
+you. Compare this to the current state of the art, where every time a
+`new network API <https://curio.readthedocs.io/>`_ comes along then
+someone gets to start over reimplementing the entire HTTP protocol
+from scratch.
+
+h11 is a toolkit for building tools that speak HTTP, not something
+directly useful to an end-user: we're not going to replace
+``requests`` or ``twisted.web`` or whatever, but if you're
+*implementing* something like ``requests`` or ``twisted.web`` then you
+might find h11 useful. At a high level, working with it involves:
 
 1) Creating an ``h11.Connection`` object to track the state of a
    single HTTP/1.1 connection.
 
-2) Writing some code that uses ``conn.data_to_send()`` and
-   ``conn.receive_data()`` to shuffle bytes between the
-   ``h11.Connection`` and your favorite network API. That API could be
-   anything you want: synchronous, threaded, asynchronous, or your own
-   implementation of `RFC 6214 <https://tools.ietf.org/html/rfc6214>`_
-   -- h11 won't judge you.
+2) When you read data off the network, pass it to
+   ``conn.receive_data(...)`` and get back a list of objects
+   representing high-level HTTP "events".
 
-3) Now you can send and receive high-level HTTP "events". (You send
-   them with ``conn.send()``, and receive them as the return value
-   from ``conn.receive_data()``.) For example, a client might
-   instantiate and then send a ``h11.Request`` object, then zero or
-   more ``h11.Data`` objects for the request body (e.g., a POST), and
-   then a ``h11.EndOfMessage`` to indicate the end of the message, and
-   the server would then send back a ``h11.Response``, some
-   ``h11.Data``, and its own ``h11.EndOfMessage``. If either side
-   tries to violate the protocol, you'll get an exception.
+3) When you want to send a high-level HTTP event, create the
+   corresponding object, pass it to ``conn.send(...)``, and this will
+   convert it to some bytes that you can then push out through the
+   network.
+
+For example, a client might instantiate and then send a
+``h11.Request`` object, then zero or more ``h11.Data`` objects for the
+request body (e.g., if this is a POST), and then a
+``h11.EndOfMessage`` to indicate the end of the message, and the
+server would then send back a ``h11.Response``, some ``h11.Data``, and
+its own ``h11.EndOfMessage``. If either side violates the protocol,
+you'll get an exception.
 
 It's suitable for implementing both servers and clients, and has a
 pleasingly symmetric API: the events you send as a client are exactly
@@ -48,19 +57,19 @@ FAQ
 
 *Whyyyyy?*
 
-I got mildly annoyed at some trivial and probably easily fixable
-issues in `aiohttp <https://aiohttp.readthedocs.io/>`_, so rather than
-spend a few hours debugging them I spent a few days writing my own
-HTTP stack from scratch.
+NIH is fun! Also I got mildly annoyed at some trivial and probably
+easily fixable issues in `aiohttp <https://aiohttp.readthedocs.io/>`_,
+so rather than spend a few hours debugging them I spent a few days
+writing my own HTTP stack from scratch.
 
 *...that's a terrible reason.*
 
-Also I wanted to play with `Curio
+Well, ok. And I wanted to play with `Curio
 <https://curio.readthedocs.io/en/latest/tutorial.html>`_, which has no
 HTTP library, and I was feeling inspired by Curio's elegantly
 featureful minimalism and Corey's call-to-arms blog-post.
 
-Also, most importantly, I was sick and needed a gloriously pointless
+And, most importantly, I was sick and needed a gloriously pointless
 yak-shaving project to distract me from all the things I should have
 been doing instead. Perhaps it won't turn out to be quite as pointless
 as all that, but either way at least I learned some stuff.
@@ -75,9 +84,9 @@ Please do! It's fun!
 
 *What are the features/limitations?*
 
-Roughly speaking, it's trying to be a rigorous and architecturally
-solid implementation of the first "chapter" of the HTTP/1.1 spec: `RFC
-7230: HTTP/1.1 Message Syntax and Routing
+Roughly speaking, it's trying to be a robust, complete, and
+non-hacky implementation of the first "chapter" of the HTTP/1.1 spec:
+`RFC 7230: HTTP/1.1 Message Syntax and Routing
 <https://tools.ietf.org/html/rfc7230>`_. That is, it mostly focuses on
 implementing HTTP at the level of taking bytes on and off the wire,
 and the headers related to that, and tries to be anal about spec
@@ -87,21 +96,20 @@ how to take care of framing, cross-version differences in keep-alive
 handling, and the "obsolete line folding" rule, so you can focus your
 energies on the hard / interesting parts for your application, and it
 tries to support the full specification in the sense that any app that
-can be written while conforming to the spec should be able to use
-h11.
+can be written while conforming to the spec should be able to use h11.
 
 It's pure Python, and has no dependencies outside of the standard
 library.
 
-Currently it only supports Python 3.5, though it wouldn't be hard to expand
-this to support other versions, including 2.7. (Originally it had a
-Cython wrapper for `http-parser
+Currently it only supports Python 3.5, though it wouldn't be hard to
+expand this to support other versions, including 2.7. (Originally it
+had a Cython wrapper for `http-parser
 <https://github.com/nodejs/http-parser>`_ and a beautiful nested state
 machine implemented with ``yield from`` to postprocess the output. But
 I had to take these out -- the new *parser* needs fewer lines-of-code
-than the old *parser wrapper*, is pure Python, uses no exotic language
-syntax, and has more features. It's too bad really, that old state
-machine was really slick.)
+than the old *parser wrapper*, is written in pure Python, uses no
+exotic language syntax, and has more features. It's too bad really,
+that old state machine was really slick.)
 
 I don't know how fast it is. I haven't benchmarked or profiled it yet,
 so it's probably got a few pointless hot spots, and I've been trying
@@ -111,13 +119,25 @@ avoid fundamentally bad decisions, e.g., I believe that all the
 parsing algorithms remain linear-time even in the face of pathological
 input like slowloris, and there are no byte-by-byte loops.
 
-Currently the whole library is ~800 lines-of-code. You can easily read
-and understand the whole thing in less than an hour.  Most of the
-energy invested in this so far has been spent on trying to keep things
-simple by minimizing special-cases and ad hoc state manipulation; even
-though it is now quite small and simple, I'm still annoyed that I
-haven't figured out how to make it even smaller and
-simpler. (Unfortunately, HTTP does not lend itself to simplicity.)
+Currently the whole library is ~800 lines-of-code. You can read and
+understand the whole thing in less than an hour. Most of the energy
+invested in this so far has been spent on trying to keep things simple
+by minimizing special-cases and ad hoc state manipulation; even though
+it is now quite small and simple, I'm still annoyed that I haven't
+figured out how to make it even smaller and simpler. (Unfortunately,
+HTTP does not lend itself to simplicity.)
+
+At a more concrete, roadmappy kind of level, my current todo list is:
+
+* Finish writing tests (h11/tests/test_connection.py has a list at the
+  bottom of the main untested functionality)
+* Write a manual
+* Try using it for some real things
+
+The API is ~feature complete and I don't expect the general outlines
+to change much, but you can't judge an API's ergonomics until you
+actually document and use it, so I'd expect some changes in the
+details.
 
 *How do I try it?*
 
@@ -164,7 +184,7 @@ Protocol changing/upgrading: h11 has has full support for
 transitioning to a new protocol, via either Upgrade: headers (e.g.,
 ``Upgrade: websocket``) or the ``CONNECT`` method. Note that this
 *doesn't* mean that h11 actually *implements* the WebSocket protocol
--- though a no-I/O h2-style WebSocket implementation would indeed be
+-- though a bring-your-own-I/O WebSocket library would indeed be
 pretty sweet, someone should definitely implement that. It just means
 that h11 has the hooks needed to let you implement hand-off to a
 different protocol.
@@ -229,3 +249,15 @@ these days who care desperately about keep-alive *and at the same
 time* are too lazy to implement Transfer-Encoding: chunked. Still,
 this would be my bet as to the missing feature that people are most
 likely to eventually complain about...
+
+
+Trippy state machine diagrams
+.............................
+
+Client side:
+
+.. image:: https://raw.githubusercontent.com/njsmith/h11/master/client-2016-05-04.svg
+
+Server side:
+
+.. image:: https://raw.githubusercontent.com/njsmith/h11/master/server-2016-05-04.svg
