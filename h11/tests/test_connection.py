@@ -108,18 +108,30 @@ def test_Connection_basics():
 
     for conn in p.conns:
         assert conn.state_of(CLIENT) is SEND_BODY
+        assert conn.client_state is SEND_BODY
         assert conn.state_of(SERVER) is SEND_RESPONSE
+        assert conn.server_state is SEND_RESPONSE
         assert conn.can_reuse == "maybe-later"
     assert p.conn[CLIENT].our_state is SEND_BODY
     assert p.conn[CLIENT].their_state is SEND_RESPONSE
     assert p.conn[SERVER].our_state is SEND_RESPONSE
     assert p.conn[SERVER].their_state is SEND_BODY
 
+    assert p.conn[CLIENT].their_http_version is None
+    assert p.conn[SERVER].their_http_version == b"1.1"
+
     data, _ = p.send(SERVER,
                      Response(status_code=200,
                               headers=[("Content-Length", "11")]))
     assert data == b"HTTP/1.1 200 \r\ncontent-length: 11\r\n\r\n"
 
+    assert p.conn[CLIENT].their_http_version == b"1.1"
+    assert p.conn[SERVER].their_http_version == b"1.1"
+
 # HTTP/1.0
 # 100-continue
 # reuse
+# pipelining
+# response header munging
+# protocol switching
+# close handling

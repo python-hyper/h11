@@ -208,7 +208,8 @@ class Connection:
             self._request_method = event.method
 
         # self.their_http_version
-        if type(event) in (Request, Response, InformationalResponse):
+        if (role is self.their_role
+            and type(event) in (Request, Response, InformationalResponse)):
             self.their_http_version = event.http_version
 
         # Keep alive handling
