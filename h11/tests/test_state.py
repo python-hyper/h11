@@ -115,34 +115,31 @@ def test_ConnectionState_keepalive_protocol_switch_interaction():
 def test_ConnectionState_reuse():
     cs = ConnectionState()
 
-    assert cs.can_reuse == "maybe-later"
-
     with pytest.raises(ProtocolError):
         cs.prepare_to_reuse()
 
     cs.process_event(CLIENT, Request, False)
     cs.process_event(CLIENT, EndOfMessage, False)
-    assert cs.can_reuse == "maybe-later"
+
+    with pytest.raises(ProtocolError):
+        cs.prepare_to_reuse()
 
     cs.process_event(SERVER, Response, False)
     cs.process_event(SERVER, EndOfMessage, False)
-    assert cs.can_reuse == "now"
 
     cs.prepare_to_reuse()
     assert cs.states == {CLIENT: IDLE, SERVER: IDLE}
-
-    assert cs.can_reuse == "maybe-later"
 
     # No keepalive
 
     cs.process_event(CLIENT, Request, False)
     cs.keep_alive = False
-    assert cs.can_reuse == "never"
-
     cs.process_event(CLIENT, EndOfMessage, False)
     cs.process_event(SERVER, Response, False)
     cs.process_event(SERVER, EndOfMessage, False)
-    assert cs.can_reuse == "never"
+
+    with pytest.raises(ProtocolError):
+        cs.prepare_to_reuse()
 
     # One side closed
 
@@ -152,7 +149,9 @@ def test_ConnectionState_reuse():
     cs.process_event(CLIENT, ConnectionClosed, False)
     cs.process_event(SERVER, Response, False)
     cs.process_event(SERVER, EndOfMessage, False)
-    assert cs.can_reuse == "never"
+
+    with pytest.raises(ProtocolError):
+        cs.prepare_to_reuse()
 
     # Protocol switch
 
@@ -160,6 +159,7 @@ def test_ConnectionState_reuse():
     cs.process_event(CLIENT, Request, False)
     cs.client_requested_protocol_switch_pending = True
     cs.process_event(CLIENT, EndOfMessage, False)
-    assert cs.can_reuse == "maybe-later"
     cs.process_event(SERVER, Response, True)
-    assert cs.can_reuse == "never"
+
+    with pytest.raises(ProtocolError):
+        cs.prepare_to_reuse()

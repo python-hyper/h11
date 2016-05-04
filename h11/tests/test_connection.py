@@ -111,7 +111,6 @@ def test_Connection_basics():
         assert conn.client_state is SEND_BODY
         assert conn.state_of(SERVER) is SEND_RESPONSE
         assert conn.server_state is SEND_RESPONSE
-        assert conn.can_reuse == "maybe-later"
     assert p.conn[CLIENT].our_state is SEND_BODY
     assert p.conn[CLIENT].their_state is SEND_RESPONSE
     assert p.conn[SERVER].our_state is SEND_RESPONSE

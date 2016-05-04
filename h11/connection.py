@@ -149,10 +149,6 @@ class Connection:
         return (self.their_role is CLIENT
                 and self.client_is_waiting_for_100_continue)
 
-    @property
-    def can_reuse(self):
-        return self._cstate.can_reuse
-
     def prepare_to_reuse(self):
         self._cstate.prepare_to_reuse()
         self._request_method = None

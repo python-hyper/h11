@@ -192,27 +192,11 @@ class ConnectionState:
                 # Fixed point reached
                 return
 
-    @property
-    def can_reuse(self):
-        if not self.keep_alive:
-            # We will definitely end up in MUST_CLOSE; DONE is unreachable
-            return "never"
-        states = set(self.states.values())
-        doomed_states = {MUST_CLOSE, CLOSED, SWITCHED_PROTOCOL}
-        if states.intersection(doomed_states):
-            return "never"
-        if states == {DONE}:
-            return "now"
-        return "maybe-later"
-
     def prepare_to_reuse(self):
-        if self.can_reuse != "now":
+        if self.states != {CLIENT: DONE, SERVER: DONE}:
             raise ProtocolError("not in a reusable state")
-
-        assert self.states == {CLIENT: DONE, SERVER: DONE}
         assert self.keep_alive
         assert not self.client_requested_protocol_switch_pending
-
         self.states = {CLIENT: IDLE, SERVER: IDLE}
 
 
