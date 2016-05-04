@@ -304,7 +304,8 @@ class Connection:
                 if len(self._receive_buffer) > self._max_buffer_size:
                     # 414 is "Request-URI Too Long" which is not quite
                     # accurate because we'll also issue this if someone tries
-                    # to send e.g. a megabyte of headers, but whatever.
+                    # to send e.g. a megabyte of headers, but it's probably
+                    # more useful than 400 Bad Request?
                     raise ProtocolError("Receive buffer too long",
                                         error_status_hint=414)
                 break
