@@ -21,6 +21,11 @@ __all__ += sentinels
 # about HTTP request/response cycles in the abstract. This ensures that we
 # don't cheat and apply different rules to local and remote parties.
 
+# Sentinel value for the server's special-case transition from IDLE ->
+# SEND_RESPONSE on client Request
+class ClientRequest:
+    pass
+
 EVENT_TRIGGERED_TRANSITIONS = {
     CLIENT: {
         IDLE: {
@@ -48,7 +53,7 @@ EVENT_TRIGGERED_TRANSITIONS = {
         IDLE: {
             ConnectionClosed: CLOSED,
             # Special case triggered by CLIENT -- see discussion below:
-            Request: SEND_RESPONSE,
+            ClientRequest: SEND_RESPONSE,
             # This is needed solely to allow for 400 Bad Request responses to
             # requests that we errored out on, and thus never made it through
             # the state machine.
@@ -139,7 +144,7 @@ class ConnectionState:
         # transition currently does *not* get unwound -- is this a problem?
         if event_type is Request:
             assert role is CLIENT
-            self._fire_event_triggered_transitions(SERVER, event_type)
+            self._fire_event_triggered_transitions(SERVER, ClientRequest)
         self._fire_state_triggered_transitions(server_switched_protocol)
 
     def _fire_event_triggered_transitions(self, role, event_type):
@@ -246,7 +251,7 @@ def _make_dot(role, out_path):
                 # exception
                 if (event_type is Response and source_state is IDLE):
                     weight = 1
-                if role is SERVER and event_type is Request:
+                if event_type is ClientRequest:
                     # The weird special case
                     color = _SPECIAL_COLOR
                     weight = 5

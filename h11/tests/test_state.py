@@ -186,3 +186,10 @@ def test_ConnectionState_reuse():
 
     cs.prepare_to_reuse()
     assert cs.states == {CLIENT: IDLE, SERVER: IDLE}
+
+def test_server_request_is_illegal():
+    # There used to be a bug in how we handled the Request special case that
+    # made this allowed...
+    cs = ConnectionState()
+    with pytest.raises(ProtocolError):
+        cs.process_event(SERVER, Request, False)
