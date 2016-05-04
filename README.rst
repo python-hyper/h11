@@ -1,7 +1,3 @@
-[how did you find this repo? please don't look at this it doesn't have
-tests yet. the code is there but it probably doesn't work. i feel like
-you just caught me without my clothes on. please come back next week.]
-
 h11
 ===
 
