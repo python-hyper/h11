@@ -95,10 +95,7 @@ class ConnectionState:
         # Extra bits of state that don't quite fit into the state model.
 
         # If this is False then it enables the automatic DONE -> MUST_CLOSE
-        # transition. The only place this setting can change is when seeing a
-        # Request or a Response (so in IDLE or SEND_RESPONSE), so changes in
-        # it can never trigger a state transition -- we only need to check for
-        # it when entering DONE.
+        # transition. Don't set this directly; call .keep_alive_disabled()
         self.keep_alive = True
 
         # The client Request might suggest switching protocols, but even if
@@ -107,13 +104,22 @@ class ConnectionState:
         # that information forward from the Request to the EndOfMessage, and
         # that's what this variable is for. If True, it enables the automatic
         # DONE -> MIGHT_SWITCH_PROTOCOL transition for the client only, and
-        # then unsets itself.
-        #
-        # The only place this setting can change is when seeing a Request, so
-        # the client cannot already be in DONE when it is set.
+        # then unsets itself. Don't set this directly; call
+        # .set_client_requested_protocol_switch()
         self.client_requested_protocol_switch_pending = False
 
         self.states = {CLIENT: IDLE, SERVER: IDLE}
+
+    def set_keep_alive_disabled(self):
+        self.keep_alive = False
+        self._fire_state_triggered_transitions(server_switched_protocol=False)
+
+    def set_client_requested_protocol_switch(self):
+        self.client_requested_protocol_switch_pending = True
+        # This can't trigger any state transitions, because it only enables
+        # the DONE -> MIGHT_SWITCH_PROTOCOL for the client, but this method
+        # can only be called when the client is in SEND_BODY
+        assert self.states[CLIENT] is SEND_BODY
 
     def process_event(self, role, event_type, server_switched_protocol):
         self._fire_event_triggered_transitions(role, event_type)

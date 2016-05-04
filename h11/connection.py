@@ -215,11 +215,11 @@ class Connection:
         # this is not supposed to happen. In any case, if it does happen, we
         # ignore it.
         if type(event) in (Request, Response) and not _keep_alive(event):
-            self._cstate.keep_alive = False
+            self._cstate.set_keep_alive_disabled()
 
         # client side of Upgrade/CONNECT
         if type(event) is Request and _client_requests_protocol_switch(event):
-            self._cstate.client_requested_protocol_switch_pending = True
+            self._cstate.set_client_requested_protocol_switch()
         # server side of Upgrade/CONNECT is handled above
 
         # 100-continue
