@@ -227,6 +227,8 @@ class Connection:
             self.client_is_waiting_for_100_continue = True
         if type(event) in (InformationalResponse, Response):
             self.client_is_waiting_for_100_continue = False
+        if role is CLIENT and type(event) in (Data, EndOfMessage):
+            self.client_is_waiting_for_100_continue = False
 
         # Update reader/writer
         if self.our_state != old_states[self.our_role]:
