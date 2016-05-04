@@ -67,7 +67,7 @@ writing my own HTTP stack from scratch.
 Well, ok... I also wanted to play with `Curio
 <https://curio.readthedocs.io/en/latest/tutorial.html>`_, which has no
 HTTP library, and I was feeling inspired by Curio's elegantly
-featureful minimalism and Corey's call-to-arms blog-post.
+featureful minimalism and Cory's call-to-arms blog-post.
 
 And, most importantly, I was sick and needed a gloriously pointless
 yak-shaving project to distract me from all the things I should have
