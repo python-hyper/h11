@@ -256,8 +256,8 @@ Trippy state machine diagrams
 
 Client side:
 
-.. image:: https://raw.githubusercontent.com/njsmith/h11/master/client-2016-05-04.svg
+.. image:: https://vorpus.org/~njs/tmp/h11-client-2016-05-04.svg
 
 Server side:
 
-.. image:: https://raw.githubusercontent.com/njsmith/h11/master/server-2016-05-04.svg
+.. image:: https://vorpus.org/~njs/tmp/h11-server-2016-05-04.svg
