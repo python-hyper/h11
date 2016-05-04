@@ -46,11 +46,13 @@ EVENT_TRIGGERED_TRANSITIONS = {
 
     SERVER: {
         IDLE: {
-            InformationalResponse: SEND_RESPONSE,
-            # Special case triggered by CLIENT -- see discussion below
-            Request: SEND_RESPONSE,
-            Response: SEND_BODY,
             ConnectionClosed: CLOSED,
+            # Special case triggered by CLIENT -- see discussion below:
+            Request: SEND_RESPONSE,
+            # This is needed solely to allow for 400 Bad Request responses to
+            # requests that we errored out on, and thus never made it through
+            # the state machine.
+            Response: SEND_BODY,
         },
         SEND_RESPONSE: {
             InformationalResponse: SEND_RESPONSE,
