@@ -225,12 +225,20 @@ def _make_dot(role, out_path):
   IDLE [label=<IDLE<BR/><i>start state</i>>]
 """)
 
+        # Dot output is sensitive to the order in which the edges are listed.
+        # We generate them in python's randomized dict iteration order.  So to
+        # normalize order, we accumulate and then sort.  Fortunately, this
+        # order happens to be one that produces a nice layout... with other
+        # orders I've seen really terrible layouts, and had to do things like
+        # move the server's IDLE->MUST_CLOSE to the top of the file to fix
+        # them.
+        edges = []
         def edge(source, target, label, color, italicize=False, weight=1):
             if italicize:
                 quoted_label = "<<i>{}</i>>".format(label)
             else:
                 quoted_label = '"{}"'.format(label)
-            f.write(
+            edges.append(
                 '{source} -> {target} [\n'
                 '  label={quoted_label},\n'
                 '  color="{color}", fontcolor="{color}",\n'
@@ -287,4 +295,7 @@ def _make_dot(role, out_path):
         edge(DONE, IDLE, "prepare_to_reuse()", _SPECIAL_COLOR,
              italicize=True)
 
+        edges.sort()
+
+        f.write("".join(edges))
         f.write("\n}\n")
