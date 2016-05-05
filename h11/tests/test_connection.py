@@ -273,6 +273,7 @@ def test_automagic_connection_close_handling():
         assert conn.client_state is MUST_CLOSE
         assert conn.server_state is MUST_CLOSE
 
+
 def test_100_continue():
     def setup():
         p = ConnectionPair()
@@ -311,6 +312,12 @@ def test_100_continue():
         assert not conn.client_is_waiting_for_100_continue
         assert not conn.they_are_waiting_for_100_continue
 
+def test_endless_header():
+    c = Connection(SERVER)
+    c.receive_data(b"GET / HTTP/1.1\r\nEndless: ")
+    with pytest.raises(ProtocolError):
+        while True:
+            c.receive_data(b"a" * 1024)
 
 # reuse
 # pipelining
