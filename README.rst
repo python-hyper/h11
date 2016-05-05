@@ -12,46 +12,47 @@ heavily inspired by `hyper-h2
 <https://lukasa.co.uk/2015/10/The_New_Hyper/>`_.
 
 This is a pure protocol library; like h2, it contains no IO code
-whatsoever. I highly recommend `that blog post for context on what
-this means and the motivation for doing things this way
-<https://lukasa.co.uk/2015/10/The_New_Hyper/>`_. But basically the
-idea is that by doing things this way, you can hook h11 up to your
-favorite network API, and that could be anything you want:
-synchronous, threaded, asynchronous, or your own implementation of
-`RFC 6214 <https://tools.ietf.org/html/rfc6214>`_ -- h11 won't judge
-you. Compare this to the current state of the art, where every time a
-`new network API <https://curio.readthedocs.io/>`_ comes along then
-someone gets to start over reimplementing the entire HTTP protocol
-from scratch.
+whatsoever. This means you can hook h11 up to your favorite network
+API, and that could be anything you want: synchronous, threaded,
+asynchronous, or your own implementation of `RFC 6214
+<https://tools.ietf.org/html/rfc6214>`_ -- h11 won't judge you.
+(Compare this to the current state of the art, where every time a `new
+network API <https://curio.readthedocs.io/>`_ comes along then someone
+gets to start over reimplementing the entire HTTP protocol from
+scratch.) Cory Benfield made an `excellent blog post describing this
+"bring-your-own I/O" approach
+<https://lukasa.co.uk/2015/10/The_New_Hyper/>`_.
 
-h11 is a toolkit for building tools that speak HTTP, not something
-directly useful to an end-user: we're not going to replace
-``requests`` or ``twisted.web`` or whatever, but if you're
-*implementing* something like ``requests`` or ``twisted.web`` then you
-might find h11 useful. At a high level, working with it involves:
+This also means that h11 is not immediately useful out of the box:
+it's a toolkit for building programs that speak HTTP, not something
+that could directly replace ``requests`` or ``twisted.web`` or
+whatever. But h11 makes it much easier to implement something like
+``requests`` or ``twisted.web``.
 
-1) Creating an ``h11.Connection`` object to track the state of a
+At a high level, working with h11 goes like this:
+
+1) First, create an ``h11.Connection`` object to track the state of a
    single HTTP/1.1 connection.
 
 2) When you read data off the network, pass it to
-   ``conn.receive_data(...)`` and get back a list of objects
+   ``conn.receive_data(...)``; you'll get back a list of objects
    representing high-level HTTP "events".
 
 3) When you want to send a high-level HTTP event, create the
-   corresponding object, pass it to ``conn.send(...)``, and this will
-   convert it to some bytes that you can then push out through the
-   network.
+   corresponding "event" object and pass it to ``conn.send(...)``;
+   this will give you back some bytes that you can then push out
+   through the network.
 
 For example, a client might instantiate and then send a
 ``h11.Request`` object, then zero or more ``h11.Data`` objects for the
 request body (e.g., if this is a POST), and then a
-``h11.EndOfMessage`` to indicate the end of the message, and the
+``h11.EndOfMessage`` to indicate the end of the message. Then the
 server would then send back a ``h11.Response``, some ``h11.Data``, and
 its own ``h11.EndOfMessage``. If either side violates the protocol,
-you'll get an exception.
+you'll get a ``h11.ProtocolError`` exception.
 
-It's suitable for implementing both servers and clients, and has a
-pleasingly symmetric API: the events you send as a client are exactly
+h11 is suitable for implementing both servers and clients, and has a
+pleasantly symmetric API: the events you send as a client are exactly
 the ones that you receive as a server and vice-versa.
 
 `Here's an example of a tiny HTTP client
@@ -90,22 +91,26 @@ Please do! It's fun!
 
 *What are the features/limitations?*
 
-Roughly speaking, it's trying to be a robust, complete, and
-non-hacky implementation of the first "chapter" of the HTTP/1.1 spec:
-`RFC 7230: HTTP/1.1 Message Syntax and Routing
+Roughly speaking, it's trying to be a robust, complete, and non-hacky
+implementation of the first "chapter" of the HTTP/1.1 spec: `RFC 7230:
+HTTP/1.1 Message Syntax and Routing
 <https://tools.ietf.org/html/rfc7230>`_. That is, it mostly focuses on
 implementing HTTP at the level of taking bytes on and off the wire,
 and the headers related to that, and tries to be anal about spec
-conformance. It doesn't know about URL routing, conditional GETs,
-cross-origin cookie policies, or content negotiation. But it does know
-how to take care of framing, cross-version differences in keep-alive
-handling, and the "obsolete line folding" rule, so you can focus your
-energies on the hard / interesting parts for your application, and it
-tries to support the full specification in the sense that any app that
-can be written while conforming to the spec should be able to use h11.
+conformance. It doesn't know about higher-level concerns like URL
+routing, conditional GETs, cross-origin cookie policies, or content
+negotiation. But it does know how to take care of framing,
+cross-version differences in keep-alive handling, and the "obsolete
+line folding" rule, so you can focus your energies on the hard /
+interesting parts for your application, and it tries to support the
+full specification in the sense that any useful HTTP/1.1 conformant
+application should be able to use h11.
 
 It's pure Python, and has no dependencies outside of the standard
 library.
+
+It has a test suite with 100.0% coverage for both statements and
+branches.
 
 Currently it only supports Python 3.5, though it wouldn't be hard to
 expand this to support other versions, including 2.7. (Originally it
@@ -114,8 +119,8 @@ had a Cython wrapper for `http-parser
 machine implemented with ``yield from`` to postprocess the output. But
 I had to take these out -- the new *parser* needs fewer lines-of-code
 than the old *parser wrapper*, is written in pure Python, uses no
-exotic language syntax, and has more features. It's too bad really,
-that old state machine was really slick.)
+exotic language syntax, and has more features. It's sad, really; that
+old state machine was really slick.)
 
 I don't know how fast it is. I haven't benchmarked or profiled it yet,
 so it's probably got a few pointless hot spots, and I've been trying
@@ -125,18 +130,16 @@ avoid fundamentally bad decisions, e.g., I believe that all the
 parsing algorithms remain linear-time even in the face of pathological
 input like slowloris, and there are no byte-by-byte loops.
 
-Currently the whole library is ~800 lines-of-code. You can read and
-understand the whole thing in less than an hour. Most of the energy
-invested in this so far has been spent on trying to keep things simple
-by minimizing special-cases and ad hoc state manipulation; even though
-it is now quite small and simple, I'm still annoyed that I haven't
+The whole library is ~800 lines-of-code. You can read and understand
+the whole thing in less than an hour. Most of the energy invested in
+this so far has been spent on trying to keep things simple by
+minimizing special-cases and ad hoc state manipulation; even though it
+is now quite small and simple, I'm still annoyed that I haven't
 figured out how to make it even smaller and simpler. (Unfortunately,
 HTTP does not lend itself to simplicity.)
 
 At a more concrete, roadmappy kind of level, my current todo list is:
 
-* Finish writing tests (h11/tests/test_connection.py has a list at the
-  bottom of the main untested functionality)
 * Write a manual
 * Try using it for some real things
 
