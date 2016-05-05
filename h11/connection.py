@@ -247,9 +247,7 @@ class Connection:
         if self.our_state != old_states[self.our_role]:
             self._writer = self._get_io_object(self.our_role, event, WRITERS)
         if self.their_state != old_states[self.their_role]:
-            print("their state changed to", self.their_state)
             self._reader = self._get_io_object(self.their_role, event, READERS)
-            print("new reader is ", self._reader)
 
     @property
     def trailing_data(self):
@@ -274,7 +272,6 @@ class Connection:
         events = []
         while True:
             state = self.their_state
-            print("Looping in state", state)
             # We don't pause immediately when they enter DONE, because even in
             # DONE state we can still process a ConnectionClosed() event. But
             # if we have data in our buffer, then we definitely aren't getting
@@ -300,9 +297,7 @@ class Connection:
                     # problem, don't want to read anything.
                     event = None
             else:
-                print("calling reader", self._reader)
                 event = self._reader(self._receive_buffer)
-                print("it returned:", event)
             if event is None:
                 if len(self._receive_buffer) > self._max_buffer_size:
                     # 414 is "Request-URI Too Long" which is not quite
@@ -312,11 +307,8 @@ class Connection:
                     raise ProtocolError("Receive buffer too long",
                                         error_status_hint=414)
                 if not self._receive_buffer and self._receive_buffer_closed:
-                    print("processing close")
                     if hasattr(self._reader, "read_eof"):
-                        print("{!r} has read_eof".format(self._reader))
                         event = self._reader.read_eof()
-                        print("read_eof() returned", event)
                     else:
                         event = ConnectionClosed()
             if event is None:
@@ -328,7 +320,6 @@ class Connection:
                 break
 
         self._receive_buffer.compress()
-        print("Returning {} new events".format(len(events)))
         return events
 
     def send(self, event, *, combine=True):
