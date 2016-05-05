@@ -333,6 +333,13 @@ def test_100_continue():
 # reuse
 # pipelining
 # protocol switching and trailing_data
+# - client switching back is buggy -- SEND_BODY isn't the only state that
+#   should trigger switch back, and that SEND_BODY does trigger it is a little
+#   dicey because the server passes through SEND_BODY briefly to get to
+#   SWITCHED_PROTOCOL.
+#   probably should trigger the server's SWITCHED_PROTOCOL directly from the
+#   Response event so it never hits SEND_BODY, and then make the switch back
+#   triggered by {SEND_BODY, DONE, MUST_CLOSE, CLOSED}
 # close handling
 # sendfile silliness
 # error states
