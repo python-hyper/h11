@@ -1,6 +1,12 @@
 h11
 ===
 
+.. image:: https://travis-ci.org/njsmith/h11.svg?branch=master
+    :target: https://travis-ci.org/njsmith/h11
+
+.. image:: https://codecov.io/gh/njsmith/h11/branch/master/graph/badge.svg
+  :target: https://codecov.io/gh/njsmith/h11
+
 This is a little HTTP/1.1 library written from scratch in Python,
 heavily inspired by `hyper-h2
 <https://lukasa.co.uk/2015/10/The_New_Hyper/>`_.
