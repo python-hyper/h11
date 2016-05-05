@@ -29,4 +29,6 @@ class Sentinel:
 def bytesify(s):
     if isinstance(s, str):
         s = s.encode("ascii")
+    if isinstance(s, int):
+        raise TypeError("expected bytes-like object, not int")
     return bytes(s)

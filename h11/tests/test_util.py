@@ -38,3 +38,6 @@ def test_bytesify():
 
     with pytest.raises(UnicodeEncodeError):
         bytesify(u"\u1234")
+
+    with pytest.raises(TypeError):
+        bytesify(10)
