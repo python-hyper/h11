@@ -298,42 +298,47 @@ def _make_dot(role, out_path):
             for (event_type, target_state) in t.items():
                 weight = 1
                 color = _EVENT_COLOR
+                italicize = False
                 if (event_type in CORE_EVENTS
                     and source_state is not target_state):
                     weight = 10
                 # exception
                 if (event_type is Response and source_state is IDLE):
                     weight = 1
-                if event_type is ClientRequest:
-                    # The weird special case
+                if isinstance(event_type, tuple):
+                    # The weird special cases
                     color = _SPECIAL_COLOR
                     weight = 5
-                edge(source_state, target_state, event_type.__name__,
-                     color, weight=weight)
+                    italicize = True
+                    if event_type == (Request, CLIENT):
+                        name = "client Request"
+                    elif event_type[1] is SWITCH_UPGRADE:
+                        name = "101 Switching Protocols"
+                    elif event_type[1] is SWITCH_CONNECT:
+                        name = "2xx CONNECT"
+                    else:
+                        assert False
+                else:
+                    name = event_type.__name__
+                edge(source_state, target_state, name, color,
+                     weight=weight, italicize=italicize)
 
-        for source_pair, target_pair in STATE_TRIGGERED_TRANSITIONS.items():
-            if role is CLIENT:
-                (our_source, their_source) = source_pair
-                (our_target, their_target) = target_pair
-            else:
-                (their_source, our_source) = source_pair
-                (their_target, our_target) = target_pair
-            if our_source is our_target:
+        for state_pair, updates in STATE_TRIGGERED_TRANSITIONS.items():
+            if role not in updates:
                 continue
-            edge(our_source, our_target,
-                 "peer in {}".format(their_source),
+            if role is CLIENT:
+                (our_state, their_state) = state_pair
+            else:
+                (their_state, our_state) = state_pair
+            edge(our_state, updates[role],
+                 "peer in {}".format(their_state),
                  _STATE_COLOR)
 
         if role is CLIENT:
             edge(DONE, MIGHT_SWITCH_PROTOCOL,
-                 "Upgrade: or <BR/>CONNECT",
+                 "Sent Upgrade:<BR/>or CONNECT",
                  _SPECIAL_COLOR,
                  italicize=True)
-        else:
-            edge(SEND_RESPONSE, SWITCHED_PROTOCOL, "101 Switching protocols",
-                 _SPECIAL_COLOR, italicize=True)
-            edge(SEND_BODY, SWITCHED_PROTOCOL, "2xx CONNECT",
-                 _SPECIAL_COLOR, italicize=True)
 
         edge(DONE, MUST_CLOSE, "keep-alive<BR/>disabled", _SPECIAL_COLOR,
              italicize=True)
