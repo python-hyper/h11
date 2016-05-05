@@ -1,5 +1,3 @@
-import pytest
-
 from .helpers import *
 
 def test_normalize_data_events():

@@ -49,7 +49,7 @@ class BodyWriter:
             self.send_data(event.data, write)
         elif type(event) is EndOfMessage:
             self.send_eom(event.headers, write)
-        else: # pragma: no cover
+        else:  # pragma: no cover
             assert False
 
 #

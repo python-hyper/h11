@@ -101,7 +101,7 @@ def test_writers_unusual():
     with pytest.raises(ProtocolError):
         tw(write_any_response,
            Response(status_code=200, headers=[("Connection", "close")],
-                   http_version="1.0"),
+                    http_version="1.0"),
            None)
 
 def test_readers_unusual():
@@ -186,7 +186,7 @@ def test__obsolete_line_fold_bytes():
     # bytestrings. so this test just exists to get some coverage on that
     # defensive cast.
     assert (list(_obsolete_line_fold([b"aaa", b"bbb", b"  ccc", b"ddd"]))
-                 == [b"aaa", bytearray(b"bbb ccc"), b"ddd"])
+            == [b"aaa", bytearray(b"bbb ccc"), b"ddd"])
 
 
 def _run_reader_iter(reader, buf, do_eof):

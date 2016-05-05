@@ -298,4 +298,3 @@ class ConnectionState:
         assert self.keep_alive
         assert not self.pending_switch_proposals
         self.states = {CLIENT: IDLE, SERVER: IDLE}
-
