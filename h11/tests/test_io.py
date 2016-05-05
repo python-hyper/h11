@@ -242,6 +242,8 @@ def test_ContentLengthReader():
 def test_Http10Reader():
     t_body_reader(Http10Reader, b"", [EndOfMessage()], do_eof=True)
     t_body_reader(Http10Reader, b"asdf",
+                  [Data(data=b"asdf")], do_eof=False)
+    t_body_reader(Http10Reader, b"asdf",
                   [Data(data=b"asdf"), EndOfMessage()], do_eof=True)
 
 def test_ChunkedReader():
