@@ -1,3 +1,116 @@
+################################################################
+# The core state machine
+################################################################
+#
+# Rule 1: everything that affects the state machine and state transitions must
+# live here in this file. As much as possible goes into the table-based
+# representation, but for the bits that don't quite fit, the actual code and
+# state must nonetheless live here.
+#
+# Rule 2: this file does not know about what role we're playing; it only knows
+# about HTTP request/response cycles in the abstract. This ensures that we
+# don't cheat and apply different rules to local and remote parties.
+#
+#
+# Theory of operation
+# ===================
+#
+# Possibly the simplest way to think about this is that we actually have 5
+# different state machines here. Yes, 5. These are:
+#
+# 1) The client state, with its complicated automaton (see the docs)
+# 2) The server state, with its complicated automaton (see the docs)
+# 3) The keep-alive state, with possible states {True, False}
+# 4) The SWITCH_CONNECT state, with possible states {False, True}
+# 5) The SWITCH_UPGRADE state, with possible states {False, True}
+#
+# For (3)-(5), the first state listed is the initial state.
+#
+# (1)-(3) are stored explicitly in member variables. The last
+# two are stored implicitly in the pending_switch_proposals set as:
+#   (state of 4) == (SWITCH_CONNECT in pending_switch_proposals)
+#   (state of 5) == (SWITCH_UPGRADE in pending_switch_proposals)
+#
+# And each of these machines has two different kinds of transitions:
+#
+# a) Event-triggered
+# b) State-triggered
+#
+# Event triggered is the obvious thing that you'd think it is: some event
+# happens, and if it's the right event at the right time then a transition
+# happens. But there are somewhat complicated rules for which machines can
+# "see" which events. (As a rule of thumb, if a machine "sees" an event, this
+# means two things: the event can affect the machine, and if the machine is
+# not in a state where it expects that event then it's an error.) These rules
+# are:
+#
+# 1) The client machine sees all h11.events objects emitted by the client.
+#
+# 2) The server machine sees all h11.events objects emitted by the server.
+#
+#    It also sees the client's Request event.
+#
+#    And sometimes, server events are annotated with a SWITCH_* event. For
+#    example, we can have a (Response, SWITCH_CONNECT) event, which is
+#    different from a regular Response event.
+#
+# 3) The keep-alive machine sees the process_keep_alive_disabled() event
+#    (which is derived from Request/Response events), and this event
+#    transitions it from True -> False, or from False -> False. There's no way
+#    to transition back.
+#
+# 4&5) The SWITCH_* machines transition from False->True when we get a Request
+#    that proposes the relevant type of switch (via
+#    process_client_switch_proposals), and they go from True->False when we
+#    get a Response that has no SWITCH_* annotation.
+#
+# So that's event-triggered transitions.
+#
+# State-triggered transitions are less standard. What they do here is couple
+# the machines together. The way this works is, when certain *joint*
+# configurations of states are achieved, then we automatically transition to a
+# new *joint* state. So, for example, if we're ever in a joint state with
+#
+#   client: DONE
+#   keep-alive: False
+#
+# then the client state immediately transitions to:
+#
+#   client: MUST_CLOSE
+#
+# This is fundamentally different from an event-based transition, because it
+# doesn't matter how we arrived at the {client: DONE, keep-alive: False} state
+# -- maybe the client transitioned SEND_BODY -> DONE, or keep-alive
+# transitioned True -> False. Either way, once this precondition is satisfied,
+# this transition is immediately triggered.
+#
+# What if two conflicting state-based transitions get enabled at the same
+# time?  In practice there's only one case where this arises (client DONE ->
+# MIGHT_SWITCH_PROTOCOL versus DONE -> MUST_CLOSE), and we resolve it by
+# explicitly prioritizing the DONE -> MIGHT_SWITCH_PROTOCOL transition.
+#
+# Implementation
+# --------------
+#
+# The event-triggered transitions for the server and client machines are all
+# stored explicitly in a table. Ditto for the state-triggered transitions that
+# involve just the server and client state.
+#
+# The transitions for the other machines, and the state-triggered transitions
+# that involve the other machines, are written out as explicit Python code.
+#
+# It'd be nice if there were some cleaner way to do all this. This isn't
+# *too* terrible, but I feel like it could probably be better.
+#
+# WARNING
+# -------
+#
+# The script that generates the state machine diagrams for the docs knows how
+# to read out the EVENT_TRIGGERED_TRANSITIONS and STATE_TRIGGERED_TRANSITIONS
+# tables. But it can't automatically read the transitions that are written
+# directly in Python code. So if you touch those, you need to also update the
+# script to keep it in sync!
+
 from .events import *
 from .util import ProtocolError, Sentinel
 
@@ -15,75 +128,6 @@ for token in sentinels:
     globals()[token] = Sentinel(token)
 
 __all__ += sentinels
-
-# Rule 1: everything that affects the state machine and state transitions must
-# live here in this file. As much as possible goes into the FSA
-# representation, but for the bits that don't quite fit, the actual code and
-# state must nonetheless live here.
-#
-# Rule 2: this file does not know about what role we're playing; it only knows
-# about HTTP request/response cycles in the abstract. This ensures that we
-# don't cheat and apply different rules to local and remote parties.
-
-################################################################
-# Theory of operation:
-################################################################
-
-# Possibly the simplest way to think about this is that we actually have 5
-# different state machines here. Yes, 5. Listing initial states first, we
-# have:
-
-# 1) The client state, with its complicated automaton
-# 2) The server state, with its complicated automaton
-# 3) The keep-alive state, with possible states {True, False}
-# 4) The SWITCH_CONNECT state, with possible states {False, True}
-# 5) The SWITCH_UPGRADE state, with possible states {False, True}
-#
-# The first three states are stored explicitly in member variables. The last
-# two are stored implicitly in the pending_switch_proposals set as:
-#   (state of 4) == (SWITCH_CONNECT in pending_switch_proposals)
-#   (state of 5) == (SWITCH_UPGRADE in pending_switch_proposals)
-#
-# And each of these machines has two different kinds of transitions:
-#
-# a) Event-triggered
-# b) State-triggered
-#
-# Event triggered is the obvious thing that you'd think it is: some event
-# happens, and if it's the right event at the right time then a transition
-# happens. There are somewhat complicated rules for which events affect which
-# machines, though:
-#
-# 1) The client machine sees all h11.events objects emitted by the client.
-# 2) The server machine sees all h11.events objects emitted by the server.
-#    It also sees the client's Request event.
-#    Sometimes these are annotated with a SWITCH_* event (so e.g. we can have
-#    a (Response, SWITCH_CONNECT) event, which is different from a regular
-#    Response event).
-# 3) The keep-alive machine sees the process_keep_alive_disabled() event,
-#    which is derived from Request/Response events.
-# 4&5) The SWITCH_* machines transition from False->True when we get a Request
-#    that proposes the relevant type of switch (via
-#    process_client_switch_proposals), and they go from True->False when we
-#    get a Response annotated with SWITCH_DENIED.
-#
-# State-triggered are less obvious, and couple the machines together. The way
-# they work is, when certain *joint* configurations of states are achieved,
-# then we automatically transition to a new *joint* state. So, for example, if
-# we're ever in a joint state with
-#
-#   client: DONE
-#   keep-alive: False
-#
-# then the client state immediately transitions to:
-#
-#   client: MUST_CLOSE
-#
-# This is fundamentally different from an event-based transition, because it
-# doesn't matter how we arrived at the {client: DONE, keep-alive: False} state
-# -- maybe the client transitioned SEND_BODY -> DONE, or keep-alive
-# transitioned True -> False. Either way, once this precondition is satisfied,
-# this transition is triggered.
 
 EVENT_TRIGGERED_TRANSITIONS = {
     CLIENT: {
