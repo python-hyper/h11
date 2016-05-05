@@ -319,16 +319,87 @@ def test_endless_header():
         while True:
             c.receive_data(b"a" * 1024)
 
-# reuse
-# pipelining
+def test_reuse_simple():
+    p = ConnectionPair()
+    p.send(CLIENT,
+           [Request(method="GET", target="/", headers=[("Host", "a")]),
+            EndOfMessage()])
+    p.send(SERVER,
+           [Response(status_code=200, headers=[]),
+            EndOfMessage()])
+    for conn in p.conns:
+        assert conn.client_state is DONE
+        assert conn.server_state is DONE
+        conn.prepare_to_reuse()
+
+    p.send(CLIENT,
+           [Request(method="DELETE", target="/foo", headers=[("Host", "a")]),
+            EndOfMessage()])
+    p.send(SERVER,
+           [Response(status_code=404, headers=[]),
+            EndOfMessage()])
+
+def test_pipelining():
+    # Client doesn't support pipelining, so we have to do this by hand
+    c = Connection(SERVER)
+    assert c.receive_data(None) == []
+    # 3 requests all bunched up
+    events = c.receive_data(
+        b"GET /1 HTTP/1.1\r\nHost: a.com\r\nContent-Length: 5\r\n\r\n"
+        b"12345"
+        b"GET /2 HTTP/1.1\r\nHost: a.com\r\nContent-Length: 5\r\n\r\n"
+        b"67890"
+        b"GET /3 HTTP/1.1\r\nHost: a.com\r\n\r\n")
+    assert events == [
+        Request(method="GET", target="/1",
+                headers=[("Host", "a.com"), ("Content-Length", "5")]),
+        Data(data=b"12345"),
+        EndOfMessage(),
+        Paused(reason="pipelining"),
+        ]
+    assert c.their_state is DONE
+    assert c.our_state is SEND_RESPONSE
+
+    # Pause pseudo-events are re-emitted each time through:
+    assert c.receive_data(None) == [Paused(reason="pipelining")]
+
+    c.send(Response(status_code=200, headers=[]))
+    c.send(EndOfMessage())
+    assert c.their_state is DONE
+    assert c.our_state is DONE
+
+    c.prepare_to_reuse()
+
+    events = c.receive_data(None)
+    assert events == [
+        Request(method="GET", target="/2",
+                headers=[("Host", "a.com"), ("Content-Length", "5")]),
+        Data(data=b"67890"),
+        EndOfMessage(),
+        Paused(reason="pipelining"),
+    ]
+    c.send(Response(status_code=200, headers=[]))
+    c.send(EndOfMessage())
+    c.prepare_to_reuse()
+
+    events = c.receive_data(None)
+    assert events == [
+        Request(method="GET", target="/3",
+                headers=[("Host", "a.com")]),
+        EndOfMessage(),
+        # Doesn't pause this time, no trailing data
+    ]
+    c.send(Response(status_code=200, headers=[]))
+    c.send(EndOfMessage())
+
+    # Arrival of more data triggers pause
+    assert c.receive_data(None) == []
+    assert c.receive_data(b"SADF") == [Paused(reason="pipelining")]
+    assert c.trailing_data == b"SADF"
+
+    c.prepare_to_reuse()
+
 # protocol switching and trailing_data
-# - client switching back is buggy -- SEND_BODY isn't the only state that
-#   should trigger switch back, and that SEND_BODY does trigger it is a little
-#   dicey because the server passes through SEND_BODY briefly to get to
-#   SWITCHED_PROTOCOL.
-#   probably should trigger the server's SWITCHED_PROTOCOL directly from the
-#   Response event so it never hits SEND_BODY, and then make the switch back
-#   triggered by {SEND_BODY, DONE, MUST_CLOSE, CLOSED}
 # close handling
 # sendfile silliness
 # error states

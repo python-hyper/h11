@@ -169,13 +169,13 @@ class Connection:
                 and self.client_is_waiting_for_100_continue)
 
     def prepare_to_reuse(self):
+        old_states = dict(self._cstate.states)
         self._cstate.prepare_to_reuse()
         self._request_method = None
         # self.their_http_version gets left alone, since it presumably lasts
         # beyond a single request/response cycle
         assert not self.client_is_waiting_for_100_continue
-        assert self._cstate.keep_alive
-        assert not self._cstate.client_requested_protocol_switch_pending
+        self._respond_to_state_changes(old_states)
 
     def _get_io_object(self, role, event, io_dict):
         state = self._cstate.states[role]
@@ -245,6 +245,9 @@ class Connection:
         if role is CLIENT and type(event) in (Data, EndOfMessage):
             self.client_is_waiting_for_100_continue = False
 
+        self._respond_to_state_changes(old_states, event)
+
+    def _respond_to_state_changes(self, old_states, event=None):
         # Update reader/writer
         if self.our_state != old_states[self.our_role]:
             self._writer = self._get_io_object(self.our_role, event, WRITERS)
@@ -281,7 +284,7 @@ class Connection:
             if state is DONE and self._receive_buffer:
                 # The Paused pseudo-event doesn't go through the state
                 # machine, because it's purely a local signal.
-                events.append(Paused(reason="need-reset"))
+                events.append(Paused(reason="pipelining"))
                 break
             if state is MIGHT_SWITCH_PROTOCOL:
                 events.append(Paused(reason="might-switch-protocol"))
