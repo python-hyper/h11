@@ -12,40 +12,40 @@ def test_ConnectionState():
 
     assert cs.states == {CLIENT: IDLE, SERVER: IDLE}
 
-    cs.process_event(CLIENT, Request, False)
+    cs.process_event(CLIENT, Request)
     # The SERVER-Request special case:
     assert cs.states == {CLIENT: SEND_BODY, SERVER: SEND_RESPONSE}
 
     # Illegal transitions raise an error and nothing happens
     with pytest.raises(ProtocolError):
-        cs.process_event(CLIENT, Request, False)
+        cs.process_event(CLIENT, Request)
     assert cs.states == {CLIENT: SEND_BODY, SERVER: SEND_RESPONSE}
 
-    cs.process_event(SERVER, InformationalResponse, False)
+    cs.process_event(SERVER, InformationalResponse)
     assert cs.states == {CLIENT: SEND_BODY, SERVER: SEND_RESPONSE}
 
-    cs.process_event(SERVER, Response, False)
+    cs.process_event(SERVER, Response)
     assert cs.states == {CLIENT: SEND_BODY, SERVER: SEND_BODY}
 
-    cs.process_event(CLIENT, EndOfMessage, False)
-    cs.process_event(SERVER, EndOfMessage, False)
+    cs.process_event(CLIENT, EndOfMessage)
+    cs.process_event(SERVER, EndOfMessage)
     assert cs.states == {CLIENT: DONE, SERVER: DONE}
 
     # State-triggered transition
 
-    cs.process_event(SERVER, ConnectionClosed, False)
+    cs.process_event(SERVER, ConnectionClosed)
     assert cs.states == {CLIENT: MUST_CLOSE, SERVER: CLOSED}
 
 def test_ConnectionState_keep_alive():
     # keep_alive = False
     cs = ConnectionState()
-    cs.process_event(CLIENT, Request, False)
-    cs.set_keep_alive_disabled()
-    cs.process_event(CLIENT, EndOfMessage, False)
+    cs.process_event(CLIENT, Request)
+    cs.process_keep_alive_disabled()
+    cs.process_event(CLIENT, EndOfMessage)
     assert cs.states == {CLIENT: MUST_CLOSE, SERVER: SEND_RESPONSE}
 
-    cs.process_event(SERVER, Response, False)
-    cs.process_event(SERVER, EndOfMessage, False)
+    cs.process_event(SERVER, Response)
+    cs.process_event(SERVER, EndOfMessage)
     assert cs.states == {CLIENT: MUST_CLOSE, SERVER: MUST_CLOSE}
 
 def test_ConnectionState_keep_alive_in_DONE():
@@ -53,73 +53,121 @@ def test_ConnectionState_keep_alive_in_DONE():
     # then this is sufficient to immediately trigger the DONE -> MUST_CLOSE
     # transition
     cs = ConnectionState()
-    cs.process_event(CLIENT, Request, False)
-    cs.process_event(CLIENT, EndOfMessage, False)
+    cs.process_event(CLIENT, Request)
+    cs.process_event(CLIENT, EndOfMessage)
     assert cs.states[CLIENT] is DONE
-    cs.set_keep_alive_disabled()
+    cs.process_keep_alive_disabled()
     assert cs.states[CLIENT] is MUST_CLOSE
 
-def test_ConnectionState_protocol_switch_denied():
-    cs = ConnectionState()
-    cs.process_event(CLIENT, Request, False)
-    cs.set_client_requested_protocol_switch()
-    cs.process_event(CLIENT, Data, False)
-    assert cs.states == {CLIENT: SEND_BODY, SERVER: SEND_RESPONSE}
+def test_ConnectionState_switch_denied():
+    for switch_type in (SWITCH_CONNECT, SWITCH_UPGRADE):
+        for deny_early in (True, False):
+            cs = ConnectionState()
+            cs.process_client_switch_proposals([switch_type])
+            cs.process_event(CLIENT, Request)
+            cs.process_event(CLIENT, Data)
+            assert cs.states == {CLIENT: SEND_BODY, SERVER: SEND_RESPONSE}
 
-    cs.process_event(CLIENT, EndOfMessage, False)
-    assert cs.states == {CLIENT: MIGHT_SWITCH_PROTOCOL, SERVER: SEND_RESPONSE}
+            assert switch_type in cs.pending_switch_proposals
 
-    assert not cs.client_requested_protocol_switch_pending
+            if deny_early:
+                # before client reaches DONE
+                cs.process_event(SERVER, Response)
+                assert not cs.pending_switch_proposals
 
-    cs.process_event(SERVER, InformationalResponse, False)
-    assert cs.states == {CLIENT: MIGHT_SWITCH_PROTOCOL, SERVER: SEND_RESPONSE}
+            cs.process_event(CLIENT, EndOfMessage)
 
-    cs.process_event(SERVER, Response, False)
-    assert cs.states == {CLIENT: DONE, SERVER: SEND_BODY}
+            if deny_early:
+                assert cs.states == {CLIENT: DONE, SERVER: SEND_BODY}
+            else:
+                assert cs.states == {CLIENT: MIGHT_SWITCH_PROTOCOL,
+                                     SERVER: SEND_RESPONSE}
+
+                cs.process_event(SERVER, InformationalResponse)
+                assert cs.states == {CLIENT: MIGHT_SWITCH_PROTOCOL,
+                                     SERVER: SEND_RESPONSE}
+
+                cs.process_event(SERVER, Response)
+                assert cs.states == {CLIENT: DONE, SERVER: SEND_BODY}
+                assert not cs.pending_switch_proposals
+
+_response_type_for_switch = {
+    SWITCH_UPGRADE: InformationalResponse,
+    SWITCH_CONNECT: Response,
+    None: Response,
+}
 
 def test_ConnectionState_protocol_switch_accepted():
-    for accept_type in (InformationalResponse, Response):
+    for switch_event in [SWITCH_UPGRADE, SWITCH_CONNECT]:
         cs = ConnectionState()
-        cs.process_event(CLIENT, Request, False)
-        cs.set_client_requested_protocol_switch()
-        cs.process_event(CLIENT, Data, False)
+        cs.process_client_switch_proposals([switch_event])
+        cs.process_event(CLIENT, Request)
+        cs.process_event(CLIENT, Data)
         assert cs.states == {CLIENT: SEND_BODY,
                              SERVER: SEND_RESPONSE}
 
-        cs.process_event(CLIENT, EndOfMessage, False)
+        cs.process_event(CLIENT, EndOfMessage)
         assert cs.states == {CLIENT: MIGHT_SWITCH_PROTOCOL,
                              SERVER: SEND_RESPONSE}
 
-        assert not cs.client_requested_protocol_switch_pending
-
-        cs.process_event(SERVER, InformationalResponse, False)
+        cs.process_event(SERVER, InformationalResponse)
         assert cs.states == {CLIENT: MIGHT_SWITCH_PROTOCOL,
                              SERVER: SEND_RESPONSE}
 
-        cs.process_event(SERVER, accept_type, True)
+        cs.process_event(SERVER,
+                         _response_type_for_switch[switch_event],
+                         switch_event)
         assert cs.states == {CLIENT: SWITCHED_PROTOCOL,
                              SERVER: SWITCHED_PROTOCOL}
 
+def test_ConnectionState_double_protocol_switch():
+    # CONNECT + Upgrade is legal! Very silly, but legal. So we support
+    # it. Because sometimes doing the silly thing is easier than not.
+    for server_switch in [None, SWITCH_UPGRADE, SWITCH_CONNECT]:
+        cs = ConnectionState()
+        cs.process_client_switch_proposals([SWITCH_UPGRADE, SWITCH_CONNECT])
+        cs.process_event(CLIENT, Request)
+        cs.process_event(CLIENT, EndOfMessage)
+        assert cs.states == {CLIENT: MIGHT_SWITCH_PROTOCOL,
+                             SERVER: SEND_RESPONSE}
+        cs.process_event(SERVER,
+                         _response_type_for_switch[server_switch],
+                         server_switch)
+        if server_switch is None:
+            assert cs.states == {CLIENT: DONE, SERVER: SEND_BODY}
+        else:
+            assert cs.states == {CLIENT: SWITCHED_PROTOCOL,
+                                 SERVER: SWITCHED_PROTOCOL}
+
+def test_ConnectionState_inconsistent_protocol_switch():
+    for client_switches, server_switch in [
+            ([], SWITCH_CONNECT),
+            ([], SWITCH_UPGRADE),
+            ([SWITCH_UPGRADE], SWITCH_CONNECT),
+            ([SWITCH_CONNECT], SWITCH_UPGRADE),
+            ]:
+        cs = ConnectionState()
+        cs.process_client_switch_proposals(client_switches)
+        cs.process_event(CLIENT, Request)
+        with pytest.raises(ProtocolError):
+            cs.process_event(SERVER, Response, server_switch)
+
+
 def test_ConnectionState_keepalive_protocol_switch_interaction():
-    # keep_alive = False + client_requested_protocol_switch_pending = True
+    # keep_alive=False + pending_switch_proposals
     cs = ConnectionState()
-    cs.process_event(CLIENT, Request, False)
-    cs.set_keep_alive_disabled()
-    cs.set_client_requested_protocol_switch()
-    cs.process_event(CLIENT, Data, False)
-    assert cs.states == {CLIENT: SEND_BODY,
-                         SERVER: SEND_RESPONSE}
+    cs.process_client_switch_proposals([SWITCH_UPGRADE])
+    cs.process_event(CLIENT, Request)
+    cs.process_keep_alive_disabled()
+    cs.process_event(CLIENT, Data)
+    assert cs.states == {CLIENT: SEND_BODY, SERVER: SEND_RESPONSE}
 
     # the protocol switch "wins"
-    cs.process_event(CLIENT, EndOfMessage, False)
-    assert cs.states == {CLIENT: MIGHT_SWITCH_PROTOCOL,
-                         SERVER: SEND_RESPONSE}
-
-    assert not cs.client_requested_protocol_switch_pending
-    assert not cs.keep_alive
+    cs.process_event(CLIENT, EndOfMessage)
+    assert cs.states == {CLIENT: MIGHT_SWITCH_PROTOCOL, SERVER: SEND_RESPONSE}
 
     # but when the server denies the request, keep_alive comes back into play
-    cs.process_event(SERVER, Response, False)
+    cs.process_event(SERVER, Response)
     assert cs.states == {CLIENT: MUST_CLOSE, SERVER: SEND_BODY}
 
 
@@ -129,25 +177,25 @@ def test_ConnectionState_reuse():
     with pytest.raises(ProtocolError):
         cs.prepare_to_reuse()
 
-    cs.process_event(CLIENT, Request, False)
-    cs.process_event(CLIENT, EndOfMessage, False)
+    cs.process_event(CLIENT, Request)
+    cs.process_event(CLIENT, EndOfMessage)
 
     with pytest.raises(ProtocolError):
         cs.prepare_to_reuse()
 
-    cs.process_event(SERVER, Response, False)
-    cs.process_event(SERVER, EndOfMessage, False)
+    cs.process_event(SERVER, Response)
+    cs.process_event(SERVER, EndOfMessage)
 
     cs.prepare_to_reuse()
     assert cs.states == {CLIENT: IDLE, SERVER: IDLE}
 
     # No keepalive
 
-    cs.process_event(CLIENT, Request, False)
-    cs.set_keep_alive_disabled()
-    cs.process_event(CLIENT, EndOfMessage, False)
-    cs.process_event(SERVER, Response, False)
-    cs.process_event(SERVER, EndOfMessage, False)
+    cs.process_event(CLIENT, Request)
+    cs.process_keep_alive_disabled()
+    cs.process_event(CLIENT, EndOfMessage)
+    cs.process_event(SERVER, Response)
+    cs.process_event(SERVER, EndOfMessage)
 
     with pytest.raises(ProtocolError):
         cs.prepare_to_reuse()
@@ -155,11 +203,11 @@ def test_ConnectionState_reuse():
     # One side closed
 
     cs = ConnectionState()
-    cs.process_event(CLIENT, Request, False)
-    cs.process_event(CLIENT, EndOfMessage, False)
-    cs.process_event(CLIENT, ConnectionClosed, False)
-    cs.process_event(SERVER, Response, False)
-    cs.process_event(SERVER, EndOfMessage, False)
+    cs.process_event(CLIENT, Request)
+    cs.process_event(CLIENT, EndOfMessage)
+    cs.process_event(CLIENT, ConnectionClosed)
+    cs.process_event(SERVER, Response)
+    cs.process_event(SERVER, EndOfMessage)
 
     with pytest.raises(ProtocolError):
         cs.prepare_to_reuse()
@@ -167,10 +215,10 @@ def test_ConnectionState_reuse():
     # Succesful protocol switch
 
     cs = ConnectionState()
-    cs.process_event(CLIENT, Request, False)
-    cs.set_client_requested_protocol_switch()
-    cs.process_event(CLIENT, EndOfMessage, False)
-    cs.process_event(SERVER, Response, True)
+    cs.process_client_switch_proposals([SWITCH_UPGRADE])
+    cs.process_event(CLIENT, Request)
+    cs.process_event(CLIENT, EndOfMessage)
+    cs.process_event(SERVER, InformationalResponse, SWITCH_UPGRADE)
 
     with pytest.raises(ProtocolError):
         cs.prepare_to_reuse()
@@ -178,11 +226,11 @@ def test_ConnectionState_reuse():
     # Failed protocol switch
 
     cs = ConnectionState()
-    cs.process_event(CLIENT, Request, False)
-    cs.set_client_requested_protocol_switch()
-    cs.process_event(CLIENT, EndOfMessage, False)
-    cs.process_event(SERVER, Response, False)
-    cs.process_event(SERVER, EndOfMessage, False)
+    cs.process_client_switch_proposals([SWITCH_UPGRADE])
+    cs.process_event(CLIENT, Request)
+    cs.process_event(CLIENT, EndOfMessage)
+    cs.process_event(SERVER, Response)
+    cs.process_event(SERVER, EndOfMessage)
 
     cs.prepare_to_reuse()
     assert cs.states == {CLIENT: IDLE, SERVER: IDLE}
@@ -192,4 +240,4 @@ def test_server_request_is_illegal():
     # made this allowed...
     cs = ConnectionState()
     with pytest.raises(ProtocolError):
-        cs.process_event(SERVER, Request, False)
+        cs.process_event(SERVER, Request)

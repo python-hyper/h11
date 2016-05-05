@@ -71,7 +71,7 @@ def _body_framing(request_method, event):
     # headers say.
     if type(event) is Response:
         if request_method == b"HEAD" or event.status_code in (204, 304):
-            return ("content-length", 0)
+            return ("content-length", (0,))
         # Section 3.3.3 also lists two other cases:
         # 1) Responses with status_code < 200. For us these are
         #    InformationalResponses, not Responses, so can't get here.
@@ -86,46 +86,21 @@ def _body_framing(request_method, event):
                     and 200 <= event.status_code < 300)
 
     # Step 2: check for Transfer-Encoding (T-E beats C-L):
-    transfer_encodings = get_comma_header(headers, "Transfer-Encoding")
+    transfer_encodings = get_comma_header(event.headers, "Transfer-Encoding")
     if transfer_encodings:
         assert transfer_encodings == [b"chunked"]
         return ("chunked", ())
 
     # Step 3: check for Content-Length
-    content_lengths = get_comma_header(headers, "Content-Length")
+    content_lengths = get_comma_header(event.headers, "Content-Length")
     if content_lengths:
         return ("content-length", (int(content_lengths[0]),))
 
     # Step 4: no applicable headers; fallback/default depends on type
     if type(event) is Request:
-        return ("content-length", 0)
+        return ("content-length", (0,))
     else:
         return ("http/1.0", ())
-
-# Detects if the server just switched the protocol. (The client can't switch
-# the protocol; the client can only request that the server switch the
-# protocol.)
-def _switched_protocol(request_method, event):
-    if (type(event) is Response
-        and request_method == b"CONNECT"
-        and 200 <= event.status_code < 300):
-        # successful CONNECT response
-        return True
-    if (type(event) is InformationalResponse
-        and event.status_code == 101):
-        # successful Upgrade: response (101 Switching Protocol)
-        return True
-    return False
-
-
-def _client_requests_protocol_switch(event):
-    assert type(event) is Request
-    if event.method == b"CONNECT":
-        return True
-    upgrade = get_comma_header(event.headers, "Upgrade")
-    if upgrade:
-        return True
-    return False
 
 ################################################################
 #
@@ -214,13 +189,33 @@ class Connection:
             # for this state
             return io_dict.get((role, state))
 
+    def _client_switch_events(self, event):
+        if event.method == b"CONNECT":
+            yield SWITCH_CONNECT
+        if get_comma_header(event.headers, "Upgrade"):
+            yield SWITCH_UPGRADE
+
+    def _server_switch_event(self, event):
+        if type(event) is InformationalResponse and event.status_code == 101:
+            return SWITCH_UPGRADE
+        if type(event) is Response:
+            if (SWITCH_CONNECT in self._cstate.pending_switch_proposals
+                and 200 <= event.status_code < 300):
+                return SWITCH_CONNECT
+        return None
+
     # All events and state machine updates go through here.
     def _process_event(self, role, event):
         # First, pass the event through the state machine to make sure it
         # succeeds.
-        switched_protocol =_switched_protocol(self._request_method, event)
         old_states = dict(self._cstate.states)
-        self._cstate.process_event(role, type(event), switched_protocol)
+        if role is CLIENT and type(event) is Request:
+            switch_event_iter = self._client_switch_events(event)
+            self._cstate.process_client_switch_proposals(switch_event_iter)
+        server_switch_event = None
+        if role is SERVER and self._cstate.pending_switch_proposals:
+            server_switch_event = self._server_switch_event(event)
+        self._cstate.process_event(role, type(event), server_switch_event)
 
         # Then perform the updates triggered by it.
 
@@ -240,12 +235,7 @@ class Connection:
         # this is not supposed to happen. In any case, if it does happen, we
         # ignore it.
         if type(event) in (Request, Response) and not _keep_alive(event):
-            self._cstate.set_keep_alive_disabled()
-
-        # client side of Upgrade/CONNECT
-        if type(event) is Request and _client_requests_protocol_switch(event):
-            self._cstate.set_client_requested_protocol_switch()
-        # server side of Upgrade/CONNECT is handled above
+            self._cstate.process_keep_alive_disabled()
 
         # 100-continue
         if type(event) is Request and has_expect_100_continue(event):

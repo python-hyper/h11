@@ -5,7 +5,6 @@ from ..events import *
 from ..state import *
 from ..connection import (
     _keep_alive, _body_framing,
-    _switched_protocol, _client_requests_protocol_switch,
     Connection,
 )
 
@@ -48,60 +47,29 @@ def test__body_framing():
         return Response(status_code=status_code, headers=headers(cl, te))
 
     def req(cl=None, te=False):
-        return Request(method="GET", target="/", headers=headers(cl, te))
+        h = headers(cl, te)
+        h += [("Host", "example.com")]
+        return Request(method="GET", target="/", headers=h)
 
     # Special cases where the headers are ignored:
-    for kwargs in [{}, {"cl": 100}, {"te", True}, {"cl": 100, "te": True}]:
+    for kwargs in [{}, {"cl": 100}, {"te": True}, {"cl": 100, "te": True}]:
         for meth, r in [(b"HEAD", resp(**kwargs)),
                         (b"GET",  resp(status_code=204, **kwargs)),
                         (b"GET",  resp(status_code=304, **kwargs))]:
-            assert _body_framing(meth, r) == ("content-length", 0)
+            assert _body_framing(meth, r) == ("content-length", (0,))
 
     # Transfer-encoding
-    for kwargs in [{"te", True}, {"cl": 100, "te": True}]:
+    for kwargs in [{"te": True}, {"cl": 100, "te": True}]:
         for meth, r in [(None, req(**kwargs)), (b"GET", resp(**kwargs))]:
-            assert _body_framing(meth, r) == ("transfer-encoding", ())
+            assert _body_framing(meth, r) == ("chunked", ())
 
     # Content-Length
     for meth, r in [(None, req(cl=100)), (b"GET", resp(cl=100))]:
-        assert _body_framing(meth, r) == ("content-length", 100)
+        assert _body_framing(meth, r) == ("content-length", (100,))
 
     # No headers
-    assert _body_framing(None, req()) == ("content-length", 0)
-    assert _body_framing(b"GET", resp()) == ("http/1.0", 0)
-
-
-def test__switched_protocol():
-    assert not _switched_protocol(
-        b"GET", Response(status_code=200, headers=[]))
-    assert _switched_protocol(
-        b"CONNECT", Response(status_code=200, headers=[]))
-    assert not _switched_protocol(
-        b"CONNECT", Response(status_code=400, headers=[]))
-    assert not _switched_protocol(
-        b"GET", InformationalResponse(status_code=100, headers=[]))
-    assert _switched_protocol(
-        b"GET", InformationalResponse(status_code=101, headers=[]))
-
-    assert not _switched_protocol(
-        None, Request(method="GET", target="/", headers=[("Host", "a")]))
-    assert not _switched_protocol(
-        b"CONNECT", Data(data=b""))
-
-def test__client_requests_protocol_switch():
-    assert _client_requests_protocol_switch(
-        Request(method="CONNECT",
-                target="example.com:443",
-                headers=[("Host", "example.com")]))
-    assert not _client_requests_protocol_switch(
-        Request(method="Get",
-                target="/websocket",
-                headers=[("Host", "example.com")]))
-    assert _client_requests_protocol_switch(
-        Request(method="Get",
-                target="/websocket",
-                headers=[("Host", "example.com"),
-                         ("Upgrade", "websocket")]))
+    assert _body_framing(None, req()) == ("content-length", (0,))
+    assert _body_framing(b"GET", resp()) == ("http/1.0", ())
 
 
 def test_Connection_basics_and_content_length():

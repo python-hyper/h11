@@ -4,9 +4,13 @@ from .util import ProtocolError, Sentinel
 # Everything in __all__ gets re-exported as part of the h11 public API.
 __all__ = []
 
+# Be careful of trailing whitespace here:
 sentinels = ("CLIENT SERVER "
+             # States
              "IDLE SEND_RESPONSE SEND_BODY DONE MUST_CLOSE CLOSED "
-             "MIGHT_SWITCH_PROTOCOL SWITCHED_PROTOCOL").split()
+             "MIGHT_SWITCH_PROTOCOL SWITCHED_PROTOCOL "
+             # Switch types
+             "SWITCH_UPGRADE SWITCH_CONNECT").split()
 for token in sentinels:
     globals()[token] = Sentinel(token)
 
@@ -21,10 +25,65 @@ __all__ += sentinels
 # about HTTP request/response cycles in the abstract. This ensures that we
 # don't cheat and apply different rules to local and remote parties.
 
-# Sentinel value for the server's special-case transition from IDLE ->
-# SEND_RESPONSE on client Request
-class ClientRequest:
-    pass
+################################################################
+# Theory of operation:
+################################################################
+
+# Possibly the simplest way to think about this is that we actually have 5
+# different state machines here. Yes, 5. Listing initial states first, we
+# have:
+
+# 1) The client state, with its complicated automaton
+# 2) The server state, with its complicated automaton
+# 3) The keep-alive state, with possible states {True, False}
+# 4) The SWITCH_CONNECT state, with possible states {False, True}
+# 5) The SWITCH_UPGRADE state, with possible states {False, True}
+#
+# The first three states are stored explicitly in member variables. The last
+# two are stored implicitly in the pending_switch_proposals set as:
+#   (state of 4) == (SWITCH_CONNECT in pending_switch_proposals)
+#   (state of 5) == (SWITCH_UPGRADE in pending_switch_proposals)
+#
+# And each of these machines has two different kinds of transitions:
+#
+# a) Event-triggered
+# b) State-triggered
+#
+# Event triggered is the obvious thing that you'd think it is: some event
+# happens, and if it's the right event at the right time then a transition
+# happens. There are somewhat complicated rules for which events affect which
+# machines, though:
+#
+# 1) The client machine sees all h11.events objects emitted by the client.
+# 2) The server machine sees all h11.events objects emitted by the server.
+#    It also sees the client's Request event.
+#    Sometimes these are annotated with a SWITCH_* event (so e.g. we can have
+#    a (Response, SWITCH_CONNECT) event, which is different from a regular
+#    Response event).
+# 3) The keep-alive machine sees the process_keep_alive_disabled() event,
+#    which is derived from Request/Response events.
+# 4&5) The SWITCH_* machines transition from False->True when we get a Request
+#    that proposes the relevant type of switch (via
+#    process_client_switch_proposals), and they go from True->False when we
+#    get a Response annotated with SWITCH_DENIED.
+#
+# State-triggered are less obvious, and couple the machines together. The way
+# they work is, when certain *joint* configurations of states are achieved,
+# then we automatically transition to a new *joint* state. So, for example, if
+# we're ever in a joint state with
+#
+#   client: DONE
+#   keep-alive: False
+#
+# then the client state immediately transitions to:
+#
+#   client: MUST_CLOSE
+#
+# This is fundamentally different from an event-based transition, because it
+# doesn't matter how we arrived at the {client: DONE, keep-alive: False} state
+# -- maybe the client transitioned SEND_BODY -> DONE, or keep-alive
+# transitioned True -> False. Either way, once this precondition is satisfied,
+# this transition is triggered.
 
 EVENT_TRIGGERED_TRANSITIONS = {
     CLIENT: {
@@ -52,8 +111,8 @@ EVENT_TRIGGERED_TRANSITIONS = {
     SERVER: {
         IDLE: {
             ConnectionClosed: CLOSED,
-            # Special case triggered by CLIENT -- see discussion below:
-            ClientRequest: SEND_RESPONSE,
+            # Special case: server sees client Request events, in this form
+            (Request, CLIENT): SEND_RESPONSE,
             # This is needed solely to allow for 400 Bad Request responses to
             # requests that we errored out on, and thus never made it through
             # the state machine.
@@ -62,6 +121,8 @@ EVENT_TRIGGERED_TRANSITIONS = {
         SEND_RESPONSE: {
             InformationalResponse: SEND_RESPONSE,
             Response: SEND_BODY,
+            (InformationalResponse, SWITCH_UPGRADE): SWITCHED_PROTOCOL,
+            (Response, SWITCH_CONNECT): SWITCHED_PROTOCOL,
         },
         SEND_BODY: {
             Data: SEND_BODY,
@@ -83,16 +144,14 @@ EVENT_TRIGGERED_TRANSITIONS = {
 # NB: there are also some special-case state-triggered transitions hard-coded
 # into _fire_state_triggered_transitions below.
 STATE_TRIGGERED_TRANSITIONS = {
-    # (Client state, Server state) -> (new Client state, new Server state)
+    # (Client state, Server state) -> new states
     # Protocol negotiation
-    (MIGHT_SWITCH_PROTOCOL, SWITCHED_PROTOCOL):
-        (SWITCHED_PROTOCOL, SWITCHED_PROTOCOL),
-    (MIGHT_SWITCH_PROTOCOL, SEND_BODY): (DONE, SEND_BODY),
+    (MIGHT_SWITCH_PROTOCOL, SWITCHED_PROTOCOL): {CLIENT: SWITCHED_PROTOCOL},
     # Socket shutdown
-    (CLOSED, DONE): (CLOSED, MUST_CLOSE),
-    (CLOSED, IDLE): (CLOSED, MUST_CLOSE),
-    (DONE, CLOSED): (MUST_CLOSE, CLOSED),
-    (IDLE, CLOSED): (MUST_CLOSE, CLOSED),
+    (CLOSED, DONE): {SERVER: MUST_CLOSE},
+    (CLOSED, IDLE): {SERVER: MUST_CLOSE},
+    (DONE, CLOSED): {CLIENT: MUST_CLOSE},
+    (IDLE, CLOSED): {CLIENT: MUST_CLOSE},
 }
 
 class ConnectionState:
@@ -103,49 +162,39 @@ class ConnectionState:
         # transition. Don't set this directly; call .keep_alive_disabled()
         self.keep_alive = True
 
-        # The client Request might suggest switching protocols, but even if
-        # this takes effect it doesn't happen until after the client has
-        # finished sending their full message. So we need some way to carry
-        # that information forward from the Request to the EndOfMessage, and
-        # that's what this variable is for. If True, it enables the automatic
-        # DONE -> MIGHT_SWITCH_PROTOCOL transition for the client only, and
-        # then unsets itself. Don't set this directly; call
-        # .set_client_requested_protocol_switch()
-        self.client_requested_protocol_switch_pending = False
+        # This is a subset of {UPGRADE, CONNECT}, containing the proposals
+        # made by the client for switching protocols.
+        self.pending_switch_proposals = set()
 
         self.states = {CLIENT: IDLE, SERVER: IDLE}
 
-    def set_keep_alive_disabled(self):
+    def process_keep_alive_disabled(self):
         self.keep_alive = False
-        self._fire_state_triggered_transitions(server_switched_protocol=False)
+        self._fire_state_triggered_transitions()
 
-    def set_client_requested_protocol_switch(self):
-        self.client_requested_protocol_switch_pending = True
-        # This can't trigger any state transitions, because it only enables
-        # the DONE -> MIGHT_SWITCH_PROTOCOL for the client, but this method
-        # can only be called when the client is in SEND_BODY
-        assert self.states[CLIENT] is SEND_BODY
+    def process_client_switch_proposals(self, switch_events):
+        assert self.states == {CLIENT: IDLE, SERVER: IDLE}
+        assert not self.pending_switch_proposals
+        self.pending_switch_proposals.update(switch_events)
+        self._fire_state_triggered_transitions()
 
-    def process_event(self, role, event_type, server_switched_protocol):
+    def process_event(self, role, event_type, server_switch_event=None):
+        if server_switch_event is not None:
+            assert role is SERVER
+            if server_switch_event not in self.pending_switch_proposals:
+                raise ProtocolError(
+                    "Received server {} event without a pending proposal"
+                    .format(server_switch_event))
+            event_type = (event_type, server_switch_event)
+        if server_switch_event is None and event_type is Response:
+            self.pending_switch_proposals = set()
         self._fire_event_triggered_transitions(role, event_type)
-        # Special case: the server state does get to see Request events. This
-        # is necessary because a server in a hasn't-recieved-a-request state
-        # is different from one in a has-received-a-request state. For example:
-        # - if we've haven't received a Request, closing our end is fine; if
-        #   we have, then it's a protocol error
-        # - if we haven't received a Request, and the remote end closes, then
-        #   we will never receive a Request so we should go to MUST_CLOSE. If
-        #   we have received a Request and the remote end closes, we should
-        #   continue responding as normal.
-        # - if we send a Response (e.g 400 can't parse your request), and then
-        #   get a Request, then something has gone horrible wrong and we
-        #   should raise an error.
-        # XX FIXME: if this second transition errors out, then the first
-        # transition currently does *not* get unwound -- is this a problem?
+        # Special case: the server state does get to see Request
+        # events.
         if event_type is Request:
             assert role is CLIENT
-            self._fire_event_triggered_transitions(SERVER, ClientRequest)
-        self._fire_state_triggered_transitions(server_switched_protocol)
+            self._fire_event_triggered_transitions(SERVER, (Request, CLIENT))
+        self._fire_state_triggered_transitions()
 
     def _fire_event_triggered_transitions(self, role, event_type):
         state = self.states[role]
@@ -154,21 +203,13 @@ class ConnectionState:
         except KeyError:
             raise ProtocolError(
                 "can't handle event type {} for {} in state {}"
-                .format(event_type.__name__, role, self.states[role]))
+                .format(event_type, role, self.states[role]))
         self.states[role] = new_state
 
-    def _fire_state_triggered_transitions(self, server_switched_protocol):
+    def _fire_state_triggered_transitions(self):
         # We apply these rules repeatedly until converging on a fixed point
         while True:
             start_states = dict(self.states)
-
-            # Special cases that don't fit into the FSA formalism.
-            # If you change these, make sure to also update _make_dot below.
-
-            if server_switched_protocol:
-                assert self.states[SERVER] in (SEND_RESPONSE, SEND_BODY)
-                self.states[SERVER] = SWITCHED_PROTOCOL
-                server_switched_protocol = False
 
             # It could happen that both these special-case transitions are
             # enabled at the same time:
@@ -183,21 +224,23 @@ class ConnectionState:
             # they close the connection, or else the server will deny the
             # request, in which case the client will go back to DONE and then
             # from there to MUST_CLOSE.
-
-            if self.client_requested_protocol_switch_pending:
+            if self.pending_switch_proposals:
                 if self.states[CLIENT] is DONE:
                     self.states[CLIENT] = MIGHT_SWITCH_PROTOCOL
-                    self.client_requested_protocol_switch_pending = False
+
+            if not self.pending_switch_proposals:
+                if self.states[CLIENT] is MIGHT_SWITCH_PROTOCOL:
+                    self.states[CLIENT] = DONE
 
             if not self.keep_alive:
-                for r in (CLIENT, SERVER):
-                    if self.states[r] is DONE:
-                        self.states[r] = MUST_CLOSE
+                for role in (CLIENT, SERVER):
+                    if self.states[role] is DONE:
+                        self.states[role] = MUST_CLOSE
 
-            # State-triggered transitions
-            old = (self.states[CLIENT], self.states[SERVER])
-            new = STATE_TRIGGERED_TRANSITIONS.get(old, old)
-            (self.states[CLIENT], self.states[SERVER]) = new
+            # Tabular state-triggered transitions
+            joint_state = (self.states[CLIENT], self.states[SERVER])
+            changes = STATE_TRIGGERED_TRANSITIONS.get(joint_state, {})
+            self.states.update(changes)
 
             if self.states == start_states:
                 # Fixed point reached
@@ -206,8 +249,10 @@ class ConnectionState:
     def prepare_to_reuse(self):
         if self.states != {CLIENT: DONE, SERVER: DONE}:
             raise ProtocolError("not in a reusable state")
+        # Can't reach DONE/DONE with any of these active, but still, let's be
+        # sure.
         assert self.keep_alive
-        assert not self.client_requested_protocol_switch_pending
+        assert not self.pending_switch_proposals
         self.states = {CLIENT: IDLE, SERVER: IDLE}
 
 
