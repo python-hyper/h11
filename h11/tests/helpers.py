@@ -32,21 +32,24 @@ class ConnectionPair:
         if not isinstance(send_events, list):
             send_events = [send_events]
         data = b""
+        closed = False
         for send_event in send_events:
-            data += self.conn[role].send(send_event)
+            new_data = self.conn[role].send(send_event)
+            if new_data is None:
+                closed = True
+            else:
+                data += new_data
         # send uses b"" to mean b"", and None to mean closed
         # receive uses b"" to mean closed, and None to mean "try again"
         # so we have to translate between the two conventions
-        if data == b"":
-            got_events = []
-        else:
-            if data is None:
-                data = b""
-            got_events = self.conn[self.other[role]].receive_data(data)
+        got_events = []
+        if data:
+            got_events += self.conn[self.other[role]].receive_data(data)
+        if closed:
+            got_events += self.conn[self.other[role]].receive_data(b"")
         if expect == "match":
             expect = send_events
-        if expect is not None:
-            if not isinstance(expect, list):
-                expect = [expect]
-            assert got_events == expect
+        if not isinstance(expect, list):
+            expect = [expect]
+        assert got_events == expect
         return data

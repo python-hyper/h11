@@ -537,7 +537,164 @@ def test_protocol_switch():
             ConnectionClosed(),
         ]
 
-# close handling
-# sendfile silliness
-# missing error states
+def test_close_simple():
+    # Just immediately closing a new connection without anything having
+    # happened yet.
+    for (who_shot_first, who_shot_second) in [
+            (CLIENT, SERVER),
+            (SERVER, CLIENT),
+            ]:
+        def setup():
+            p = ConnectionPair()
+            p.send(who_shot_first, ConnectionClosed())
+            for conn in p.conns:
+                assert conn.state_of(who_shot_first) is CLOSED
+                assert conn.state_of(who_shot_second) is MUST_CLOSE
+            return p
+        # You can keep putting b"" into a closed connection, and you keep
+        # getting ConnectionClosed() out:
+        p = setup()
+        assert p.conn[who_shot_second].receive_data(None) == [
+            ConnectionClosed(),
+        ]
+        assert p.conn[who_shot_second].receive_data(b"") == [
+            ConnectionClosed(),
+        ]
+        # Second party can close...
+        p = setup()
+        p.send(who_shot_second, ConnectionClosed())
+        for conn in p.conns:
+            assert conn.our_state is CLOSED
+            assert conn.their_state is CLOSED
+        # But trying to receive new data on a closed connection is a
+        # RuntimeError (not ProtocolError, because the problem here isn't
+        # violation of HTTP, it's violation of physics)
+        p = setup()
+        with pytest.raises(RuntimeError):
+            p.conn[who_shot_second].receive_data(b"123")
+        # And receiving new data on a MUST_CLOSE connection is a ProtocolError
+        p = setup()
+        with pytest.raises(ProtocolError):
+            p.conn[who_shot_first].receive_data(b"GET")
+
+
+def test_close_different_states():
+    req = [Request(method="GET", target="/foo", headers=[("Host", "a")]),
+           EndOfMessage()]
+    resp = [Response(status_code=200, headers=[]), EndOfMessage()]
+
+    # Client before request
+    p = ConnectionPair()
+    p.send(CLIENT, ConnectionClosed())
+    for conn in p.conns:
+        assert conn.client_state is CLOSED
+        assert conn.server_state is MUST_CLOSE
+
+    # Client after request
+    p = ConnectionPair()
+    p.send(CLIENT, req)
+    p.send(CLIENT, ConnectionClosed())
+    for conn in p.conns:
+        assert conn.client_state is CLOSED
+        assert conn.server_state is SEND_RESPONSE
+
+    # Server after request -> not allowed
+    p = ConnectionPair()
+    p.send(CLIENT, req)
+    with pytest.raises(ProtocolError):
+        p.conn[SERVER].send(ConnectionClosed())
+    with pytest.raises(ProtocolError):
+        p.conn[CLIENT].receive_data(b"")
+
+    # Server after response
+    p = ConnectionPair()
+    p.send(CLIENT, req)
+    p.send(SERVER, resp)
+    p.send(SERVER, ConnectionClosed())
+    for conn in p.conns:
+        assert conn.client_state is MUST_CLOSE
+        assert conn.server_state is CLOSED
+
+    # Both after closing (ConnectionClosed() is idempotent)
+    p = ConnectionPair()
+    p.send(CLIENT, req)
+    p.send(SERVER, resp)
+    p.send(CLIENT, ConnectionClosed())
+    p.send(SERVER, ConnectionClosed())
+    p.send(CLIENT, ConnectionClosed())
+    p.send(SERVER, ConnectionClosed())
+
+    # In the middle of sending -> not allowed
+    p = ConnectionPair()
+    p.send(CLIENT,
+           Request(method="GET", target="/",
+                   headers=[("Host", "a"), ("Content-Length", "10")]))
+    with pytest.raises(ProtocolError):
+        p.conn[CLIENT].send(ConnectionClosed())
+    with pytest.raises(ProtocolError):
+        p.conn[SERVER].receive_data(b"")
+
+# Receive several requests and then client shuts down their side of the
+# connection; we can respond to each
+def test_pipelined_close():
+    c = Connection(SERVER)
+    # 2 requests then a close
+    c.receive_data(
+        b"GET /1 HTTP/1.1\r\nHost: a.com\r\nContent-Length: 5\r\n\r\n"
+        b"12345"
+        b"GET /2 HTTP/1.1\r\nHost: a.com\r\nContent-Length: 5\r\n\r\n"
+        b"67890")
+    c.receive_data(b"")
+    assert c.client_state is DONE
+    c.send(Response(status_code=200, headers=[]))
+    c.send(EndOfMessage())
+    assert c.server_state is DONE
+    c.prepare_to_reuse()
+    assert c.receive_data(None) == [
+        Request(method="GET", target="/2",
+                headers=[("host", "a.com"), ("content-length", "5")]),
+        Data(data=b"67890"),
+        EndOfMessage(),
+        ConnectionClosed(),
+    ]
+    assert c.client_state is CLOSED
+    assert c.server_state is SEND_RESPONSE
+    c.send(Response(status_code=200, headers=[]))
+    c.send(EndOfMessage())
+    assert c.server_state is MUST_CLOSE
+    c.send(ConnectionClosed())
+    assert c.server_state is CLOSED
+
+def test_sendfile():
+    class SendfilePlaceholder:
+        def __len__(self):
+            return 10
+    placeholder = SendfilePlaceholder()
+
+    def setup(header, http_version):
+        c = Connection(SERVER)
+        c.receive_data("GET / HTTP/{}\r\nHost: a\r\n\r\n"
+                       .format(http_version)
+                       .encode("ascii"))
+        headers = []
+        if header:
+            headers.append(header)
+        c.send(Response(status_code=200, headers=headers))
+        return c, c.send(Data(data=placeholder), combine=False)
+
+    c, data = setup(("Content-Length", "10"), "1.1")
+    assert data == [placeholder]
+    # Raises an error if the connection object doesn't think we've sent
+    # exactly 10 bytes
+    c.send(EndOfMessage())
+
+    _, data = setup(("Transfer-Encoding", "chunked"), "1.1")
+    assert placeholder in data
+    data[data.index(placeholder)] = b"x" * 10
+    assert b"".join(data) == b"a\r\nxxxxxxxxxx\r\n"
+
+    c, data = setup(None, "1.0")
+    assert data == [placeholder]
+    assert c.our_state is SEND_BODY
+
 # end-to-end versus independent implementations?

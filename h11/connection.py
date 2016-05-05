@@ -290,28 +290,16 @@ class Connection:
             if state is SWITCHED_PROTOCOL:
                 events.append(Paused(reason="switched-protocol"))
                 break
-            if not self._receive_buffer and self._receive_buffer_closed:
-                print("processing close")
-                if hasattr(self._reader, "read_eof"):
-                    print("{!r} has read_eof".format(self._reader))
-                    event = self._reader.read_eof()
-                    print("read_eof() returned", event)
-                elif state is CLOSED:
-                    break
+            if self._reader is None:
+                if self._receive_buffer:
+                    raise ProtocolError(
+                        "unexpectedly received data in state {}"
+                        .format(state))
                 else:
-                    print("{!r} does NOT have read_eof".format(self._reader))
-                    event = ConnectionClosed()
+                    # Terminal state like MUST_CLOSE with no data... no
+                    # problem, don't want to read anything.
+                    event = None
             else:
-                if self._reader is None:
-                    if self._receive_buffer:
-                        raise ProtocolError(
-                            "unexpectedly received data in state {}"
-                            .format(state))
-                    else:
-                        # Terminal state like MUST_CLOSE with no data... no
-                        # problem, nothing to do, perhaps they'll close it in
-                        # a moment.
-                        break
                 print("calling reader", self._reader)
                 event = self._reader(self._receive_buffer)
                 print("it returned:", event)
@@ -323,11 +311,22 @@ class Connection:
                     # more useful than 400 Bad Request?
                     raise ProtocolError("Receive buffer too long",
                                         error_status_hint=414)
+                if not self._receive_buffer and self._receive_buffer_closed:
+                    print("processing close")
+                    if hasattr(self._reader, "read_eof"):
+                        print("{!r} has read_eof".format(self._reader))
+                        event = self._reader.read_eof()
+                        print("read_eof() returned", event)
+                    else:
+                        event = ConnectionClosed()
+            if event is None:
                 break
+
             self._process_event(self.their_role, event)
             events.append(event)
             if type(event) is ConnectionClosed:
                 break
+
         self._receive_buffer.compress()
         print("Returning {} new events".format(len(events)))
         return events
