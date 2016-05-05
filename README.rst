@@ -258,8 +258,9 @@ We model the state of a HTTP/1.1 connection as a pair of linked state
 machines, one for each of the peers. Blue is an "event" sent by that
 peer, green is a transition triggered by the (client state, server
 state) tuple taking on a particular value, and purple is special
-cases. (TODO: make the doc build automatically re-run the code that
-regenerates these from the source. Once we have a doc build...)
+cases. (NB these are slightly out of date. TODO: make the doc build
+automatically re-run the code that regenerates these from the
+source. Once we have a doc build...)
 
 Client side:
 
