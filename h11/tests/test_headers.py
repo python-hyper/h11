@@ -71,18 +71,6 @@ def test_get_set_comma_header():
         (b"whatever", b"different thing"),
     ]
 
-def test_framing_headers():
-    for (headers, te, cl) in [
-            ([("transfer-encoding", "chunked")], b"chunked", None),
-            ([("content-length", "100")], None, 100),
-            ([("content-length", "0")], None, 0),
-            ([("transfer-encoding", "chunked"), ("content-length", "0")],
-             b"chunked", None),
-            ([("host", "example.com")], None, None),
-            ]:
-        headers = normalize_and_validate(headers)
-        assert framing_headers(headers) == (te, cl)
-
 def test_has_100_continue():
     from ..events import Request
 

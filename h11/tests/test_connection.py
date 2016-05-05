@@ -4,7 +4,7 @@ from ..util import ProtocolError
 from ..events import *
 from ..state import *
 from ..connection import (
-    _keep_alive, _response_allows_body,
+    _keep_alive, _body_framing,
     _switched_protocol, _client_requests_protocol_switch,
     Connection,
 )
@@ -35,27 +35,41 @@ def test__keep_alive():
         Response(status_code=200, headers=[], http_version="1.0"))
 
 
-def test__response_allows_body():
-    assert not _response_allows_body(
-        b"GET", InformationalResponse(status_code=100, headers=[]))
-    assert not _response_allows_body(
-        b"GET", Response(status_code=204, headers=[]))
-    assert not _response_allows_body(
-        b"GET", Response(status_code=304, headers=[]))
-    assert not _response_allows_body(
-        b"GET", Response(status_code=304, headers=[]))
-    assert _response_allows_body(
-        b"GET", Response(status_code=200,
-                         headers=[("Content-Length", "100")]))
-    assert not _response_allows_body(
-        b"HEAD", Response(status_code=200,
-                          headers=[("Content-Length", "100")]))
-    assert _response_allows_body(
-        b"CONNECT", Response(status_code=400,
-                             headers=[("Content-Length", "100")]))
-    assert not _response_allows_body(
-        b"CONNECT", Response(status_code=200,
-                             headers=[("Content-Length", "100")]))
+def test__body_framing():
+    def headers(cl, te):
+        headers = []
+        if cl is not None:
+            headers.append(("Content-Length", str(cl)))
+        if te:
+            headers.append(("Transfer-Encoding", "chunked"))
+        return headers
+
+    def resp(status_code=200, cl=None, te=False):
+        return Response(status_code=status_code, headers=headers(cl, te))
+
+    def req(cl=None, te=False):
+        return Request(method="GET", target="/", headers=headers(cl, te))
+
+    # Special cases where the headers are ignored:
+    for kwargs in [{}, {"cl": 100}, {"te", True}, {"cl": 100, "te": True}]:
+        for meth, r in [(b"HEAD", resp(**kwargs)),
+                        (b"GET",  resp(status_code=204, **kwargs)),
+                        (b"GET",  resp(status_code=304, **kwargs))]:
+            assert _body_framing(meth, r) == ("content-length", 0)
+
+    # Transfer-encoding
+    for kwargs in [{"te", True}, {"cl": 100, "te": True}]:
+        for meth, r in [(None, req(**kwargs)), (b"GET", resp(**kwargs))]:
+            assert _body_framing(meth, r) == ("transfer-encoding", ())
+
+    # Content-Length
+    for meth, r in [(None, req(cl=100)), (b"GET", resp(cl=100))]:
+        assert _body_framing(meth, r) == ("content-length", 100)
+
+    # No headers
+    assert _body_framing(None, req()) == ("content-length", 0)
+    assert _body_framing(b"GET", resp()) == ("http/1.0", 0)
+
 
 def test__switched_protocol():
     assert not _switched_protocol(

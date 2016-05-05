@@ -149,30 +149,6 @@ def set_comma_header(headers, name, new_values):
         new_headers.append((name, new_value))
     headers[:] = normalize_and_validate(new_headers)
 
-def framing_headers(headers):
-    # Returns:
-    #
-    #   effective_transfer_encoding, effective_content_length
-    #
-    # At least one will always be None.
-    #
-    # Transfer-Encoding beats Content-Length (see RFC 7230 sec. 3.3.3), so
-    # check Transfer-Encoding first.
-    #
-    # We assume that headers has already been through the validation in
-    # events.py, so no multiple headers, Content-Length actually is an
-    # integer, Transfer-Encoding is "chunked" or nothing, etc.
-    transfer_encodings = get_comma_header(headers, "Transfer-Encoding")
-    if transfer_encodings:
-        assert transfer_encodings == [b"chunked"]
-        return b"chunked", None
-
-    content_lengths = get_comma_header(headers, "Content-Length")
-    if content_lengths:
-        return None, int(content_lengths[0])
-    else:
-        return None, None
-
 def has_expect_100_continue(request):
     # https://tools.ietf.org/html/rfc7231#section-5.1.1
     # "A server that receives a 100-continue expectation in an HTTP/1.0 request

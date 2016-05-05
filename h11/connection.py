@@ -9,8 +9,7 @@ from .state import *
 from .util import ProtocolError
 from .state import ConnectionState
 from .headers import (
-    get_comma_header, set_comma_header,
-    framing_headers, has_expect_100_continue,
+    get_comma_header, set_comma_header, has_expect_100_continue,
 )
 from .receivebuffer import ReceiveBuffer
 from .readers import READERS
@@ -51,18 +50,57 @@ def _keep_alive(event):
         return False
     return True
 
+def _body_framing(request_method, event):
+    # Called when we enter SEND_BODY to figure out framing information for
+    # this body.
+    #
+    # These are the only two events that can trigger a SEND_BODY state:
+    assert type(event) in (Request, Response)
+    # Returns one of:
+    #
+    #    ("content-length", count)
+    #    ("chunked", ())
+    #    ("http/1.0", ())
+    #
+    # which are (lookup key, *args) for constructing body reader/writer
+    # objects.
+    #
+    # Reference: https://tools.ietf.org/html/rfc7230#section-3.3.3
+    #
+    # Step 1: some responses always have an empty body, regardless of what the
+    # headers say.
+    if type(event) is Response:
+        if request_method == b"HEAD" or event.status_code in (204, 304):
+            return ("content-length", 0)
+        # Section 3.3.3 also lists two other cases:
+        # 1) Responses with status_code < 200. For us these are
+        #    InformationalResponses, not Responses, so can't get here.
+        assert event.status_code >= 200
+        # 2) 2xx responses to CONNECT requests. We interpret things
+        #    differently: it's not that successful CONNECT responses have an
+        #    empty body, it's that the HTTP conversation stops after the 2xx
+        #    CONNECT headers (we switch into SWITCH_PROTOCOL state), so the
+        #    question of how to interpret the body framing headers never comes
+        #    up. 2xx CONNECT responses can't reach here.
+        assert not (request_method == b"CONNECT"
+                    and 200 <= event.status_code < 300)
 
-# See https://tools.ietf.org/html/rfc7230#section-3.3.3
-def _response_allows_body(request_method, response):
-    if (response.status_code < 200
-        or response.status_code in (204, 304)
-        or request_method == b"HEAD"
-        or (request_method == b"CONNECT"
-            and 200 <= response.status_code < 300)):
-        return False
+    # Step 2: check for Transfer-Encoding (T-E beats C-L):
+    transfer_encodings = get_comma_header(headers, "Transfer-Encoding")
+    if transfer_encodings:
+        assert transfer_encodings == [b"chunked"]
+        return ("chunked", ())
+
+    # Step 3: check for Content-Length
+    content_lengths = get_comma_header(headers, "Content-Length")
+    if content_lengths:
+        return ("content-length", (int(content_lengths[0]),))
+
+    # Step 4: no applicable headers; fallback/default depends on type
+    if type(event) is Request:
+        return ("content-length", 0)
     else:
-        return True
-
+        return ("http/1.0", ())
 
 # Detects if the server just switched the protocol. (The client can't switch
 # the protocol; the client can only request that the server switch the
@@ -120,9 +158,15 @@ class Connection:
         # closed *after* the end of whatever's in self._receive_buffer:
         self._receive_buffer_closed = False
 
-        # Extra bits of state
-        self._request_method = None
+        # Extra bits of state that don't fit into the state machine.
+        #
+        # These two are only used to interpret framing headers for figuring
+        # out how to read/write response bodies. their_http_version is also
+        # made available as a convenient public API:
         self.their_http_version = None
+        self._request_method = None
+        # This is pure flow-control and doesn't at all affect the set of legal
+        # transitions, so no need to bother ConnectionState with it:
         self.client_is_waiting_for_100_continue = False
 
     def state_of(self, role):
@@ -163,31 +207,12 @@ class Connection:
         if state is SEND_BODY:
             # Special case: the io_dict has a dict of reader/writer factories
             # that depend on the request/response framing.
-            return self._get_send_body_object(role, event, io_dict[SEND_BODY])
+            framing_type, args = _body_framing(self._request_method, event)
+            return io_dict[SEND_BODY][framing_type](*args)
         else:
             # General case: the io_dict just has the appropriate reader/writer
             # for this state
             return io_dict.get((role, state))
-
-    # XX this is still pretty messy
-    def _get_send_body_object(self, role, event, send_body_dict):
-        if (type(event) is Response
-            and not _response_allows_body(self._request_method, event)):
-            # Body is empty, no matter what the headers say (e.g. HEAD)
-            return send_body_dict["content-length"](0)
-        # Otherwise, trust the headers
-        (transfer_encoding, content_length) = framing_headers(event.headers)
-        if transfer_encoding is not None:
-            assert transfer_encoding == b"chunked"
-            return send_body_dict["chunked"]()
-        elif content_length is not None:
-            return send_body_dict["content-length"](content_length)
-        else:
-            # no framing headers provided
-            if type(event) is Response:
-                return send_body_dict["http/1.0"]()
-            else:
-                return send_body_dict["content-length"](0)
 
     # All events and state machine updates go through here.
     def _process_event(self, role, event):
@@ -358,9 +383,8 @@ class Connection:
         headers = list(response.headers)
         need_close = False
 
-        _, effective_content_length = framing_headers(headers)
-        if (_response_allows_body(self._request_method, response)
-            and effective_content_length is None):
+        framing_type, _ = _body_framing(self._request_method, response)
+        if framing_type in ("chunked", "http/1.0"):
             # This response has a body of unknown length.
             # If our peer is HTTP/1.1, we use Transfer-Encoding: chunked
             # If our peer is HTTP/1.0, we use no framing headers, and close the
