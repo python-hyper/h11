@@ -41,7 +41,9 @@ def test_h11_as_client():
         data = bytearray()
         done = False
         while not done:
-            for event in c.receive_data(s.recv(1024)):
+            # Use a small read buffer to make things more challenging and
+            # exercise more paths :-)
+            for event in c.receive_data(s.recv(10)):
                 print(event)
                 if type(event) is h11.Response:
                     assert event.status_code == 200
@@ -49,7 +51,6 @@ def test_h11_as_client():
                     data += event.data
                 if type(event) is h11.EndOfMessage:
                     done = True
-                    break
         assert bytes(data) == test_file_data
 
 class H11RequestHandler(socketserver.BaseRequestHandler):
@@ -59,7 +60,9 @@ class H11RequestHandler(socketserver.BaseRequestHandler):
         request = None
         done = False
         while not done:
-            for event in c.receive_data(s.recv(1024)):
+            # Use a small read buffer to make things more challenging and
+            # exercise more paths :-)
+            for event in c.receive_data(s.recv(10)):
                 print(event)
                 if type(event) is h11.Request:
                     request = event
