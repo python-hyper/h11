@@ -307,15 +307,17 @@ def _make_dot(role, out_path):
                     weight = 1
                 if isinstance(event_type, tuple):
                     # The weird special cases
-                    color = _SPECIAL_COLOR
-                    weight = 5
+                    #color = _SPECIAL_COLOR
                     italicize = True
                     if event_type == (Request, CLIENT):
                         name = "client Request"
+                        weight = 10
                     elif event_type[1] is SWITCH_UPGRADE:
                         name = "101 Switching Protocols"
+                        weight = 1
                     elif event_type[1] is SWITCH_CONNECT:
                         name = "2xx CONNECT"
+                        weight = 1
                     else:
                         assert False
                 else:
@@ -336,11 +338,11 @@ def _make_dot(role, out_path):
 
         if role is CLIENT:
             edge(DONE, MIGHT_SWITCH_PROTOCOL,
-                 "Sent Upgrade:<BR/>or CONNECT",
-                 _SPECIAL_COLOR,
+                 "Request was CONNECT or Upgrade",
+                 _STATE_COLOR,
                  italicize=True)
 
-        edge(DONE, MUST_CLOSE, "keep-alive<BR/>disabled", _SPECIAL_COLOR,
+        edge(DONE, MUST_CLOSE, "keep-alive<BR/>disabled", _STATE_COLOR,
              italicize=True)
         edge(DONE, IDLE, "prepare_to_reuse()", _SPECIAL_COLOR,
              italicize=True)
