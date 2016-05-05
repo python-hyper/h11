@@ -1,24 +1,6 @@
-protocol switch:
-really 1 event is client requests connect/upgrade
-and 1 event is server accepting or rejecting it
-
-Request sends server into
-  MIGHT_SWITCH_PROTOCOL
-with has transitions:
-- actual switch: -> SWITCHED_PROTOCOL
-- denied (always a Response): -> SEND_BODY
-- InformationalResponse: loop
-
-client_potential_protocol_switch_pending = "upgrade" | "CONNECT" | False
-server Response with protocol_switch=False
-  sets client_potential_protocol_switch_pending = False
-    pushes client out of special state (if this is different?)
-server Response with protocol_switch=("upgrade" | "CONNECT")
-  checks that this matches the client's
-
-
-client_might_switch_protocol = False | "upgrade" | "CONNECT"
-can't be in DONE/DONE with client_might_switch_protocol truthy, so prepare_to_reuse is unaffected...
+should receive_data break on EndOfMessage?
+the one case where this makes a difference is when receiving from a HTTP 1.0 server, their [EndOfMessage(), ConnectionClose()] arrive in the same receive_data() call. If we don't break here, then we have to require the user to call receive_data(b"") twice in a row to get all the events. If we do break here, then we more neatly separate single request/response cycles from the underlying connection lifecycel
+I guess not breaking is fine -- if someone misses the ConnectionClose() then they can always see it in the states or get it again by calling receive_data(None) or receive_data(b""), and I think someone who has missed ConnectionClose() will necessarily do one of these operations next.
 
 
 
