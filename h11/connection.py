@@ -70,20 +70,15 @@ def _body_framing(request_method, event):
     # Step 1: some responses always have an empty body, regardless of what the
     # headers say.
     if type(event) is Response:
-        if request_method == b"HEAD" or event.status_code in (204, 304):
+        if (event.status_code in (204, 304)
+            or request_method == b"HEAD"
+            or (request_method == b"CONNECT"
+                and 200 <= event.status_code < 300)):
             return ("content-length", (0,))
-        # Section 3.3.3 also lists two other cases:
-        # 1) Responses with status_code < 200. For us these are
-        #    InformationalResponses, not Responses, so can't get here.
+        # Section 3.3.3 also lists another case -- responses with status_code
+        # < 200. For us these are InformationalResponses, not Responses, so
+        # they can't get into this function in the first place.
         assert event.status_code >= 200
-        # 2) 2xx responses to CONNECT requests. We interpret things
-        #    differently: it's not that successful CONNECT responses have an
-        #    empty body, it's that the HTTP conversation stops after the 2xx
-        #    CONNECT headers (we switch into SWITCH_PROTOCOL state), so the
-        #    question of how to interpret the body framing headers never comes
-        #    up. 2xx CONNECT responses can't reach here.
-        assert not (request_method == b"CONNECT"
-                    and 200 <= event.status_code < 300)
 
     # Step 2: check for Transfer-Encoding (T-E beats C-L):
     transfer_encodings = get_comma_header(event.headers, "Transfer-Encoding")
@@ -213,7 +208,7 @@ class Connection:
             switch_event_iter = self._client_switch_events(event)
             self._cstate.process_client_switch_proposals(switch_event_iter)
         server_switch_event = None
-        if role is SERVER and self._cstate.pending_switch_proposals:
+        if role is SERVER:
             server_switch_event = self._server_switch_event(event)
         self._cstate.process_event(role, type(event), server_switch_event)
 
@@ -258,7 +253,7 @@ class Connection:
 
     @property
     def trailing_data(self):
-        return bytes(self._receive_buffer)
+        return (bytes(self._receive_buffer), self._receive_buffer_closed)
 
     # Argument interpretation:
     # - b""  -> connection closed
@@ -269,6 +264,9 @@ class Connection:
     def receive_data(self, data):
         if data is not None:
             if data:
+                if self._receive_buffer_closed:
+                    raise RuntimeError(
+                        "received close, then received more data?")
                 self._receive_buffer += data
             else:
                 self._receive_buffer_closed = True

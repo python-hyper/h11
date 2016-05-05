@@ -395,12 +395,149 @@ def test_pipelining():
     # Arrival of more data triggers pause
     assert c.receive_data(None) == []
     assert c.receive_data(b"SADF") == [Paused(reason="pipelining")]
-    assert c.trailing_data == b"SADF"
+    assert c.trailing_data == (b"SADF", False)
+    assert c.receive_data(b"") == [Paused(reason="pipelining")]
+    assert c.trailing_data == (b"SADF", True)
+    assert c.receive_data(None) == [Paused(reason="pipelining")]
+    assert c.receive_data(b"") == [Paused(reason="pipelining")]
+    # Can't call receive_data with non-empty buf after closing it
+    with pytest.raises(RuntimeError):
+        c.receive_data(b"FDSA")
 
     c.prepare_to_reuse()
 
-# protocol switching and trailing_data
+
+def test_protocol_switch():
+    for (req, deny, accept) in [
+            (Request(method="CONNECT", target="example.com:443",
+                     headers=[("Host", "foo"), ("Content-Length", "1")]),
+             Response(status_code=404, headers=[]),
+             Response(status_code=200, headers=[])),
+
+            (Request(method="GET", target="/",
+                     headers=[("Host", "foo"),
+                              ("Content-Length", "1"),
+                              ("Upgrade", "a, b")]),
+             Response(status_code=200, headers=[]),
+             InformationalResponse(status_code=101,
+                                   headers=[("Upgrade", "a")])),
+
+            (Request(method="CONNECT", target="example.com:443",
+                     headers=[("Host", "foo"),
+                              ("Content-Length", "1"),
+                              ("Upgrade", "a, b")]),
+             Response(status_code=404, headers=[]),
+             # Accept CONNECT, not upgrade
+             Response(status_code=200, headers=[])),
+
+            (Request(method="CONNECT", target="example.com:443",
+                     headers=[("Host", "foo"),
+                              ("Content-Length", "1"),
+                              ("Upgrade", "a, b")]),
+             Response(status_code=404, headers=[]),
+             # Accept Upgrade, not CONNECT
+             InformationalResponse(status_code=101,
+                                   headers=[("Upgrade", "b")])),
+            ]:
+
+        def setup():
+            p = ConnectionPair()
+            p.send(CLIENT, req)
+            # No switch-related state change stuff yet; the client has to
+            # finish the request before that kicks in
+            for conn in p.conns:
+                assert conn.client_state is SEND_BODY
+            p.send(CLIENT,
+                   [Data(data=b"1"), EndOfMessage()],
+                   expect=[Data(data=b"1"),
+                           EndOfMessage(),
+                           Paused(reason="might-switch-protocol")])
+            for conn in p.conns:
+                assert conn.client_state is MIGHT_SWITCH_PROTOCOL
+            assert p.conn[SERVER].receive_data(None) == [
+                Paused(reason="might-switch-protocol"),
+            ]
+            return p
+
+        # Test deny case
+        p = setup()
+        p.send(SERVER, deny)
+        for conn in p.conns:
+            assert conn.client_state is DONE
+            assert conn.server_state is SEND_BODY
+        p.send(SERVER, EndOfMessage())
+        # Check that re-use is still allowed after a denial
+        for conn in p.conns:
+            conn.prepare_to_reuse()
+
+        # Test accept case
+        p = setup()
+        p.send(SERVER, accept,
+               expect=[accept, Paused(reason="switched-protocol")])
+        for conn in p.conns:
+            assert conn.client_state is SWITCHED_PROTOCOL
+            assert conn.server_state is SWITCHED_PROTOCOL
+            assert conn.receive_data(b"123") == [
+                Paused(reason="switched-protocol"),
+            ]
+            assert conn.receive_data(b"456") == [
+                Paused(reason="switched-protocol"),
+            ]
+            assert conn.trailing_data == (b"123456", False)
+
+        # Pausing in might-switch, then recovery
+        # (weird artificial case where the trailing data actually is valid
+        # HTTP for some reason, because this makes it easier to test the state
+        # logic)
+        p = setup()
+        sc = p.conn[SERVER]
+        assert sc.receive_data(b"GET / HTTP/1.0\r\n\r\n") == [
+            Paused(reason="might-switch-protocol"),
+        ]
+        assert sc.receive_data(None) == [
+            Paused(reason="might-switch-protocol"),
+        ]
+        assert sc.trailing_data == (b"GET / HTTP/1.0\r\n\r\n", False)
+        sc.send(deny)
+        assert sc.receive_data(None) == [
+            Paused(reason="pipelining"),
+        ]
+        sc.send(EndOfMessage())
+        sc.prepare_to_reuse()
+        assert sc.receive_data(None) == [
+            Request(method="GET", target="/", headers=[], http_version="1.0"),
+            EndOfMessage(),
+        ]
+
+        # When we're DONE, have no trailing data, and the connection gets
+        # closed, we report ConnectionClosed(). When we're in might-switch or
+        # switched, we don't.
+        p = setup()
+        sc = p.conn[SERVER]
+        assert sc.receive_data(b"") == [
+            Paused(reason="might-switch-protocol"),
+        ]
+        assert sc.receive_data(None) == [
+            Paused(reason="might-switch-protocol"),
+        ]
+        assert sc.trailing_data == (b"", True)
+        p.send(SERVER, accept,
+               expect=[accept, Paused(reason="switched-protocol")])
+        assert sc.receive_data(None) == [
+            Paused(reason="switched-protocol"),
+        ]
+
+        p = setup()
+        sc = p.conn[SERVER]
+        assert sc.receive_data(b"") == [
+            Paused(reason="might-switch-protocol"),
+        ]
+        sc.send(deny)
+        assert sc.receive_data(None) == [
+            ConnectionClosed(),
+        ]
+
 # close handling
 # sendfile silliness
-# error states
+# missing error states
 # end-to-end versus independent implementations?
