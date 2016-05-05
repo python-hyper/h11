@@ -400,9 +400,8 @@ class Connection:
         if not self._cstate.keep_alive or need_close:
             # Make sure Connection: close is set
             connection = set(get_comma_header(headers, "Connection"))
-            if b"close" not in connection:
-                connection.discard(b"keep-alive")
-                connection.add(b"close")
-                set_comma_header(headers, "Connection", sorted(connection))
+            connection.discard(b"keep-alive")
+            connection.add(b"close")
+            set_comma_header(headers, "Connection", sorted(connection))
 
         response.headers = headers
