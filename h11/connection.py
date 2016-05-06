@@ -7,7 +7,7 @@ from .events import *
 from .state import *
 # Import the internal things we need
 from .util import ProtocolError
-from .state import ConnectionState
+from .state import ConnectionState, _SWITCH_UPGRADE, _SWITCH_CONNECT
 from .headers import (
     get_comma_header, set_comma_header, has_expect_100_continue,
 )
@@ -186,17 +186,17 @@ class Connection:
 
     def _client_switch_events(self, event):
         if event.method == b"CONNECT":
-            yield SWITCH_CONNECT
+            yield _SWITCH_CONNECT
         if get_comma_header(event.headers, "Upgrade"):
-            yield SWITCH_UPGRADE
+            yield _SWITCH_UPGRADE
 
     def _server_switch_event(self, event):
         if type(event) is InformationalResponse and event.status_code == 101:
-            return SWITCH_UPGRADE
+            return _SWITCH_UPGRADE
         if type(event) is Response:
-            if (SWITCH_CONNECT in self._cstate.pending_switch_proposals
+            if (_SWITCH_CONNECT in self._cstate.pending_switch_proposals
                 and 200 <= event.status_code < 300):
-                return SWITCH_CONNECT
+                return _SWITCH_CONNECT
         return None
 
     # All events and state machine updates go through here.

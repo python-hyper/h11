@@ -3,7 +3,7 @@ import pytest
 from ..util import ProtocolError
 from ..events import *
 from ..state import *
-from ..state import ConnectionState
+from ..state import ConnectionState, _SWITCH_UPGRADE, _SWITCH_CONNECT
 
 def test_ConnectionState():
     cs = ConnectionState()
@@ -60,7 +60,7 @@ def test_ConnectionState_keep_alive_in_DONE():
     assert cs.states[CLIENT] is MUST_CLOSE
 
 def test_ConnectionState_switch_denied():
-    for switch_type in (SWITCH_CONNECT, SWITCH_UPGRADE):
+    for switch_type in (_SWITCH_CONNECT, _SWITCH_UPGRADE):
         for deny_early in (True, False):
             cs = ConnectionState()
             cs.process_client_switch_proposals([switch_type])
@@ -92,13 +92,13 @@ def test_ConnectionState_switch_denied():
                 assert not cs.pending_switch_proposals
 
 _response_type_for_switch = {
-    SWITCH_UPGRADE: InformationalResponse,
-    SWITCH_CONNECT: Response,
+    _SWITCH_UPGRADE: InformationalResponse,
+    _SWITCH_CONNECT: Response,
     None: Response,
 }
 
 def test_ConnectionState_protocol_switch_accepted():
-    for switch_event in [SWITCH_UPGRADE, SWITCH_CONNECT]:
+    for switch_event in [_SWITCH_UPGRADE, _SWITCH_CONNECT]:
         cs = ConnectionState()
         cs.process_client_switch_proposals([switch_event])
         cs.process_event(CLIENT, Request)
@@ -123,9 +123,9 @@ def test_ConnectionState_protocol_switch_accepted():
 def test_ConnectionState_double_protocol_switch():
     # CONNECT + Upgrade is legal! Very silly, but legal. So we support
     # it. Because sometimes doing the silly thing is easier than not.
-    for server_switch in [None, SWITCH_UPGRADE, SWITCH_CONNECT]:
+    for server_switch in [None, _SWITCH_UPGRADE, _SWITCH_CONNECT]:
         cs = ConnectionState()
-        cs.process_client_switch_proposals([SWITCH_UPGRADE, SWITCH_CONNECT])
+        cs.process_client_switch_proposals([_SWITCH_UPGRADE, _SWITCH_CONNECT])
         cs.process_event(CLIENT, Request)
         cs.process_event(CLIENT, EndOfMessage)
         assert cs.states == {CLIENT: MIGHT_SWITCH_PROTOCOL,
@@ -141,10 +141,10 @@ def test_ConnectionState_double_protocol_switch():
 
 def test_ConnectionState_inconsistent_protocol_switch():
     for client_switches, server_switch in [
-            ([], SWITCH_CONNECT),
-            ([], SWITCH_UPGRADE),
-            ([SWITCH_UPGRADE], SWITCH_CONNECT),
-            ([SWITCH_CONNECT], SWITCH_UPGRADE),
+            ([], _SWITCH_CONNECT),
+            ([], _SWITCH_UPGRADE),
+            ([_SWITCH_UPGRADE], _SWITCH_CONNECT),
+            ([_SWITCH_CONNECT], _SWITCH_UPGRADE),
             ]:
         cs = ConnectionState()
         cs.process_client_switch_proposals(client_switches)
@@ -156,7 +156,7 @@ def test_ConnectionState_inconsistent_protocol_switch():
 def test_ConnectionState_keepalive_protocol_switch_interaction():
     # keep_alive=False + pending_switch_proposals
     cs = ConnectionState()
-    cs.process_client_switch_proposals([SWITCH_UPGRADE])
+    cs.process_client_switch_proposals([_SWITCH_UPGRADE])
     cs.process_event(CLIENT, Request)
     cs.process_keep_alive_disabled()
     cs.process_event(CLIENT, Data)
@@ -215,10 +215,10 @@ def test_ConnectionState_reuse():
     # Succesful protocol switch
 
     cs = ConnectionState()
-    cs.process_client_switch_proposals([SWITCH_UPGRADE])
+    cs.process_client_switch_proposals([_SWITCH_UPGRADE])
     cs.process_event(CLIENT, Request)
     cs.process_event(CLIENT, EndOfMessage)
-    cs.process_event(SERVER, InformationalResponse, SWITCH_UPGRADE)
+    cs.process_event(SERVER, InformationalResponse, _SWITCH_UPGRADE)
 
     with pytest.raises(ProtocolError):
         cs.prepare_to_reuse()
@@ -226,7 +226,7 @@ def test_ConnectionState_reuse():
     # Failed protocol switch
 
     cs = ConnectionState()
-    cs.process_client_switch_proposals([SWITCH_UPGRADE])
+    cs.process_client_switch_proposals([_SWITCH_UPGRADE])
     cs.process_event(CLIENT, Request)
     cs.process_event(CLIENT, EndOfMessage)
     cs.process_event(SERVER, Response)

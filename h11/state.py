@@ -28,8 +28,8 @@
 #
 # (1)-(3) are stored explicitly in member variables. The last
 # two are stored implicitly in the pending_switch_proposals set as:
-#   (state of 4) == (SWITCH_CONNECT in pending_switch_proposals)
-#   (state of 5) == (SWITCH_UPGRADE in pending_switch_proposals)
+#   (state of 4) == (_SWITCH_CONNECT in pending_switch_proposals)
+#   (state of 5) == (_SWITCH_UPGRADE in pending_switch_proposals)
 #
 # And each of these machines has two different kinds of transitions:
 #
@@ -50,8 +50,8 @@
 #
 #    It also sees the client's Request event.
 #
-#    And sometimes, server events are annotated with a SWITCH_* event. For
-#    example, we can have a (Response, SWITCH_CONNECT) event, which is
+#    And sometimes, server events are annotated with a _SWITCH_* event. For
+#    example, we can have a (Response, _SWITCH_CONNECT) event, which is
 #    different from a regular Response event.
 #
 # 3) The keep-alive machine sees the process_keep_alive_disabled() event
@@ -59,10 +59,10 @@
 #    transitions it from True -> False, or from False -> False. There's no way
 #    to transition back.
 #
-# 4&5) The SWITCH_* machines transition from False->True when we get a Request
-#    that proposes the relevant type of switch (via
+# 4&5) The _SWITCH_* machines transition from False->True when we get a
+#    Request that proposes the relevant type of switch (via
 #    process_client_switch_proposals), and they go from True->False when we
-#    get a Response that has no SWITCH_* annotation.
+#    get a Response that has no _SWITCH_* annotation.
 #
 # So that's event-triggered transitions.
 #
@@ -123,11 +123,11 @@ sentinels = ("CLIENT SERVER "
              "IDLE SEND_RESPONSE SEND_BODY DONE MUST_CLOSE CLOSED "
              "MIGHT_SWITCH_PROTOCOL SWITCHED_PROTOCOL "
              # Switch types
-             "SWITCH_UPGRADE SWITCH_CONNECT").split()
+             "_SWITCH_UPGRADE _SWITCH_CONNECT").split()
 for token in sentinels:
     globals()[token] = Sentinel(token)
 
-__all__ += sentinels
+__all__ += [s for s in sentinels if not s.startswith("_")]
 
 EVENT_TRIGGERED_TRANSITIONS = {
     CLIENT: {
@@ -165,8 +165,8 @@ EVENT_TRIGGERED_TRANSITIONS = {
         SEND_RESPONSE: {
             InformationalResponse: SEND_RESPONSE,
             Response: SEND_BODY,
-            (InformationalResponse, SWITCH_UPGRADE): SWITCHED_PROTOCOL,
-            (Response, SWITCH_CONNECT): SWITCHED_PROTOCOL,
+            (InformationalResponse, _SWITCH_UPGRADE): SWITCHED_PROTOCOL,
+            (Response, _SWITCH_CONNECT): SWITCHED_PROTOCOL,
         },
         SEND_BODY: {
             Data: SEND_BODY,
