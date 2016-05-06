@@ -33,7 +33,16 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.intersphinx',
     'sphinx.ext.viewcode',
+    'IPython.sphinxext.ipython_directive',
+    'IPython.sphinxext.ipython_console_highlighting',
 ]
+
+# Undocumented trick: if we def setup here in conf.py, it gets called just
+# like an extension's setup function.
+def setup(app):
+    app.add_javascript("show-code.js")
+    app.add_javascript("facebox.js")
+    app.add_stylesheet("facebox.css")
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

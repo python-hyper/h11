@@ -1,0 +1,3 @@
+mistune
+jsonschema
+ipython

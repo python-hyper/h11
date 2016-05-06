@@ -8,8 +8,7 @@ h11
   :target: https://codecov.io/gh/njsmith/h11
 
 This is a little HTTP/1.1 library written from scratch in Python,
-heavily inspired by `hyper-h2
-<https://lukasa.co.uk/2015/10/The_New_Hyper/>`_.
+heavily inspired by `hyper-h2 <https://hyper-h2.readthedocs.io/>`_.
 
 This is a pure protocol library; like h2, it contains no IO code
 whatsoever. This means you can hook h11 up to your favorite network
@@ -83,11 +82,10 @@ as all that, but either way at least I learned some stuff.
 
 *Should I use it?*
 
-Probably not; it's just a few-days-old hack at this point.
-
-*Should I play with it?*
-
-Please do! It's fun!
+Maybe. You should be aware that it's a very young project. But, it's
+feature complete and has an exhaustive test-suite, so the next step is
+for people to try using it and see how it goes :-). If you do then
+please do report back!
 
 *What are the features/limitations?*
 
@@ -120,7 +118,8 @@ machine implemented with ``yield from`` to postprocess the output. But
 I had to take these out -- the new *parser* needs fewer lines-of-code
 than the old *parser wrapper*, is written in pure Python, uses no
 exotic language syntax, and has more features. It's sad, really; that
-old state machine was really slick.)
+old state machine was really slick. I just need a few sentences here
+to mourn that.)
 
 I don't know how fast it is. I haven't benchmarked or profiled it yet,
 so it's probably got a few pointless hot spots, and I've been trying
@@ -128,7 +127,9 @@ to err on the side of simplicity and robustness instead of
 micro-optimization. But at the architectural level I tried hard to
 avoid fundamentally bad decisions, e.g., I believe that all the
 parsing algorithms remain linear-time even in the face of pathological
-input like slowloris, and there are no byte-by-byte loops.
+input like slowloris, and there are no byte-by-byte loops. (I also
+believe that it maintains bounded memory usage in the face of
+arbitrary/pathological input.)
 
 The whole library is ~800 lines-of-code. You can read and understand
 the whole thing in less than an hour. Most of the energy invested in
@@ -150,7 +151,7 @@ details.
 
 *How do I try it?*
 
-There's no setup.py or anything at the moment. I'd start with::
+There's no setup.py or anything yet. I'd start with::
 
   $ git clone git@github.com:njsmith/h11
   $ cd h11
