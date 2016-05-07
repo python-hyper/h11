@@ -37,6 +37,19 @@ extensions = [
     'IPython.sphinxext.ipython_console_highlighting',
 ]
 
+html_theme_options = {
+    "github_user": "njsmith",
+    "github_repo": "h11",
+    "travis_button": "true",
+    "codecov_button": "true",
+    # Show next/previous buttons
+    "show_related": "true",
+    # Make the maximum page width wider (default 920 px, including 220 px
+    # sidebar)
+    # http://stackoverflow.com/a/32258604/1925449
+    "page_width": "1020px",
+}
+
 # Undocumented trick: if we def setup here in conf.py, it gets called just
 # like an extension's setup function.
 def setup(app):

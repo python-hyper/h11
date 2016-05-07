@@ -109,6 +109,17 @@ def make_dot(role, out_path):
         edges.sort()
 
         f.write("".join(edges))
+
+        # For some reason labelfontsize doesn't seem to do anything, but this
+        # works
+        f.write("""
+  labelloc="t"
+  labeljust="l"
+  label=<<FONT POINT-SIZE="20">h11 state machine: {}</FONT>>
+"""
+                .format(role))
+
+
         f.write("\n}\n")
 
 my_dir = os.path.dirname(__file__)

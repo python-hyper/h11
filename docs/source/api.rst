@@ -126,19 +126,19 @@ not speak HTTP/1.1.
 
 Here's the complete set of events supported by h11:
 
-.. autoclass: Request
+.. autoclass:: Request
 
-.. autoclass: InformationalResponse
+.. autoclass:: InformationalResponse
 
-.. autoclass: Response
+.. autoclass:: Response
 
-.. autoclass: Data
+.. autoclass:: Data
 
-.. autoclass: EndOfMessage
+.. autoclass:: EndOfMessage
 
-.. autoclass: ConnectionClosed
+.. autoclass:: ConnectionClosed
 
-.. autoclass: Paused
+.. autoclass:: Paused
 
 
 The state machine
@@ -156,10 +156,14 @@ a client and a different one for when we're a server: every
    subprocess.check_call([sys.executable, "source/make-state-diagrams.py"])
 
 .. figure:: _static/CLIENT.svg
+   :target: _static/CLIENT.svg
+   :width: 800px
 
    State machine for the **client**
 
 .. figure:: _static/SERVER.svg
+   :target: _static/SERVER.svg
+   :width: 800px
 
    State machine for the **server**
 
@@ -188,6 +192,12 @@ Most errors in h11 are signaled by raising :exc:`ProtocolError`:
 .. autoexception:: ProtocolError
 
 XX FIXME: add more discussion of what you can/should do after an error
+
+
+.. _flow-control:
+
+Flow control
+............
 
 
 Message body framing: ``Content-Length`` and all that
@@ -275,6 +285,8 @@ Closing a connection
 ....................
 
 
+
+.. _switching-protocols:
 
 Switching protocols
 ...................

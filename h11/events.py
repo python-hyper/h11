@@ -93,7 +93,7 @@ class Request(_EventBundle):
     .. attribute:: headers
 
        Request headers, represented as a list of (name, value) pairs. See
-       :ref:`the general header normalization rules <header-format>` for
+       :ref:`the general header normalization rules <headers-format>` for
        details.
 
     .. attribute:: http_version
@@ -168,7 +168,7 @@ class Response(_ResponseBase):
     .. attribute:: headers
 
        Request headers, represented as a list of (name, value) pairs. See
-       :ref:`the general header normalization rules <header-format>` for
+       :ref:`the general header normalization rules <headers-format>` for
        details.
 
     .. attribute:: http_version
@@ -215,15 +215,20 @@ class EndOfMessage(_EventBundle):
 
        Default value: ``[]``
 
-       Any trailing headers attached to this message. Must be empty unless
-       ``Transfer-Encoding: chunked`` is in use.
+       Any trailing headers attached to this message, represented as a list of
+       (name, value) pairs. See :ref:`the general header normalization rules
+       <headers-format>` for details.
+
+       Must be empty unless ``Transfer-Encoding: chunked`` is in use.
+
     """
     _fields = ["headers"]
     _defaults = {"headers": []}
 
 
 class ConnectionClosed(_EventBundle):
-    """The sender of this event has closed their outgoing connection.
+    """This event indicates that the sender has closed their outgoing
+    connection.
 
     Note that this does not necessarily mean that they can't *receive* further
     data, because TCP connections are composed to two one-way channels which
@@ -234,4 +239,27 @@ class ConnectionClosed(_EventBundle):
     pass
 
 class Paused(_EventBundle):
+    """A pseudo-event used for flow control.
+
+    If :meth:`Connection.receive_data` returns this event, it means that the
+    HTTP parser is in a paused condition, and won't process any new data until
+    after the condition is resolved. See :ref:`flow-control` for details.
+
+    .. attribute:: reason
+
+       A string indicating why the parser is paused. One of:
+       - ``"pipelining"``: a client has started sending another request before
+         we finished responding to their first request. Cleared by finishing
+         the response and then calling :meth:`Connection.prepare_to_reuse`.
+       - ``"might-switch-protocol"``: a client is in the
+         :data:`MIGHT_SWITCH_PROTOCOL` state, and is waiting for the server to
+         either accept or reject the proposed protocol switch. See
+         :ref:`switching-protocols` for details.
+       - ``"switched-protocol"``: the remote peer is the
+         :data:`SWITCHED_PROTOCOL` state. h11 isn't going to parse any more
+         data that they send, because they're no longer speaking HTTP. See
+         :ref:`switching-protocols` for details.
+
+    """
+
     _fields = ["reason"]
