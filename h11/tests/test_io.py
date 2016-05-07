@@ -129,6 +129,13 @@ def test_readers_unusual():
        Response(status_code=200, headers=[("Foo", "a a a a a")],
                 http_version="1.0"))
 
+    # Empty headers -- also legal
+    tr(READERS[SERVER, SEND_RESPONSE],
+       b"HTTP/1.0 200 OK\r\n"
+       b"Foo:\r\n\r\n",
+       Response(status_code=200, headers=[("Foo", "")],
+                http_version="1.0"))
+
     tr(READERS[SERVER, SEND_RESPONSE],
        b"HTTP/1.0 200 OK\r\n"
        b"Foo: \t \t \r\n\r\n",
@@ -278,7 +285,7 @@ def test_ChunkedReader():
     t_body_reader(ChunkedReader,
                   b"5; hello=there\r\n"
                   + b"xxxxx" + b"\r\n"
-                  + b"0; random=\"junk\"; some=more\r\n\r\n",
+                  + b"0; random=\"junk\"; some=more; canbe=lonnnnngg\r\n\r\n",
                   [Data(data=b"xxxxx"), EndOfMessage()])
 
 def test_ContentLengthWriter():
