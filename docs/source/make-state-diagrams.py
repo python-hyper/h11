@@ -9,6 +9,7 @@ import subprocess
 from h11.events import *
 from h11.state import *
 from h11.state import (
+    _SWITCH_UPGRADE, _SWITCH_CONNECT,
     EVENT_TRIGGERED_TRANSITIONS, STATE_TRIGGERED_TRANSITIONS,
 )
 
@@ -67,10 +68,10 @@ def make_dot(role, out_path):
                     if event_type == (Request, CLIENT):
                         name = "<i>client makes Request</i>"
                         weight = 10
-                    elif event_type[1] is SWITCH_UPGRADE:
+                    elif event_type[1] is _SWITCH_UPGRADE:
                         name = "<i>101 Switching Protocols</i>"
                         weight = 1
-                    elif event_type[1] is SWITCH_CONNECT:
+                    elif event_type[1] is _SWITCH_CONNECT:
                         name = "<i>CONNECT accepted</i>"
                         weight = 1
                     else:

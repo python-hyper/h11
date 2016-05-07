@@ -32,7 +32,7 @@ All events behave in essentially similar ways. Let's take
 defaults to ``b"1.1"``; the rest have no default, so to create a
 :class:`Request` you have to specify their values:
 
-.. ipython: python
+.. ipython:: python
 
    req = h11.Request(method="GET",
                      target="/",
@@ -42,13 +42,13 @@ Event constructors accept only keyword arguments, not positional arguments.
 
 Events have a useful repr:
 
-.. ipython: python
+.. ipython:: python
 
    req
 
 And their fields are available as regular attributes:
 
-.. ipython: python
+.. ipython:: python
 
    req.method
    req.target
@@ -62,12 +62,12 @@ particular event -- for example, :class:`Request` enforces RFC 7230's
 requirement that HTTP/1.1 requests must always contain a ``"Host"``
 header:
 
-.. ipython: python
+.. ipython:: python
 
    # HTTP/1.0 requests don't require a Host: header
    h11.Request(method="GET", target="/", headers=[], http_version="1.0")
 
-.. ipython: python
+.. ipython:: python
    :okexcept:
 
    # But HTTP/1.1 requests do
@@ -91,10 +91,11 @@ will automatically convert native strings containing ascii or
 bytes-like objects to byte-strings, convert names to lowercase, and
 strip whitespace from values:
 
-.. ipython: python
+.. ipython:: python
 
-   req = h11.Request(method="GET", target="/",
-                     headers=[("HOST", bytearray(b"  example.com   "))])
+   original_headers = [("HOST", bytearray(b"  example.com   "))]
+   req = h11.Request(method="GET", target="/", headers=original_headers)
+   original_headers
    req.headers
 
 If any names are detected with leading or trailing whitespace, then
@@ -147,6 +148,13 @@ Important to realize that this isn't one state machine for when we're
 a client and a different one for when we're a server: every
 :class:`Connection`: object is always tracking *both* state machines.
 
+.. ipython:: python
+   :suppress:
+
+   import sys
+   import subprocess
+   subprocess.check_call([sys.executable, "source/make-state-diagrams.py"])
+
 .. figure:: _static/CLIENT.svg
 
    State machine for the **client**
@@ -173,7 +181,7 @@ Special topics
 --------------
 
 Error handling
---------------
+..............
 
 Most errors in h11 are signaled by raising :exc:`ProtocolError`:
 
@@ -229,9 +237,9 @@ cases:
 
 * ``Transfer-Encoding: chunked``, *or*, neither framing header is
   provided: These two cases are handled differently at the wire level,
-  but as far as the application is concerned they provide exactly the
-  same semantics: in either case, you'll send a variable / not yet
-  known number of bytes. The difference between them is that
+  but as far as the application is concerned they provide (almost)
+  exactly the same semantics: in either case, you'll send a variable /
+  not yet known number of bytes. The difference between them is that
   ``Transfer-Encoding: chunked`` works better (compatible with
   keep-alive, allows trailing headers, clearly distinguishes between
   successful completion and network errors), but requires an HTTP/1.1
@@ -245,10 +253,14 @@ cases:
   pick the best option given the client's advertised HTTP protocol
   level.
 
-  You might need to watch out for this if you're using trailing
-  headers (i.e., non-empty ``headers`` attribute on
-  :class:`EndOfMessage`), since trailing headers are only legal with
-  ``Transfer-Encoding: chunked``.
+  You need to watch out for this if you're using trailing headers
+  (i.e., a non-empty ``headers`` attribute on :class:`EndOfMessage`),
+  since trailing headers are only legal if we actually ended up using
+  ``Transfer-Encoding: chunked``. Trying to send a non-empty set of
+  trailing headers to a HTTP/1.0 client will raise a
+  :exc:`ProtocolError`. If this use case is important to you, check
+  :attr:`Connection.their_http_version` to confirm that the client
+  speaks HTTP/1.1 before you attempt to send any trailing headers.
 
 
 Re-using a connection (keep-alive)
