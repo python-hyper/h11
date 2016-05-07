@@ -148,6 +148,17 @@ Important to realize that this isn't one state machine for when we're
 a client and a different one for when we're a server: every
 :class:`Connection`: object is always tracking *both* state machines.
 
+client: sends a :class:`Request` event, zero or more :class:`Data`
+events, and an :class:`EndOfMessage` event.
+
+The server waits to receive the :class:`Request` event, and then sends
+zero or more :class:`InformationalResponse` events, a
+:class:`Response` event, zero or more :class:`Data` events, and a
+:class:`EndOfMessage` event.
+
+And then, either both sides close the connection, or else they re-use
+the connection for another request/response cycle.
+
 .. ipython:: python
    :suppress:
 
@@ -159,19 +170,36 @@ a client and a different one for when we're a server: every
    :target: _static/CLIENT.svg
    :width: 800px
 
-   State machine for the **client**
 
 .. figure:: _static/SERVER.svg
    :target: _static/SERVER.svg
    :width: 800px
 
-   State machine for the **server**
+extra stuff: MUST_CLOSE, prepare_to_reuse, protocol switching,
+Response directly from IDLE
 
-IDLE, SEND_RESPONSE, SEND_BODY, DONE
-MUST_CLOSE, CLOSED
-MIGHT_SWITCH_PROTOCOL
-SWITCHED_PROTOCOL
+how to read this diagram: blue versus green versus purple, italics
+versus upright
 
+.. ipython:: python
+
+   conn = h11.Connection(our_role=h11.CLIENT)
+   conn.client_state, conn.server_state
+   conn.send(h11.Request(method="GET", target="/", headers=[("Host", "example.com")]));
+   conn.client_state, conn.server_state
+
+.. data:: IDLE
+.. data:: SEND_RESPONSE
+.. data:: SEND_BODY
+.. data:: DONE
+.. data:: MUST_CLOSE
+.. data:: CLOSED
+.. data:: MIGHT_SWITCH_PROTOCOL
+.. data:: SWITCHED_PROTOCOL
+
+.. ipython:: python
+
+   conn.client_state is h11.SEND_BODY
 
 The connection object
 ---------------------
@@ -198,6 +226,10 @@ XX FIXME: add more discussion of what you can/should do after an error
 
 Flow control
 ............
+
+calling receive_data(None)
+
+they_are_expecting_100_continue
 
 
 Message body framing: ``Content-Length`` and all that

@@ -93,13 +93,12 @@ class Request(_EventBundle):
     .. attribute:: headers
 
        Request headers, represented as a list of (name, value) pairs. See
-       :ref:`the general header normalization rules <headers-format>` for
-       details.
+       :ref:`the header normalization rules <headers-format>` for details.
 
     .. attribute:: http_version
 
        The HTTP protocol version, represented as a byte string like
-       ``b"1.1"``. See :ref:`the standard HTTP version normalization rules
+       ``b"1.1"``. See :ref:`the HTTP version normalization rules
        <http_version-format>` for details.
 
     """
@@ -135,13 +134,13 @@ class InformationalResponse(_ResponseBase):
     .. attribute:: headers
 
        Request headers, represented as a list of (name, value) pairs. See
-       :ref:`the standard header normalization rules <headers-format>` for
+       :ref:`the header normalization rules <headers-format>` for
        details.
 
     .. attribute:: http_version
 
        The HTTP protocol version, represented as a byte string like
-       ``b"1.1"``. See :ref:`the standard HTTP version normalization rules
+       ``b"1.1"``. See :ref:`the HTTP version normalization rules
        <http_version-format>` for details.
 
     """
@@ -168,13 +167,12 @@ class Response(_ResponseBase):
     .. attribute:: headers
 
        Request headers, represented as a list of (name, value) pairs. See
-       :ref:`the general header normalization rules <headers-format>` for
-       details.
+       :ref:`the header normalization rules <headers-format>` for details.
 
     .. attribute:: http_version
 
        The HTTP protocol version, represented as a byte string like
-       ``b"1.1"``. See :ref:`the standard HTTP version normalization rules
+       ``b"1.1"``. See :ref:`the HTTP version normalization rules
        <http_version-format>` for details.
 
     """
@@ -216,7 +214,7 @@ class EndOfMessage(_EventBundle):
        Default value: ``[]``
 
        Any trailing headers attached to this message, represented as a list of
-       (name, value) pairs. See :ref:`the general header normalization rules
+       (name, value) pairs. See :ref:`the header normalization rules
        <headers-format>` for details.
 
        Must be empty unless ``Transfer-Encoding: chunked`` is in use.
@@ -248,14 +246,17 @@ class Paused(_EventBundle):
     .. attribute:: reason
 
        A string indicating why the parser is paused. One of:
-       - ``"pipelining"``: a client has started sending another request before
+
+       * ``"pipelining"``: a client has started sending another request before
          we finished responding to their first request. Cleared by finishing
          the response and then calling :meth:`Connection.prepare_to_reuse`.
-       - ``"might-switch-protocol"``: a client is in the
+
+       * ``"might-switch-protocol"``: a client is in the
          :data:`MIGHT_SWITCH_PROTOCOL` state, and is waiting for the server to
          either accept or reject the proposed protocol switch. See
          :ref:`switching-protocols` for details.
-       - ``"switched-protocol"``: the remote peer is the
+
+       * ``"switched-protocol"``: the remote peer is the
          :data:`SWITCHED_PROTOCOL` state. h11 isn't going to parse any more
          data that they send, because they're no longer speaking HTTP. See
          :ref:`switching-protocols` for details.
