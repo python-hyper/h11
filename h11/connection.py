@@ -105,7 +105,7 @@ def _body_framing(request_method, event):
 
 class Connection:
     def __init__(self, our_role, max_buffer_size=HTTP_DEFAULT_MAX_BUFFER_SIZE):
-        self._max_buffer_size = HTTP_DEFAULT_MAX_BUFFER_SIZE
+        self._max_buffer_size = max_buffer_size
         # State and role tracking
         if our_role not in (CLIENT, SERVER):
             raise ValueError(

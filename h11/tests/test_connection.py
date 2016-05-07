@@ -312,12 +312,39 @@ def test_100_continue():
         assert not conn.client_is_waiting_for_100_continue
         assert not conn.they_are_waiting_for_100_continue
 
-def test_endless_header():
+def test_max_buffer_size_countermeasure():
+    # Infinitely long headers are definitely not okay
     c = Connection(SERVER)
-    c.receive_data(b"GET / HTTP/1.1\r\nEndless: ")
+    c.receive_data(b"GET / HTTP/1.0\r\nEndless: ")
     with pytest.raises(ProtocolError):
         while True:
             c.receive_data(b"a" * 1024)
+
+    # Checking that the same header is accepted / rejected depending on the
+    # max_buffer_size setting:
+    c = Connection(SERVER, max_buffer_size=5000)
+    c.receive_data(b"GET / HTTP/1.0\r\nBig: ")
+    c.receive_data(b"a" * 4000)
+    assert c.receive_data(b"\r\n\r\n") == [
+        Request(method="GET", target="/", http_version="1.0",
+                headers=[("big", "a" * 4000)]),
+    ]
+
+    c = Connection(SERVER, max_buffer_size=4000)
+    c.receive_data(b"GET / HTTP/1.0\r\nBig: ")
+    with pytest.raises(ProtocolError):
+        c.receive_data(b"a" * 4000)
+
+    # Temporarily exceeding the max buffer size is fine; it's just maintaining
+    # large buffers over multiple calls that's a problem:
+    c = Connection(SERVER, max_buffer_size=5000)
+    c.receive_data(b"GET / HTTP/1.0\r\nContent-Length: 10000")
+    assert c.receive_data(b"\r\n\r\n" + b"a" * 10000) == [
+        Request(method="GET", target="/", http_version="1.0",
+                headers=[("Content-Length", "10000")]),
+        Data(b"a" * 10000),
+    ]
+
 
 def test_reuse_simple():
     p = ConnectionPair()
