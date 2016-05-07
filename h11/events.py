@@ -72,6 +72,38 @@ class _EventBundle:
 
 
 class Request(_EventBundle):
+    """The beginning of an HTTP request.
+
+    Fields:
+
+    .. attribute:: method
+
+       An HTTP method, e.g. ``b"GET"`` or ``b"POST"``. Always a byte
+       string. Bytes-like objects and native strings containing only ascii
+       characters will be automatically converted to byte strings.
+
+    .. attribute:: target
+
+       The target of an HTTP request, e.g. ``b"/index.html"``, or one of the
+       more exotic formats described in `RFC 7320, section 5.3
+       <https://tools.ietf.org/html/rfc7230#section-5.3>`_. Always a byte
+       string. Bytes-like objects and native strings containing only ascii
+       characters will be automatically converted to byte strings.
+
+    .. attribute:: headers
+
+       Request headers, represented as a list of (name, value) pairs. See
+       :ref:`the general header normalization rules <header-format>` for
+       details.
+
+    .. attribute:: http_version
+
+       The HTTP protocol version, represented as a byte string like
+       ``b"1.1"``. See :ref:`the standard HTTP version normalization rules
+       <http_version-format>` for details.
+
+    """
+
     _fields = ["method", "target", "headers", "http_version"]
     _defaults = {"http_version": b"1.1"}
 
@@ -90,6 +122,30 @@ class _ResponseBase(_EventBundle):
 
 
 class InformationalResponse(_ResponseBase):
+    """An HTTP informational response.
+
+    Fields:
+
+    .. attribute:: status_code
+
+       The status code of this response, as an integer. For an
+       :class:`InformationalResponse`, this is always in the range [100,
+       200).
+
+    .. attribute:: headers
+
+       Request headers, represented as a list of (name, value) pairs. See
+       :ref:`the standard header normalization rules <headers-format>` for
+       details.
+
+    .. attribute:: http_version
+
+       The HTTP protocol version, represented as a byte string like
+       ``b"1.1"``. See :ref:`the standard HTTP version normalization rules
+       <http_version-format>` for details.
+
+    """
+
     def _validate(self):
         if not (100 <= self.status_code < 200):
             raise ProtocolError(
@@ -99,6 +155,29 @@ class InformationalResponse(_ResponseBase):
 
 
 class Response(_ResponseBase):
+    """The beginning of an HTTP response.
+
+    Fields:
+
+    .. attribute:: status_code
+
+       The status code of this response, as an integer. For an
+       :class:`Response`, this is always in the range [200,
+       600).
+
+    .. attribute:: headers
+
+       Request headers, represented as a list of (name, value) pairs. See
+       :ref:`the general header normalization rules <header-format>` for
+       details.
+
+    .. attribute:: http_version
+
+       The HTTP protocol version, represented as a byte string like
+       ``b"1.1"``. See :ref:`the standard HTTP version normalization rules
+       <http_version-format>` for details.
+
+    """
     def _validate(self):
         if not (200 <= self.status_code < 600):
             raise ProtocolError(
@@ -107,6 +186,18 @@ class Response(_ResponseBase):
 
 
 class Data(_EventBundle):
+    """Part of an HTTP message body.
+
+    Fields:
+
+    .. attribute: data
+
+       A bytes-like object containing part of a message body. Or, if using the
+       ``combine=False`` argument to :meth:`Connection.send`, then any object
+       that your socket writing code knows what to do with, and for which
+       calling :func:`len` returns the number of bytes that will be written --
+       see :ref:`sendfile` for details.
+    """
     _fields = ["data"]
 
 
@@ -116,11 +207,30 @@ class Data(_EventBundle):
 # https://svn.tools.ietf.org/svn/wg/httpbis/specs/rfc7230.html#chunked.trailer.part
 # Unfortunately, the list of forbidden fields is long and vague :-/
 class EndOfMessage(_EventBundle):
+    """The end of an HTTP message.
+
+    Fields:
+
+    .. attribute: headers
+
+       Default value: ``[]``
+
+       Any trailing headers attached to this message. Must be empty unless
+       ``Transfer-Encoding: chunked`` is in use.
+    """
     _fields = ["headers"]
     _defaults = {"headers": []}
 
 
 class ConnectionClosed(_EventBundle):
+    """The sender of this event has closed their outgoing connection.
+
+    Note that this does not necessarily mean that they can't *receive* further
+    data, because TCP connections are composed to two one-way channels which
+    can be closed independently. See :ref:`closing` for details.
+
+    No fields.
+    """
     pass
 
 class Paused(_EventBundle):

@@ -264,7 +264,7 @@ likely to eventually complain about...
 Trippy state machine diagrams
 .............................
 
-We model the state of a HTTP/1.1 connection as a pair of linked state
+We model the state of an HTTP/1.1 connection as a pair of linked state
 machines, one for each of the peers. Blue is an "event" sent by that
 peer, green is a transition triggered by the (client state, server
 state) tuple taking on a particular value, and purple is special

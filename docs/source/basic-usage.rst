@@ -11,7 +11,7 @@ client.
 HTTP basics
 -----------
 
-A HTTP interaction always starts with a client sending a *request*,
+An HTTP interaction always starts with a client sending a *request*,
 optionally some *data* (e.g., a POST body); and then the server
 responds with a *response* and optionally some *data* (e.g. the
 requested document). Requests and responses have some data associated
@@ -144,7 +144,7 @@ which is similar to the :class:`Request` object that we created
 earlier and has the response's status code (200 OK) and headers; a
 :class:`Data` object containing the response data; and another
 :class:`EndOfMessage` object. This similarity between what we send and
-what we receive isn't accidental: if we were using h11 to write a HTTP
+what we receive isn't accidental: if we were using h11 to write an HTTP
 server, then these are the objects we would have created and passed to
 :meth:`~.Connection.send` -- h11 in client and server mode has an API
 that's almost exactly symmetric.

@@ -1,6 +1,8 @@
 Details of our HTTP support for HTTP nerds
 ==========================================
 
+.. currentmodule:: h11
+
 h11 only speaks HTTP/1.1. It can talk to HTTP/1.0 clients and servers,
 but it itself only does HTTP/1.1.
 
@@ -45,6 +47,12 @@ Transfer-Encoding support: we only know ``chunked``, not ``gzip`` or
 handle anything besides ``chunked`` either. So I'm not too worried
 about this being a problem in practice. But I'm not majorly opposed to
 adding support for more features here either.
+
+A quirk in our :class:`Response` encoding: we don't bother including
+ascii status messages -- instead of ``200 OK`` we just say
+``200``. This is totally legal and no program should care, and it lets
+us skip carrying around a pointless table of status message strings,
+but I suppose it might be worth fixing at some point.
 
 When parsing chunked encoding, we parse but discard "chunk
 extensions". This is an extremely obscure feature that allows

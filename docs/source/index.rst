@@ -1,7 +1,7 @@
 h11: A pure-Python HTTP/1.1 protocol library
 ============================================
 
-h11 is a HTTP/1.1 protocol library written in Python, heavily inspired
+h11 is an HTTP/1.1 protocol library written in Python, heavily inspired
 by `hyper-h2 <https://hyper-h2.readthedocs.io/>`_.
 
 h11's goal is to be a simple, robust, complete, and non-hacky
@@ -61,3 +61,4 @@ Contents
 
    basic-usage.rst
    api.rst
+   supported-http.rst

@@ -1,14 +1,19 @@
+Possible API breaking changes:
+
+- need to think about what exactly our error handling guarantees / enforcement should be. Is a Connection still usable after a Protocol error? If not, should we explicitly stick it into some kind of broken state when an error does happen, to avoid people making bad assumptions after our internal invariants have been violated?
+
+- pondering moving headers to be (default)dict of lowercase bytestrings -> ordered lists of bytestrings
+
+  I guess we should get some benchmarks/profiles first, since one of the motivations would be to eliminate all these linear scans and reallocations we use when dealing with headers
+
+- wondering if I should switch http_version to being a native string instead of a byte-string.
+
+- wondering whether I should underscore-prefix all the modules, so that they don't show up in h11.<tab>
+
+  they are definitely not supposed to be public API
+
 for better tests:
 https://github.com/kevin1024/pytest-httpbin
-
-wondering whether I should underscore-prefix all the modules, so that they don't show up in h11.<tab>
-
-pondering moving headers to be (default)dict of lowercase bytestrings -> ordered lists of bytestrings
-I guess we should get some benchmarks/profiles first, since one of the motivations would be to eliminate all these linear scans and reallocations we use when dealing with headers
-
-should receive_data break on EndOfMessage?
-the one case where this makes a difference is when receiving from a HTTP 1.0 server, their [EndOfMessage(), ConnectionClose()] arrive in the same receive_data() call. If we don't break here, then we have to require the user to call receive_data(b"") twice in a row to get all the events. If we do break here, then we more neatly separate single request/response cycles from the underlying connection lifecycel
-I guess not breaking is fine -- if someone misses the ConnectionClose() then they can always see it in the states or get it again by calling receive_data(None) or receive_data(b""), and I think someone who has missed ConnectionClose() will necessarily do one of these operations next.
 
 XX TODO:
    A server MUST NOT send a Transfer-Encoding header field in any
@@ -24,6 +29,10 @@ XX TODO:
    [RFC7231]).
 
 http://coad.measurement-factory.com/details.html
+
+* should receive_data break on EndOfMessage?
+the one case where this makes a difference is when receiving from a HTTP 1.0 server, their [EndOfMessage(), ConnectionClose()] arrive in the same receive_data() call. If we don't break here, then we have to require the user to call receive_data(b"") twice in a row to get all the events. If we do break here, then we more neatly separate single request/response cycles from the underlying connection lifecycel
+I guess not breaking is fine -- if someone misses the ConnectionClose() then they can always see it in the states or get it again by calling receive_data(None) or receive_data(b""), and I think someone who has missed ConnectionClose() will necessarily do one of these operations next.
 
 * Closure
 
