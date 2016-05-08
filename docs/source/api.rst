@@ -130,10 +130,13 @@ future.
 
 .. _http_version-format:
 
-:attr:`http_version`: We always represent HTTP version numbers as
-byte-strings like b"1.1". :term:`Bytes-like object`\s and native
-strings will be automatically converted to byte strings. Note that the
-HTTP standard `specifically guarantees
+It's not just headers we normalize to being byte-strings: the same
+type-conversion logic is also applied to the :attr:`Request.method`
+and :attr:`Request.target` field, and -- for consistency -- all
+:attr:`http_version` fields. In particular, we always represent HTTP
+version numbers as byte-strings like ``b"1.1"``. :term:`Bytes-like
+object`\s and native strings will be automatically converted to byte
+strings. Note that the HTTP standard `specifically guarantees
 <https://tools.ietf.org/html/rfc7230#section-2.6>`_ that all HTTP
 version numbers will consist of exactly two digits separated by a dot,
 so comparisons like ``req.http_version < b"1.1"`` are safe and valid.
