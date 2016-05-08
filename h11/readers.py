@@ -16,7 +16,7 @@
 
 import re
 from .util import ProtocolError, validate
-from .state import CLIENT, SERVER, IDLE, SEND_RESPONSE, SEND_BODY
+from .state import *
 from .events import *
 
 __all__ = ["READERS"]
@@ -270,11 +270,23 @@ class Http10Reader:
     def read_eof(self):
         return EndOfMessage()
 
+def expect_nothing(buf):
+    if buf:
+        raise ProtocolError("Got data when expecting EOF")
+    return None
 
 READERS = {
     (CLIENT, IDLE): maybe_read_from_IDLE_client,
     (SERVER, IDLE): maybe_read_from_SEND_RESPONSE_server,
     (SERVER, SEND_RESPONSE): maybe_read_from_SEND_RESPONSE_server,
+
+    (CLIENT, DONE): expect_nothing,
+    (CLIENT, MUST_CLOSE): expect_nothing,
+    (CLIENT, CLOSED): expect_nothing,
+    (SERVER, DONE): expect_nothing,
+    (SERVER, MUST_CLOSE): expect_nothing,
+    (SERVER, CLOSED): expect_nothing,
+
     SEND_BODY: {
         "chunked": ChunkedReader,
         "content-length": ContentLengthReader,

@@ -328,6 +328,7 @@ def test_max_buffer_size_countermeasure():
     assert c.receive_data(b"\r\n\r\n") == [
         Request(method="GET", target="/", http_version="1.0",
                 headers=[("big", "a" * 4000)]),
+        EndOfMessage(),
     ]
 
     c = Connection(SERVER, max_buffer_size=4000)
@@ -342,7 +343,8 @@ def test_max_buffer_size_countermeasure():
     assert c.receive_data(b"\r\n\r\n" + b"a" * 10000) == [
         Request(method="GET", target="/", http_version="1.0",
                 headers=[("Content-Length", "10000")]),
-        Data(b"a" * 10000),
+        Data(data=b"a" * 10000),
+        EndOfMessage(),
     ]
 
 
@@ -430,8 +432,9 @@ def test_pipelining():
     # Can't call receive_data with non-empty buf after closing it
     with pytest.raises(RuntimeError):
         c.receive_data(b"FDSA")
-
-    c.prepare_to_reuse()
+    # Can't re-use after an error like that
+    with pytest.raises(ProtocolError):
+        c.prepare_to_reuse()
 
 
 def test_protocol_switch():
@@ -563,6 +566,19 @@ def test_protocol_switch():
         assert sc.receive_data(None) == [
             ConnectionClosed(),
         ]
+
+        # You can't send after switching protocols, or while waiting for a
+        # protocol switch
+        p = setup()
+        with pytest.raises(ProtocolError):
+            p.conn[CLIENT].send(
+                Request(method="GET", target="/", headers=[("Host", "a")]))
+        p = setup()
+        p.send(SERVER, accept,
+               expect=[accept, Paused(reason="switched-protocol")])
+        with pytest.raises(ProtocolError):
+            p.conn[SERVER].send(Data(data=b"123"))
+
 
 def test_close_simple():
     # Just immediately closing a new connection without anything having
@@ -724,4 +740,56 @@ def test_sendfile():
     assert data == [placeholder]
     assert c.our_state is SEND_BODY
 
-# end-to-end versus independent implementations?
+def test_errors():
+    # After a receive error, you can't receive
+    for role in [CLIENT, SERVER]:
+        c = Connection(our_role=role)
+        with pytest.raises(ProtocolError):
+            c.receive_data(b"gibberish\r\n\r\n")
+        # Now any attempt to receive continues to raise
+        assert c.their_state is ERROR
+        assert c.our_state is not ERROR
+        print(c._cstate.states)
+        with pytest.raises(ProtocolError):
+            c.receive_data(None)
+        # But we can still yell at the client for sending us gibberish
+        if role is SERVER:
+            assert (c.send(Response(status_code=400, headers=[]))
+                    == b"HTTP/1.1 400 \r\nconnection: close\r\n\r\n")
+
+    # After an error sending, you can no longer send
+    # (This is especially important for things like content-length errors,
+    # where there's complex internal state being modified)
+    def conn(role):
+        c = Connection(our_role=role)
+        if role is SERVER:
+            # Put it into the state where it *could* send a response...
+            c.receive_data(b"GET / HTTP/1.0\r\n\r\n")
+            assert c.our_state is SEND_RESPONSE
+        return c
+
+    for role in [CLIENT, SERVER]:
+        if role is CLIENT:
+            # This HTTP/1.0 request won't be detected as bad until after we go
+            # through the state machine and hit the writing code
+            good = Request(method="GET", target="/",
+                           headers=[("Host", "example.com")])
+            bad = Request(method="GET", target="/",
+                          headers=[("Host", "example.com")],
+                          http_version="1.0")
+        elif role is SERVER:
+            good = Response(status_code=200, headers=[])
+            bad = Response(status_code=200, headers=[], http_version="1.0")
+        # Make sure 'good' actually is good
+        c = conn(role)
+        c.send(good)
+        assert c.our_state is not ERROR
+        # Do that again, but this time sending 'bad' first
+        c = conn(role)
+        with pytest.raises(ProtocolError):
+            c.send(bad)
+        assert c.our_state is ERROR
+        assert c.their_state is not ERROR
+        # Now 'good' is not so good
+        with pytest.raises(ProtocolError):
+            c.send(good)

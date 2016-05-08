@@ -132,7 +132,7 @@ class Connection:
         #
         # These two are only used to interpret framing headers for figuring
         # out how to read/write response bodies. their_http_version is also
-        # made available as a convenient public API:
+        # made available as a convenient public API.
         self.their_http_version = None
         self._request_method = None
         # This is pure flow-control and doesn't at all affect the set of legal
@@ -172,17 +172,10 @@ class Connection:
         assert not self.client_is_waiting_for_100_continue
         self._respond_to_state_changes(old_states)
 
-    def _get_io_object(self, role, event, io_dict):
-        state = self._cstate.states[role]
-        if state is SEND_BODY:
-            # Special case: the io_dict has a dict of reader/writer factories
-            # that depend on the request/response framing.
-            framing_type, args = _body_framing(self._request_method, event)
-            return io_dict[SEND_BODY][framing_type](*args)
-        else:
-            # General case: the io_dict just has the appropriate reader/writer
-            # for this state
-            return io_dict.get((role, state))
+    def _process_error(self, role):
+        old_states = dict(self._cstate.states)
+        self._cstate.process_error(role)
+        self._respond_to_state_changes(old_states)
 
     def _client_switch_events(self, event):
         if event.method == b"CONNECT":
@@ -199,7 +192,7 @@ class Connection:
                 return _SWITCH_CONNECT
         return None
 
-    # All events and state machine updates go through here.
+    # All events go through here
     def _process_event(self, role, event):
         # First, pass the event through the state machine to make sure it
         # succeeds.
@@ -242,6 +235,21 @@ class Connection:
 
         self._respond_to_state_changes(old_states, event)
 
+    def _get_io_object(self, role, event, io_dict):
+        # event may be None; it's only used when entering SEND_BODY
+        state = self._cstate.states[role]
+        if state is SEND_BODY:
+            # Special case: the io_dict has a dict of reader/writer factories
+            # that depend on the request/response framing.
+            framing_type, args = _body_framing(self._request_method, event)
+            return io_dict[SEND_BODY][framing_type](*args)
+        else:
+            # General case: the io_dict just has the appropriate reader/writer
+            # for this state
+            return io_dict.get((role, state))
+
+    # This must be called after any action that might have caused
+    # self._cstate.states to change.
     def _respond_to_state_changes(self, old_states, event=None):
         # Update reader/writer
         if self.our_state != old_states[self.our_role]:
@@ -258,89 +266,106 @@ class Connection:
     # - None -> no new data, just check for whether any events have become
     #           available (useful iff we were in Paused state)
     # - data -> bytes-like of data received
-    # XX this method is a tangled bramble
     def receive_data(self, data):
-        if data is not None:
-            if data:
-                if self._receive_buffer_closed:
-                    raise RuntimeError(
-                        "received close, then received more data?")
-                self._receive_buffer += data
-            else:
-                self._receive_buffer_closed = True
+        if self.their_state is ERROR:
+            raise ProtocolError("Can't receive data when peer state is ERROR")
+        try:
+            # Update self._receive_buffer with new data
+            if data is not None:
+                if data:
+                    if self._receive_buffer_closed:
+                        raise RuntimeError(
+                            "received close, then received more data?")
+                    self._receive_buffer += data
+                else:
+                    self._receive_buffer_closed = True
 
-        events = []
-        while True:
-            state = self.their_state
-            # We don't pause immediately when they enter DONE, because even in
-            # DONE state we can still process a ConnectionClosed() event. But
-            # if we have data in our buffer, then we definitely aren't getting
-            # a ConnectionClosed() immediately and we need to pause.
-            if state is DONE and self._receive_buffer:
+            # Read out all the events we can
+            events = []
+            while True:
+                event = self._next_receive_event()
+                if event is None:
+                    break
+                events.append(event)
                 # The Paused pseudo-event doesn't go through the state
                 # machine, because it's purely a local signal.
-                events.append(Paused(reason="pipelining"))
-                break
-            if state is MIGHT_SWITCH_PROTOCOL:
-                events.append(Paused(reason="might-switch-protocol"))
-                break
-            if state is SWITCHED_PROTOCOL:
-                events.append(Paused(reason="switched-protocol"))
-                break
-            if self._reader is None:
-                if self._receive_buffer:
-                    raise ProtocolError(
-                        "unexpectedly received data in state {}"
-                        .format(state))
+                if type(event) is Paused:
+                    break
+                self._process_event(self.their_role, event)
+                if type(event) is ConnectionClosed:
+                    break
+
+            # Buffer maintainence
+            self._receive_buffer.compress()
+            if len(self._receive_buffer) > self._max_buffer_size:
+                # 414 is "Request-URI Too Long" which is not quite
+                # accurate because we'll also issue this if someone tries
+                # to send e.g. a megabyte of headers, but it's probably
+                # more useful than 400 Bad Request?
+                raise ProtocolError("Receive buffer too long",
+                                    error_status_hint=414)
+
+            # Return them
+            return events
+        except:
+            self._process_error(self.their_role)
+            raise
+
+    def _next_receive_event(self):
+        state = self.their_state
+        # We don't pause immediately when they enter DONE, because even in
+        # DONE state we can still process a ConnectionClosed() event. But
+        # if we have data in our buffer, then we definitely aren't getting
+        # a ConnectionClosed() immediately and we need to pause.
+        if state is DONE and self._receive_buffer:
+            return Paused(reason="pipelining")
+        if state is MIGHT_SWITCH_PROTOCOL:
+            return Paused(reason="might-switch-protocol")
+        if state is SWITCHED_PROTOCOL:
+            return Paused(reason="switched-protocol")
+        if self._reader is None:
+            raise ProtocolError("can't read in state {}".format(state))
+        event = self._reader(self._receive_buffer)
+        if event is None:
+            if not self._receive_buffer and self._receive_buffer_closed:
+                # In some unusual cases (basically just HTTP/1.0 bodies), EOF
+                # triggers an actual protocol event; in that case, we want to
+                # return that event, and then the state will change and we'll
+                # get called again to generate the actual ConnectionClosed().
+                if hasattr(self._reader, "read_eof"):
+                    event = self._reader.read_eof()
                 else:
-                    # Terminal state like MUST_CLOSE with no data... no
-                    # problem, don't want to read anything.
-                    event = None
-            else:
-                event = self._reader(self._receive_buffer)
-            if event is None:
-                if len(self._receive_buffer) > self._max_buffer_size:
-                    # 414 is "Request-URI Too Long" which is not quite
-                    # accurate because we'll also issue this if someone tries
-                    # to send e.g. a megabyte of headers, but it's probably
-                    # more useful than 400 Bad Request?
-                    raise ProtocolError("Receive buffer too long",
-                                        error_status_hint=414)
-                if not self._receive_buffer and self._receive_buffer_closed:
-                    if hasattr(self._reader, "read_eof"):
-                        event = self._reader.read_eof()
-                    else:
-                        event = ConnectionClosed()
-            if event is None:
-                break
-
-            self._process_event(self.their_role, event)
-            events.append(event)
-            if type(event) is ConnectionClosed:
-                break
-
-        self._receive_buffer.compress()
-        return events
+                    event = ConnectionClosed()
+        return event
 
     def send(self, event, *, combine=True):
-        if type(event) is Response:
-            self._clean_up_response_headers_for_sending(event)
-        # We want to process the event locally before actually sending it, so
-        # that if processing it throws an error then nothing happens. But
-        # processing it may change self._writer. So we save self._writer now
-        # and then call it after. Special case: sending ConnectionClosed()
-        # skips the writer.
-        writer = self._writer
-        self._process_event(self.our_role, event)
-        if type(event) is ConnectionClosed:
-            return None
-        else:
-            data_list = []
-            writer(event, data_list.append)
-            if combine:
-                return b"".join(data_list)
+        if self.our_state is ERROR:
+            raise ProtocolError("Can't send data when our state is ERROR")
+        try:
+            if type(event) is Response:
+                self._clean_up_response_headers_for_sending(event)
+            # We want to call _process_event before calling the writer,
+            # because if someone tries to do something invalid then this will
+            # give a sensible error message, while our writers all just assume
+            # they will only receive valid events. But, _process_event might
+            # change self._writer. So we have to do a little dance:
+            writer = self._writer
+            self._process_event(self.our_role, event)
+            if type(event) is ConnectionClosed:
+                return None
             else:
-                return data_list
+                # In any situation where writer is None, process_event should
+                # have raised ProtocolError
+                assert writer is not None
+                data_list = []
+                writer(event, data_list.append)
+                if combine:
+                    return b"".join(data_list)
+                else:
+                    return data_list
+        except:
+            self._process_error(self.our_role)
+            raise
 
     # When sending a Response, we take responsibility for a few things:
     #
@@ -378,7 +403,12 @@ class Connection:
             # to fix it instead of erroring out, so we'll accord the user the
             # same respect).
             set_comma_header(headers, "Content-Length", [])
-            if self.their_http_version < b"1.1":
+            if (self.their_http_version is None
+                or self.their_http_version < b"1.1"):
+                # Either we never got a valid request and are sending back an
+                # error (their_http_version is None), so we assume the worst;
+                # or else we did get a valid HTTP/1.0 request, so we know that
+                # they don't understand chunked encoding.
                 set_comma_header(headers, "Transfer-Encoding", [])
                 # This is actually redundant ATM, since currently we
                 # unconditionally disable keep-alive when talking to HTTP/1.0

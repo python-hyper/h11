@@ -196,6 +196,7 @@ versus upright
 .. data:: CLOSED
 .. data:: MIGHT_SWITCH_PROTOCOL
 .. data:: SWITCHED_PROTOCOL
+.. data:: ERROR
 
 .. ipython:: python
 

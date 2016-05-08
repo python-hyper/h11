@@ -121,7 +121,7 @@ __all__ = []
 sentinels = ("CLIENT SERVER "
              # States
              "IDLE SEND_RESPONSE SEND_BODY DONE MUST_CLOSE CLOSED "
-             "MIGHT_SWITCH_PROTOCOL SWITCHED_PROTOCOL "
+             "MIGHT_SWITCH_PROTOCOL SWITCHED_PROTOCOL ERROR "
              # Switch types
              "_SWITCH_UPGRADE _SWITCH_CONNECT").split()
 for token in sentinels:
@@ -150,6 +150,7 @@ EVENT_TRIGGERED_TRANSITIONS = {
         },
         MIGHT_SWITCH_PROTOCOL: {},
         SWITCHED_PROTOCOL: {},
+        ERROR: {},
     },
 
     SERVER: {
@@ -157,10 +158,6 @@ EVENT_TRIGGERED_TRANSITIONS = {
             ConnectionClosed: CLOSED,
             # Special case: server sees client Request events, in this form
             (Request, CLIENT): SEND_RESPONSE,
-            # This is needed solely to allow for 400 Bad Request responses to
-            # requests that we errored out on, and thus never made it through
-            # the state machine.
-            Response: SEND_BODY,
         },
         SEND_RESPONSE: {
             InformationalResponse: SEND_RESPONSE,
@@ -182,6 +179,7 @@ EVENT_TRIGGERED_TRANSITIONS = {
             ConnectionClosed: CLOSED,
         },
         SWITCHED_PROTOCOL: {},
+        ERROR: {},
     },
 }
 
@@ -191,6 +189,8 @@ STATE_TRIGGERED_TRANSITIONS = {
     # (Client state, Server state) -> new states
     # Protocol negotiation
     (MIGHT_SWITCH_PROTOCOL, SWITCHED_PROTOCOL): {CLIENT: SWITCHED_PROTOCOL},
+    # Error response
+    (ERROR, IDLE): {SERVER: SEND_RESPONSE},
     # Socket shutdown
     (CLOSED, DONE): {SERVER: MUST_CLOSE},
     (CLOSED, IDLE): {SERVER: MUST_CLOSE},
@@ -212,13 +212,15 @@ class ConnectionState:
 
         self.states = {CLIENT: IDLE, SERVER: IDLE}
 
+    def process_error(self, role):
+        self.states[role] = ERROR
+        self._fire_state_triggered_transitions()
+
     def process_keep_alive_disabled(self):
         self.keep_alive = False
         self._fire_state_triggered_transitions()
 
     def process_client_switch_proposals(self, switch_events):
-        assert self.states == {CLIENT: IDLE, SERVER: IDLE}
-        assert not self.pending_switch_proposals
         self.pending_switch_proposals.update(switch_events)
         self._fire_state_triggered_transitions()
 

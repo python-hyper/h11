@@ -25,15 +25,17 @@ def make_dot(role, out_path):
   edge  [fontname = "Lato"]
 
   IDLE [label=<IDLE<BR/><i>start state</i>>]
+  // move ERROR down to the bottom
+  {rank=same CLOSED ERROR}
 """)
 
-        # Dot output is sensitive to the order in which the edges are listed.
-        # We generate them in python's randomized dict iteration order.  So to
-        # normalize order, we accumulate and then sort.  Fortunately, this
-        # order happens to be one that produces a nice layout... with other
-        # orders I've seen really terrible layouts, and had to do things like
-        # move the server's IDLE->MUST_CLOSE to the top of the file to fix
-        # them.
+        # Dot output is sensitive to the order in which the nodes and edges
+        # are listed.  We generate them in python's randomized dict iteration
+        # order.  So to normalize order, we accumulate and then sort.
+        # Fortunately, this order happens to be one that produces a nice
+        # layout... with other orders I've seen really terrible layouts, and
+        # had to do things like move the server's IDLE->MUST_CLOSE to the top
+        # of the file to fix them.
         edges = []
         def edge(source, target, label, color, italicize=False, weight=1):
             if italicize:
@@ -90,7 +92,7 @@ def make_dot(role, out_path):
                 (their_state, our_state) = state_pair
             edge(our_state, updates[role],
                  "<i>peer in</i><BR/>{}".format(their_state),
-                 _STATE_COLOR)
+                 color=_STATE_COLOR)
 
         if role is CLIENT:
             edge(DONE, MIGHT_SWITCH_PROTOCOL,
@@ -107,7 +109,6 @@ def make_dot(role, out_path):
         edge(DONE, IDLE, "prepare_to_reuse()", _SPECIAL_COLOR)
 
         edges.sort()
-
         f.write("".join(edges))
 
         # For some reason labelfontsize doesn't seem to do anything, but this
