@@ -12,8 +12,28 @@ API documentation
 
 .. contents::
 
-All of h11's public APIs are exposed directly in the top-level h11
-module.
+h11 has a fairly small public API, with all public symbols available
+directly at the top level:
+
+.. ipython::
+
+   In [2]: import h11
+
+   In [3]: h11.<TAB>
+   h11.CLIENT                 h11.MIGHT_SWITCH_PROTOCOL
+   h11.CLOSED                 h11.MUST_CLOSE
+   h11.Connection             h11.Paused
+   h11.ConnectionClosed       h11.ProtocolError
+   h11.Data                   h11.Request
+   h11.DONE                   h11.Response
+   h11.EndOfMessage           h11.SEND_BODY
+   h11.ERROR                  h11.SEND_RESPONSE
+   h11.IDLE                   h11.SERVER
+   h11.InformationalResponse  h11.SWITCHED_PROTOCOL
+
+These symbols fall into three categories: event classes, special
+constants used to track different connection states, and the
+:class:`Connection` class. We'll describe them in that order.
 
 
 .. _events:
@@ -22,7 +42,7 @@ Events
 ------
 
 *Events* are the core of h11: the whole point of h11 is to let you
-reason about HTTP transactions as being a series of events sent back
+think about HTTP transactions as being a series of events sent back
 and forth between a client and a server, instead of thinking in terms
 of bytes.
 

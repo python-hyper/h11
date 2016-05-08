@@ -6,12 +6,6 @@ Possible API breaking changes:
 
 - wondering if I should switch http_version to being a native string instead of a byte-string.
 
-- wondering whether I should underscore-prefix all the modules, so that they don't show up in h11.<tab>
-
-  they are definitely not supposed to be public API
-
-  and then add h11.<tab> output to the top of the api docs
-
 for better tests:
 https://github.com/kevin1024/pytest-httpbin
 
