@@ -374,6 +374,16 @@ class Connection:
                 raise ProtocolError("Receive buffer too long",
                                     error_status_hint=414)
 
+            # We've greedily processed all possible events, so if there's no
+            # more data coming, we better either be paused or else have
+            # delivered that ConnectionClosed -- we don't want to hang forever
+            # waiting for data that never arrives.
+            if self._receive_buffer_closed:
+                FINAL_EVENTS = {Paused, ConnectionClosed}
+                if not events or type(events[-1]) not in FINAL_EVENTS:
+                    raise ProtocolError(
+                        "peer unexpectedly closed connection")
+
             # Return them
             return events
         except:

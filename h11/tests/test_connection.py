@@ -799,3 +799,9 @@ def test_idle_receive_nothing():
     for role in [CLIENT, SERVER]:
         c = Connection(role)
         assert c.receive_data(None) == []
+
+def test_connection_drop():
+    c = Connection(SERVER)
+    assert c.receive_data(b"GET /") == []
+    with pytest.raises(ProtocolError):
+        c.receive_data(b"")
