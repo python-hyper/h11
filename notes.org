@@ -1,7 +1,5 @@
 Possible API breaking changes:
 
-- do we actually handle receive_data(b"GET /"); receive_data(b"") correctly?
-
 - move combine=True to a different method
 
 - need to think about what exactly our error handling guarantees / enforcement should be. Is a Connection still usable after a Protocol error? If not, should we explicitly stick it into some kind of broken state when an error does happen, to avoid people making bad assumptions after our internal invariants have been violated?

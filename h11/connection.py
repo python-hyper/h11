@@ -113,7 +113,7 @@ class Connection:
         max_buffer_size (int):
             The maximum number of bytes of received but unprocessed data we're
             willing to buffer. In practice this mostly sets a limit on the
-            maximum size of request/response line + headers. If this is
+            maximum size of the request/response line + headers. If this is
             exceeded, then :meth:`receive_data` will raise
             :exc:`ProtocolError`.
 
@@ -154,32 +154,42 @@ class Connection:
         self.client_is_waiting_for_100_continue = False
 
     def state_of(self, role):
+        """Returns the current state of either the client or server. See
+        :ref:`state-machine` for details.
 
-        """Returns the current state of either the client or server.
+        Args:
+            role: Either :data:`CLIENT` or :data:`SERVER`.
 
-        :param role: Either :data:`h11.CLIENT` or :data:`h11.SERVER`.
+        Returns:
+            A state object, like :data:`IDLE`.
 
         """
         return self._cstate.states[role]
 
     @property
     def client_state(self):
-        """The current state of the client."""
+        """The current state of the client. See :ref:`state-machine` for
+        details."""
         return self._cstate.states[CLIENT]
 
     @property
     def server_state(self):
-        """The current state of the server."""
+        """The current state of the server. See :ref:`state-machine` for
+        details."""
         return self._cstate.states[SERVER]
 
     @property
     def our_state(self):
-        """The current state of whichever role we are playing."""
+        """The current state of whichever role we are playing. See
+        :ref:`state-machine` for details.
+        """
         return self._cstate.states[self.our_role]
 
     @property
     def their_state(self):
-        """The current state of whichever role we are NOT playing."""
+        """The current state of whichever role we are NOT playing. See
+        :ref:`state-machine` for details.
+        """
         return self._cstate.states[self.their_role]
 
     @property
@@ -296,43 +306,54 @@ class Connection:
         """Convert bytes received from the remote peer into high-level events,
         while updating our internal state machine.
 
-        :param data: The data received -- see below.
-        :returns: A list of event objects.
+        Args:
+            data (:term:`bytes-like object`, or None):
+                The new data that was just recieved.
 
-        Normally, *data* is a :term:`bytes-like object` containing new data
-        received from the peer. We append this to our internal receive buffer,
-        and then check whether any new events can be parsed from it. We always
-        parse and return as many events as possible.
+                Normally, *data* is a :term:`bytes-like object` containing new
+                data received from the peer. We append this to our internal
+                receive buffer, and then check whether any new events can be
+                parsed from it. We always parse and return as many events as
+                possible.
 
-        There are two important special cases:
+                There are two important special cases:
 
-        **Special case 1:** If *data* is an empty byte-string like ``b""``,
-        then this indicates that the remote side has closed the connection
-        (end of file). Normally this is convenient, because standard Python
-        APIs like :meth:`file.read` or :meth:`socket.recv` use ``b""`` to
-        indicate end-of-file, while other failures to read are indicated using
-        other mechanisms like raising :exc:`TimeoutError`. When using such an
-        API you can just blindly pass through whatever you get from ``read``
-        to :meth:`receive_data`, and everything will work.
+                **Special case 1:** If *data* is an empty byte-string like
+                ``b""``, then this indicates that the remote side has closed
+                the connection (end of file). Normally this is convenient,
+                because standard Python APIs like :meth:`file.read` or
+                :meth:`socket.recv` use ``b""`` to indicate end-of-file, while
+                other failures to read are indicated using other mechanisms
+                like raising :exc:`TimeoutError`. When using such an API you
+                can just blindly pass through whatever you get from ``read``
+                to :meth:`receive_data`, and everything will work.
 
-        But, if you have an API where reading an empty string is a valid
-        non-EOF condition, then you need to be aware of this and make sure to
-        check for such strings and avoid passing them to :meth:`receive_data`.
+                But, if you have an API where reading an empty string is a
+                valid non-EOF condition, then you need to be aware of this and
+                make sure to check for such strings and avoid passing them to
+                :meth:`receive_data`.
 
-        **Special case 2:** If *data* is ``None``, then we don't add any data
-        to the internal receive buffer, but we attempt to parse it again to
-        see if we can pull any new events out.
+                **Special case 2:** If *data* is ``None``, then we don't add
+                any data to the internal receive buffer, but we attempt to
+                parse it again to see if we can pull any new events out.
 
-        :meth:`receive_data` normally pulls out all possible events
-        immediately, so this is only useful after calling
-        :meth:`prepare_to_reuse` -- see :ref:`keepalive-and-pipelining` for details.
+                :meth:`receive_data` normally pulls out all possible events
+                immediately, so this is only useful after calling
+                :meth:`prepare_to_reuse` -- see
+                :ref:`keepalive-and-pipelining` for details.
 
-        You must be prepared for this method to raise :exc:`ProtocolError`,
-        indicating a misbehaving peer. (Potentially it could raise other
-        types of exceptions too, though if it does that probably indicates a
-        bug in h11 and we'd appreciate a bug report.) If this method raises an
-        exception then it sets :attr:`Connection.their_state` to :data:`ERROR`
-        -- see :ref:`error-handling` for discussion.
+        Returns:
+            A list of :ref:`event <events>` objects.
+
+        Raises:
+            ProtocolError:
+                The peer has misbehaved. (Potentially this could result in
+                other types of exceptions too, but if it does then that's a
+                bug in h11 and we'd appreciate if you could let us know.)
+
+        If this method raises any exception then it also sets
+        :attr:`Connection.their_state` to :data:`ERROR` -- see
+        :ref:`error-handling` for discussion.
 
         """
 

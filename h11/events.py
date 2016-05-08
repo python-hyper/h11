@@ -79,16 +79,18 @@ class Request(_EventBundle):
     .. attribute:: method
 
        An HTTP method, e.g. ``b"GET"`` or ``b"POST"``. Always a byte
-       string. Bytes-like objects and native strings containing only ascii
-       characters will be automatically converted to byte strings.
+       string. :term:`Bytes-like objects <bytes-like object>` and native
+       strings containing only ascii characters will be automatically
+       converted to byte strings.
 
     .. attribute:: target
 
        The target of an HTTP request, e.g. ``b"/index.html"``, or one of the
        more exotic formats described in `RFC 7320, section 5.3
        <https://tools.ietf.org/html/rfc7230#section-5.3>`_. Always a byte
-       string. Bytes-like objects and native strings containing only ascii
-       characters will be automatically converted to byte strings.
+       string. :term:`Bytes-like objects <bytes-like object>` and native
+       strings containing only ascii characters will be automatically
+       converted to byte strings.
 
     .. attribute:: headers
 
@@ -190,11 +192,12 @@ class Data(_EventBundle):
 
     .. attribute: data
 
-       A bytes-like object containing part of a message body. Or, if using the
-       ``combine=False`` argument to :meth:`Connection.send`, then any object
-       that your socket writing code knows what to do with, and for which
-       calling :func:`len` returns the number of bytes that will be written --
-       see :ref:`sendfile` for details.
+       A :term:`bytes-like object` containing part of a message body. Or, if
+       using the ``combine=False`` argument to :meth:`Connection.send`, then
+       any object that your socket writing code knows what to do with, and for
+       which calling :func:`len` returns the number of bytes that will be
+       written -- see :ref:`sendfile` for details.
+
     """
     _fields = ["data"]
 

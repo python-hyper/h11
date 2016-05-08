@@ -16,6 +16,8 @@ All of h11's public APIs are exposed directly in the top-level h11
 module.
 
 
+.. _events:
+
 Events
 ------
 
@@ -88,8 +90,8 @@ byte-strings, *name* is always lowercase, and *name* and *value* are
 both guaranteed not to have any leading or trailing whitespace. When
 constructing an event, we accept any iterable of pairs like this, and
 will automatically convert native strings containing ascii or
-bytes-like objects to byte-strings, convert names to lowercase, and
-strip whitespace from values:
+:term:`bytes-like object`\s to byte-strings, convert names to
+lowercase, and strip whitespace from values:
 
 .. ipython:: python
 
@@ -109,13 +111,12 @@ future.
 .. _http_version-format:
 
 :attr:`http_version`: We always represent HTTP version numbers as
-byte-strings like b"1.1". Bytes-like objects and native strings will
-be automatically converted to byte strings. Note that the HTTP
-standard `specifically guarantees
+byte-strings like b"1.1". :term:`Bytes-like object`\s and native
+strings will be automatically converted to byte strings. Note that the
+HTTP standard `specifically guarantees
 <https://tools.ietf.org/html/rfc7230#section-2.6>`_ that all HTTP
 version numbers will consist of exactly two digits separated by a dot,
-so comparisons like ``req.http_version < b"1.1"`` are safe and
-valid.
+so comparisons like ``req.http_version < b"1.1"`` are safe and valid.
 
 When constructing an event, you generally shouldn't specify
 :attr:`http_version`, because it defaults to ``b"1.1"``, and if you
@@ -140,6 +141,8 @@ Here's the complete set of events supported by h11:
 
 .. autoclass:: Paused
 
+
+.. _state-machine:
 
 The state machine
 -----------------
@@ -205,8 +208,15 @@ versus upright
 The connection object
 ---------------------
 
+There are two special constants used to indicate the two different
+roles that a peer can play in an HTTP connection:
+
 .. data:: CLIENT
 .. data:: SERVER
+
+When creating a :class:`Connection` object, you need to pass one of
+these constants to indicate which side of the HTTP conversation you
+want to implement:
 
 .. autoclass:: Connection
 
@@ -227,6 +237,7 @@ The connection object
    .. autoattribute:: server_state
    .. autoattribute:: our_state
    .. autoattribute:: their_state
+   .. automethod:: state_of
 
    .. attribute:: their_http_version
 
@@ -249,7 +260,7 @@ The connection object
       of response, and the client has not gone ahead and started
       sending the body anyway).
 
-      See RFC 7231 section 5.1.1
+      See `RFC 7231 section 5.1.1
       <https://tools.ietf.org/html/rfc7231#section-5.1.1>`_ for details.
 
    .. attribute:: they_are_waiting_for_100_continue
@@ -259,6 +270,7 @@ The connection object
 
    .. autoattribute:: trailing_data
 
+
 Special topics
 --------------
 
@@ -266,6 +278,9 @@ Special topics
 
 Error handling
 ..............
+
+Given the vagaries of networks and the folks on the other side of
+them, it's extremely important to be prepared for errors.
 
 Most errors in h11 are signaled by raising :exc:`ProtocolError`:
 
@@ -286,22 +301,24 @@ There are four cases where this exception might be raised:
 
 * When calling :meth:`Connection.receive_data`: This indicates that
   the remote peer has violated our protocol assumptions. This is
-  unrecoverable -- we don't know what they're doing and cannot
-  proceed. :attr:`Connection.their_state` immediately becomes
+  unrecoverable -- we don't know what they're doing and we cannot
+  safely proceed. :attr:`Connection.their_state` immediately becomes
   :data:`ERROR`, and all further calls to
   :meth:`~.Connection.receive_data` will also raise
   :exc:`ProtocolError`. :meth:`Connection.send` still works as normal,
   so if you're implementing a server and this happens then you have an
-  opportunity to send back a 400 Bad Request response.
+  opportunity to send back a 400 Bad Request response. Your only other
+  real option is to close your socket and make a new connection.
 
 * When calling :meth:`Connection.send`: This indicates that *you*
   violated our protocol assumptions. This is also unrecoverable -- h11
   doesn't know what you're doing, its internal state may be
-  inconsistent, and we cannot proceed. :attr:`Connection.our_state`
-  immediately becomes :data:`ERROR`, and all further calls to
-  :meth:`~.Connection.send` will also raise :exc:`ProtocolError`. The
-  only thing you can reasonably due at this point is to close your
-  socket and start over.
+  inconsistent, and we cannot safely
+  proceed. :attr:`Connection.our_state` immediately becomes
+  :data:`ERROR`, and all further calls to :meth:`~.Connection.send`
+  will also raise :exc:`ProtocolError`. The only thing you can
+  reasonably due at this point is to close your socket and make a new
+  connection.
 
 
 .. _flow-control:
