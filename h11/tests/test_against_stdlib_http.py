@@ -31,55 +31,55 @@ class SingleMindedRequestHandler(SimpleHTTPRequestHandler):
 
 def test_h11_as_client():
     with socket_server(SingleMindedRequestHandler) as httpd:
-        s = socket.create_connection(httpd.server_address)
-        c = h11.Connection(h11.CLIENT)
+        with socket.create_connection(httpd.server_address) as s:
+            c = h11.Connection(h11.CLIENT)
 
-        s.sendall(c.send(h11.Request(
-            method="GET", target="/foo", headers=[("Host", "localhost")])))
-        s.sendall(c.send(h11.EndOfMessage()))
+            s.sendall(c.send(h11.Request(
+                method="GET", target="/foo", headers=[("Host", "localhost")])))
+            s.sendall(c.send(h11.EndOfMessage()))
 
-        data = bytearray()
-        done = False
-        while not done:
-            # Use a small read buffer to make things more challenging and
-            # exercise more paths :-)
-            for event in c.receive_data(s.recv(10)):
-                print(event)
-                if type(event) is h11.Response:
-                    assert event.status_code == 200
-                if type(event) is h11.Data:
-                    data += event.data
-                if type(event) is h11.EndOfMessage:
-                    done = True
-        assert bytes(data) == test_file_data
+            data = bytearray()
+            done = False
+            while not done:
+                # Use a small read buffer to make things more challenging and
+                # exercise more paths :-)
+                for event in c.receive_data(s.recv(10)):
+                    print(event)
+                    if type(event) is h11.Response:
+                        assert event.status_code == 200
+                    if type(event) is h11.Data:
+                        data += event.data
+                    if type(event) is h11.EndOfMessage:
+                        done = True
+            assert bytes(data) == test_file_data
 
 class H11RequestHandler(socketserver.BaseRequestHandler):
     def handle(self):
-        s = self.request
-        c = h11.Connection(h11.SERVER)
-        request = None
-        done = False
-        while not done:
-            # Use a small read buffer to make things more challenging and
-            # exercise more paths :-)
-            for event in c.receive_data(s.recv(10)):
-                print(event)
-                if type(event) is h11.Request:
-                    request = event
-                if type(event) is h11.EndOfMessage:
-                    done = True
-                    break
-        info = json.dumps({
-            "method": request.method.decode("ascii"),
-            "target": request.target.decode("ascii"),
-            "headers": {
-                name.decode("ascii"): value.decode("ascii")
-                for (name, value) in request.headers
-                },
-        })
-        s.sendall(c.send(h11.Response(status_code=200, headers=[])))
-        s.sendall(c.send(h11.Data(data=info.encode("ascii"))))
-        s.sendall(c.send(h11.EndOfMessage()))
+        with self.request as s:
+            c = h11.Connection(h11.SERVER)
+            request = None
+            done = False
+            while not done:
+                # Use a small read buffer to make things more challenging and
+                # exercise more paths :-)
+                for event in c.receive_data(s.recv(10)):
+                    print(event)
+                    if type(event) is h11.Request:
+                        request = event
+                    if type(event) is h11.EndOfMessage:
+                        done = True
+                        break
+            info = json.dumps({
+                "method": request.method.decode("ascii"),
+                "target": request.target.decode("ascii"),
+                "headers": {
+                    name.decode("ascii"): value.decode("ascii")
+                    for (name, value) in request.headers
+                    },
+            })
+            s.sendall(c.send(h11.Response(status_code=200, headers=[])))
+            s.sendall(c.send(h11.Data(data=info.encode("ascii"))))
+            s.sendall(c.send(h11.EndOfMessage()))
 
 def test_h11_as_server():
     with socket_server(H11RequestHandler) as httpd:
