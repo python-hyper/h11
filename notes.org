@@ -10,6 +10,8 @@ Possible API breaking changes:
 
   they are definitely not supposed to be public API
 
+  and then add h11.<tab> output to the top of the api docs
+
 for better tests:
 https://github.com/kevin1024/pytest-httpbin
 
