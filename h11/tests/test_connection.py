@@ -723,7 +723,7 @@ def test_sendfile():
         if header:
             headers.append(header)
         c.send(Response(status_code=200, headers=headers))
-        return c, c.send(Data(data=placeholder), combine=False)
+        return c, c.send_with_data_passthrough(Data(data=placeholder))
 
     c, data = setup(("Content-Length", "10"), "1.1")
     assert data == [placeholder]

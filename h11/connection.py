@@ -437,7 +437,41 @@ class Connection:
                     event = ConnectionClosed()
         return event
 
-    def send(self, event, *, combine=True):
+    def send(self, event):
+        """Convert a high-level event into bytes that can be sent to the peer,
+        while updating our internal state machine.
+
+        Args:
+            event: The :ref:`event <events>` to send.
+
+        Returns:
+            If ``type(event) is ConnectionClosed``, then returns
+            ``None``. Otherwise, returns a :term:`bytes-like object`.
+
+        Raises:
+            ProtocolError:
+                Sending this event at this time would violate our
+                understanding of the HTTP/1.1 protocol.
+
+        If this method raises any exception then it also sets
+        :attr:`Connection.our_state` to :data:`ERROR` -- see
+        :ref:`error-handling` for discussion.
+
+        """
+        data_list = self.send_with_data_passthrough(event)
+        if data_list is None:
+            return None
+        else:
+            return b"".join(data_list)
+
+    def send_with_data_passthrough(self, event):
+        """Identical to :meth:`send`, except that in situations where
+        :meth:`send` returns a single :term:`bytes-like object`, this instead
+        returns a list of them -- and when sending a :class:`Data` event, this
+        list is guaranteed to contain the exact object you passed in as
+        :attr:`Data.data`. See :ref:`sendfile` for discussion.
+
+        """
         if self.our_state is ERROR:
             raise ProtocolError("Can't send data when our state is ERROR")
         try:
@@ -458,10 +492,7 @@ class Connection:
                 assert writer is not None
                 data_list = []
                 writer(event, data_list.append)
-                if combine:
-                    return b"".join(data_list)
-                else:
-                    return data_list
+                return data_list
         except:
             self._process_error(self.our_role)
             raise

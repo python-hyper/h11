@@ -222,6 +222,7 @@ want to implement:
 
    .. automethod:: receive_data
    .. automethod:: send
+   .. automethod:: send_with_data_passthrough
 
    .. automethod:: prepare_to_reuse
 
