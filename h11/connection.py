@@ -147,9 +147,7 @@ class Connection:
         # These two are only used to interpret framing headers for figuring
         # out how to read/write response bodies. their_http_version is also
         # made available as a convenient public API.
-
         self.their_http_version = None
-
         self._request_method = None
         # This is pure flow-control and doesn't at all affect the set of legal
         # transitions, so no need to bother ConnectionState with it:
