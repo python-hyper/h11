@@ -5,8 +5,8 @@
 #
 # Don't subclass these. Stuff will break.
 
-from . import headers
-from .util import bytesify, ProtocolError
+from . import _headers
+from ._util import bytesify, ProtocolError
 
 # Everything in __all__ gets re-exported as part of the h11 public API.
 __all__ = [
@@ -43,7 +43,7 @@ class _EventBundle:
         # Special handling for some fields
 
         if "headers" in self.__dict__:
-            self.headers = headers.normalize_and_validate(self.headers)
+            self.headers = _headers.normalize_and_validate(self.headers)
 
         for field in ["method", "target", "http_version"]:
             if field in self.__dict__:

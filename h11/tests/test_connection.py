@@ -1,9 +1,9 @@
 import pytest
 
-from ..util import ProtocolError
-from ..events import *
-from ..state import *
-from ..connection import (
+from .._util import ProtocolError
+from .._events import *
+from .._state import *
+from .._connection import (
     _keep_alive, _body_framing,
     Connection,
 )

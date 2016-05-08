@@ -2,18 +2,18 @@
 # this.
 
 # Import all event types
-from .events import *
+from ._events import *
 # Import all state sentinels
-from .state import *
+from ._state import *
 # Import the internal things we need
-from .util import ProtocolError
-from .state import ConnectionState, _SWITCH_UPGRADE, _SWITCH_CONNECT
-from .headers import (
+from ._util import ProtocolError
+from ._state import ConnectionState, _SWITCH_UPGRADE, _SWITCH_CONNECT
+from ._headers import (
     get_comma_header, set_comma_header, has_expect_100_continue,
 )
-from .receivebuffer import ReceiveBuffer
-from .readers import READERS
-from .writers import WRITERS
+from ._receivebuffer import ReceiveBuffer
+from ._readers import READERS
+from ._writers import WRITERS
 
 # Everything in __all__ gets re-exported as part of the h11 public API.
 __all__ = ["Connection"]

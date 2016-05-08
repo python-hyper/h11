@@ -6,12 +6,12 @@
 # semantics to check that what you're asking to write to the wire is sensible,
 # but at least it gets you out of dealing with the wire itself.
 
-from .util import ProtocolError
-from .events import *
-from .connection import *
-from .state import *
+from ._util import ProtocolError
+from ._events import *
+from ._connection import *
+from ._state import *
 
 __all__ = ["ProtocolError"]
-__all__ += events.__all__
-__all__ += connection.__all__
-__all__ += state.__all__
+__all__ += _events.__all__
+__all__ += _connection.__all__
+__all__ += _state.__all__

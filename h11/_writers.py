@@ -7,9 +7,9 @@
 # - a writer
 # - or, for body writers, a dict of framin-dependent writer factories
 
-from .util import ProtocolError
-from .events import Data, EndOfMessage
-from .state import CLIENT, SERVER, IDLE, SEND_RESPONSE, SEND_BODY
+from ._util import ProtocolError
+from ._events import Data, EndOfMessage
+from ._state import CLIENT, SERVER, IDLE, SEND_RESPONSE, SEND_BODY
 
 __all__ = ["WRITERS"]
 

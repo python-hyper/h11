@@ -1,6 +1,6 @@
 import pytest
 
-from ..headers import *
+from .._headers import *
 
 def test_normalize_and_validate():
     assert normalize_and_validate([("foo", "bar")]) == [(b"foo", b"bar")]
@@ -72,7 +72,7 @@ def test_get_set_comma_header():
     ]
 
 def test_has_100_continue():
-    from ..events import Request
+    from .._events import Request
 
     assert has_expect_100_continue(Request(
         method="GET",

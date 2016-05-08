@@ -111,8 +111,8 @@
 # directly in Python code. So if you touch those, you need to also update the
 # script to keep it in sync!
 
-from .events import *
-from .util import ProtocolError, Sentinel
+from ._events import *
+from ._util import ProtocolError, Sentinel
 
 # Everything in __all__ gets re-exported as part of the h11 public API.
 __all__ = []

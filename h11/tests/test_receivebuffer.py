@@ -1,4 +1,4 @@
-from ..receivebuffer import ReceiveBuffer
+from .._receivebuffer import ReceiveBuffer
 
 def test_receivebuffer():
     b = ReceiveBuffer()

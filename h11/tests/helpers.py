@@ -1,6 +1,6 @@
-from ..events import *
-from ..state import *
-from ..connection import Connection
+from .._events import *
+from .._state import *
+from .._connection import Connection
 
 # Merges adjacent Data events, and converts payloads to bytestrings
 def normalize_data_events(in_events):

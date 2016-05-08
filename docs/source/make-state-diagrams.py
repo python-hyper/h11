@@ -6,9 +6,9 @@ sys.path.append("../..")
 import os.path
 import subprocess
 
-from h11.events import *
-from h11.state import *
-from h11.state import (
+from h11._events import *
+from h11._state import *
+from h11._state import (
     _SWITCH_UPGRADE, _SWITCH_CONNECT,
     EVENT_TRIGGERED_TRANSITIONS, STATE_TRIGGERED_TRANSITIONS,
 )

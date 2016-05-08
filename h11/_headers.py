@@ -1,5 +1,5 @@
 import re
-from .util import ProtocolError, bytesify, validate
+from ._util import ProtocolError, bytesify, validate
 
 # Facts
 # -----

@@ -1,11 +1,11 @@
 import pytest
 
-from ..util import ProtocolError
-from .. import events
-from ..events import *
+from .._util import ProtocolError
+from .. import _events
+from .._events import *
 
 def test_event_bundle():
-    class T(events._EventBundle):
+    class T(_events._EventBundle):
         _fields = ["a", "b"]
         _defaults = {"b": 1}
 

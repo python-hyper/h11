@@ -1,9 +1,9 @@
 import pytest
 
-from ..util import ProtocolError
-from ..events import *
-from ..state import *
-from ..state import ConnectionState, _SWITCH_UPGRADE, _SWITCH_CONNECT
+from .._util import ProtocolError
+from .._events import *
+from .._state import *
+from .._state import ConnectionState, _SWITCH_UPGRADE, _SWITCH_CONNECT
 
 def test_ConnectionState():
     cs = ConnectionState()

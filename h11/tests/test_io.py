@@ -1,17 +1,17 @@
 import pytest
 
-from ..util import ProtocolError
-from ..receivebuffer import ReceiveBuffer
-from ..headers import normalize_and_validate
-from ..state import *
-from ..events import *
+from .._util import ProtocolError
+from .._receivebuffer import ReceiveBuffer
+from .._headers import normalize_and_validate
+from .._state import *
+from .._events import *
 
-from ..writers import (
+from .._writers import (
     WRITERS,
     write_headers, write_request, write_any_response,
     ContentLengthWriter, ChunkedWriter, Http10Writer,
 )
-from ..readers import (
+from .._readers import (
     READERS,
     ContentLengthReader, ChunkedReader, Http10Reader,
     _obsolete_line_fold,

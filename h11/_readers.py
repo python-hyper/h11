@@ -15,9 +15,9 @@
 # - or, for body readers, a dict of per-framing reader factories
 
 import re
-from .util import ProtocolError, validate
-from .state import *
-from .events import *
+from ._util import ProtocolError, validate
+from ._state import *
+from ._events import *
 
 __all__ = ["READERS"]
 

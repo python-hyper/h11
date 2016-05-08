@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from ..util import *
+from .._util import *
 
 def test_ProtocolError():
     try:
