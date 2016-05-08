@@ -793,3 +793,9 @@ def test_errors():
         # Now 'good' is not so good
         with pytest.raises(ProtocolError):
             c.send(good)
+
+def test_idle_receive_nothing():
+    # At one point this incorrectly raised an error
+    for role in [CLIENT, SERVER]:
+        c = Connection(role)
+        assert c.receive_data(None) == []

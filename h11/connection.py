@@ -323,8 +323,8 @@ class Connection:
             return Paused(reason="might-switch-protocol")
         if state is SWITCHED_PROTOCOL:
             return Paused(reason="switched-protocol")
-        if self._reader is None:
-            raise ProtocolError("can't read in state {}".format(state))
+        #
+        assert self._reader is not None
         event = self._reader(self._receive_buffer)
         if event is None:
             if not self._receive_buffer and self._receive_buffer_closed:

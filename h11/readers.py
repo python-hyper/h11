@@ -277,12 +277,12 @@ def expect_nothing(buf):
 
 READERS = {
     (CLIENT, IDLE): maybe_read_from_IDLE_client,
-    (SERVER, IDLE): maybe_read_from_SEND_RESPONSE_server,
     (SERVER, SEND_RESPONSE): maybe_read_from_SEND_RESPONSE_server,
 
     (CLIENT, DONE): expect_nothing,
     (CLIENT, MUST_CLOSE): expect_nothing,
     (CLIENT, CLOSED): expect_nothing,
+    (SERVER, IDLE): expect_nothing,
     (SERVER, DONE): expect_nothing,
     (SERVER, MUST_CLOSE): expect_nothing,
     (SERVER, CLOSED): expect_nothing,

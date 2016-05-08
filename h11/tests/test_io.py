@@ -25,20 +25,20 @@ SIMPLE_CASES = [
              headers=[("Host", "foo"), ("Connection", "close")]),
      b"GET /a HTTP/1.1\r\nhost: foo\r\nconnection: close\r\n\r\n"),
 
-    ((SERVER, IDLE),
+    ((SERVER, SEND_RESPONSE),
      Response(status_code=200, headers=[("Connection", "close")]),
      b"HTTP/1.1 200 \r\nconnection: close\r\n\r\n"),
 
-    ((SERVER, IDLE),
+    ((SERVER, SEND_RESPONSE),
      Response(status_code=200, headers=[]),
      b"HTTP/1.1 200 \r\n\r\n"),
 
-    ((SERVER, IDLE),
+    ((SERVER, SEND_RESPONSE),
      InformationalResponse(status_code=101,
                            headers=[("Upgrade", "websocket")]),
      b"HTTP/1.1 101 \r\nupgrade: websocket\r\n\r\n"),
 
-    ((SERVER, IDLE),
+    ((SERVER, SEND_RESPONSE),
      InformationalResponse(status_code=101, headers=[]),
      b"HTTP/1.1 101 \r\n\r\n"),
 ]
