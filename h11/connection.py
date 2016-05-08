@@ -104,6 +104,20 @@ def _body_framing(request_method, event):
 ################################################################
 
 class Connection:
+    """An object encapsulating the state of an HTTP connection.
+
+    Args:
+        our_role: If you're implementing a client, pass :data:`h11.CLIENT`. If
+            you're implementing a server, pass :data:`h11.SERVER`.
+
+        max_buffer_size (int):
+            The maximum number of bytes of received but unprocessed data we're
+            willing to buffer. In practice this mostly sets a limit on the
+            maximum size of request/response line + headers. If this is
+            exceeded, then :meth:`receive_data` will raise
+            :exc:`ProtocolError`.
+
+    """
     def __init__(self, our_role, max_buffer_size=HTTP_DEFAULT_MAX_BUFFER_SIZE):
         self._max_buffer_size = max_buffer_size
         # State and role tracking
@@ -133,29 +147,41 @@ class Connection:
         # These two are only used to interpret framing headers for figuring
         # out how to read/write response bodies. their_http_version is also
         # made available as a convenient public API.
+
         self.their_http_version = None
+
         self._request_method = None
         # This is pure flow-control and doesn't at all affect the set of legal
         # transitions, so no need to bother ConnectionState with it:
         self.client_is_waiting_for_100_continue = False
 
     def state_of(self, role):
+
+        """Returns the current state of either the client or server.
+
+        :param role: Either :data:`h11.CLIENT` or :data:`h11.SERVER`.
+
+        """
         return self._cstate.states[role]
 
     @property
     def client_state(self):
+        """The current state of the client."""
         return self._cstate.states[CLIENT]
 
     @property
     def server_state(self):
+        """The current state of the server."""
         return self._cstate.states[SERVER]
 
     @property
     def our_state(self):
+        """The current state of whichever role we are playing."""
         return self._cstate.states[self.our_role]
 
     @property
     def their_state(self):
+        """The current state of whichever role we are NOT playing."""
         return self._cstate.states[self.their_role]
 
     @property
@@ -259,14 +285,59 @@ class Connection:
 
     @property
     def trailing_data(self):
+        """Data that has been received, but not yet processed, represented as
+        a tuple with two elements, where the first is a byte-string containing
+        the unprocessed data itself, and the second is a bool that is True if
+        the receive connection was closed.
+
+        See :ref:`switching-protocols` for discussion of why you'd want this.
+        """
         return (bytes(self._receive_buffer), self._receive_buffer_closed)
 
-    # Argument interpretation:
-    # - b""  -> connection closed
-    # - None -> no new data, just check for whether any events have become
-    #           available (useful iff we were in Paused state)
-    # - data -> bytes-like of data received
     def receive_data(self, data):
+        """Convert bytes received from the remote peer into high-level events,
+        while updating our internal state machine.
+
+        :param data: The data received -- see below.
+        :returns: A list of event objects.
+
+        Normally, *data* is a :term:`bytes-like object` containing new data
+        received from the peer. We append this to our internal receive buffer,
+        and then check whether any new events can be parsed from it. We always
+        parse and return as many events as possible.
+
+        There are two important special cases:
+
+        **Special case 1:** If *data* is an empty byte-string like ``b""``,
+        then this indicates that the remote side has closed the connection
+        (end of file). Normally this is convenient, because standard Python
+        APIs like :meth:`file.read` or :meth:`socket.recv` use ``b""`` to
+        indicate end-of-file, while other failures to read are indicated using
+        other mechanisms like raising :exc:`TimeoutError`. When using such an
+        API you can just blindly pass through whatever you get from ``read``
+        to :meth:`receive_data`, and everything will work.
+
+        But, if you have an API where reading an empty string is a valid
+        non-EOF condition, then you need to be aware of this and make sure to
+        check for such strings and avoid passing them to :meth:`receive_data`.
+
+        **Special case 2:** If *data* is ``None``, then we don't add any data
+        to the internal receive buffer, but we attempt to parse it again to
+        see if we can pull any new events out.
+
+        :meth:`receive_data` normally pulls out all possible events
+        immediately, so this is only useful after calling
+        :meth:`prepare_to_reuse` -- see :ref:`keepalive-and-pipelining` for details.
+
+        You must be prepared for this method to raise :exc:`ProtocolError`,
+        indicating a misbehaving peer. (Potentially it could raise other
+        types of exceptions too, though if it does that probably indicates a
+        bug in h11 and we'd appreciate a bug report.) If this method raises an
+        exception then it sets :attr:`Connection.their_state` to :data:`ERROR`
+        -- see :ref:`error-handling` for discussion.
+
+        """
+
         if self.their_state is ERROR:
             raise ProtocolError("Can't receive data when peer state is ERROR")
         try:
@@ -323,7 +394,6 @@ class Connection:
             return Paused(reason="might-switch-protocol")
         if state is SWITCHED_PROTOCOL:
             return Paused(reason="switched-protocol")
-        #
         assert self._reader is not None
         event = self._reader(self._receive_buffer)
         if event is None:

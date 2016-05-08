@@ -205,13 +205,64 @@ versus upright
 The connection object
 ---------------------
 
-CLIENT, SERVER
+.. data:: CLIENT
+.. data:: SERVER
 
-Connection
+.. autoclass:: Connection
 
+   .. automethod:: receive_data
+   .. automethod:: send
+
+   .. automethod:: prepare_to_reuse
+
+   .. attribute:: our_role
+
+      :data:`CLIENT` if this is a client; :data:`SERVER` if this is a server.
+
+   .. attribute:: their_role
+
+      :data:`SERVER` if this is a client; :data:`CLIENT` if this is a server.
+
+   .. autoattribute:: client_state
+   .. autoattribute:: server_state
+   .. autoattribute:: our_state
+   .. autoattribute:: their_state
+
+   .. attribute:: their_http_version
+
+      The version of HTTP that our peer claims to support. ``None`` if
+      we haven't yet received a request/response.
+
+      This is preserved by :meth:`prepare_to_reuse`, so it can be
+      handy for a client making multiple requests on the same
+      connection: normally you don't know what version of HTTP the
+      server supports until after you do a request and get a response
+      -- so on an initial request you might have to assume the
+      worst. But on later requests on the same connection, the
+      information will be available here.
+
+   .. attribute:: client_is_waiting_for_100_continue
+
+      True if the client sent a request with the ``Expect:
+      100-continue`` header, and is still waiting for a response
+      (i.e., the server has not sent a 100 Continue or any other kind
+      of response, and the client has not gone ahead and started
+      sending the body anyway).
+
+      See RFC 7231 section 5.1.1
+      <https://tools.ietf.org/html/rfc7231#section-5.1.1>`_ for details.
+
+   .. attribute:: they_are_waiting_for_100_continue
+
+      True if :attr:`their_role` is :data:`CLIENT` and
+      :attr:`client_is_waiting_for_100_continue` is True.
+
+   .. autoattribute:: trailing_data
 
 Special topics
 --------------
+
+.. _error-handling:
 
 Error handling
 ..............
@@ -220,18 +271,40 @@ Most errors in h11 are signaled by raising :exc:`ProtocolError`:
 
 .. autoexception:: ProtocolError
 
-XX FIXME: add more discussion of what you can/should do after an error
+There are four cases where this exception might be raised:
+
+* When trying to instantiate an event object: This indicates that
+  something about your event is invalid. Your event wasn't
+  constructed, but there are no other consequences -- feel free to try
+  again.
+
+* When calling :meth:`Connection.prepare_to_reuse`: This indicates
+  that the connection is not ready to be re-used, because one or both
+  of the peers are not in the :data:`DONE` state. The
+  :class:`Connection` object remains usable, and you can try again
+  later.
+
+* When calling :meth:`Connection.receive_data`: This indicates that
+  the remote peer has violated our protocol assumptions. This is
+  unrecoverable -- we don't know what they're doing and cannot
+  proceed. :attr:`Connection.their_state` immediately becomes
+  :data:`ERROR`, and all further calls to
+  :meth:`~.Connection.receive_data` will also raise
+  :exc:`ProtocolError`. :meth:`Connection.send` still works as normal,
+  so if you're implementing a server and this happens then you have an
+  opportunity to send back a 400 Bad Request response.
+
+* When calling :meth:`Connection.send`: This indicates that *you*
+  violated our protocol assumptions. This is also unrecoverable -- h11
+  doesn't know what you're doing, its internal state may be
+  inconsistent, and we cannot proceed. :attr:`Connection.our_state`
+  immediately becomes :data:`ERROR`, and all further calls to
+  :meth:`~.Connection.send` will also raise :exc:`ProtocolError`. The
+  only thing you can reasonably due at this point is to close your
+  socket and start over.
 
 
 .. _flow-control:
-
-Flow control
-............
-
-calling receive_data(None)
-
-they_are_expecting_100_continue
-
 
 Message body framing: ``Content-Length`` and all that
 .........................................................
@@ -306,17 +379,26 @@ cases:
   speaks HTTP/1.1 before you attempt to send any trailing headers.
 
 
+.. _keepalive-and-pipelining:
+
 Re-using a connection (keep-alive)
 ..................................
 
 Connection: close
 
 
+Flow control
+............
+
+calling receive_data(None)
+
+they_are_expecting_100_continue
+
+
 .. _closing:
 
 Closing a connection
 ....................
-
 
 
 .. _switching-protocols:
