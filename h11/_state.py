@@ -156,6 +156,7 @@ EVENT_TRIGGERED_TRANSITIONS = {
     SERVER: {
         IDLE: {
             ConnectionClosed: CLOSED,
+            Response: SEND_BODY,
             # Special case: server sees client Request events, in this form
             (Request, CLIENT): SEND_RESPONSE,
         },
@@ -189,8 +190,6 @@ STATE_TRIGGERED_TRANSITIONS = {
     # (Client state, Server state) -> new states
     # Protocol negotiation
     (MIGHT_SWITCH_PROTOCOL, SWITCHED_PROTOCOL): {CLIENT: SWITCHED_PROTOCOL},
-    # Error response
-    (ERROR, IDLE): {SERVER: SEND_RESPONSE},
     # Socket shutdown
     (CLOSED, DONE): {SERVER: MUST_CLOSE},
     (CLOSED, IDLE): {SERVER: MUST_CLOSE},

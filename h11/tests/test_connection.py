@@ -805,3 +805,9 @@ def test_connection_drop():
     assert c.receive_data(b"GET /") == []
     with pytest.raises(ProtocolError):
         c.receive_data(b"")
+
+def test_408_request_timeout():
+    # Should be able to send this spontaneously as a server without seeing
+    # anything from client
+    p = ConnectionPair()
+    p.send(SERVER, Response(status_code=408, headers=[]))
