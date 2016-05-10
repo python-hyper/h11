@@ -21,10 +21,14 @@ from ._events import *
 
 __all__ = ["READERS"]
 
+# We use native strings for all the re patterns, to take advantage of string
+# formatting, and then convert to bytestrings when compiling the final re
+# objects.
+
 # https://svn.tools.ietf.org/svn/wg/httpbis/specs/rfc7230.html#whitespace
 #  OWS            = *( SP / HTAB )
 #                 ; optional whitespace
-OWS = br"[ \t]*"
+OWS = r"[ \t]*"
 
 # https://svn.tools.ietf.org/svn/wg/httpbis/specs/rfc7230.html#rule.token.separators
 #   token          = 1*tchar
@@ -33,7 +37,7 @@ OWS = br"[ \t]*"
 #                  / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~"
 #                  / DIGIT / ALPHA
 #                  ; any VCHAR, except delimiters
-token = rb"[-!#$%&%&'*+.^_`|~0-9a-zA-Z]+"
+token = r"[-!#$%&'*+.^_`|~0-9a-zA-Z]+"
 
 # https://svn.tools.ietf.org/svn/wg/httpbis/specs/rfc7230.html#header.fields
 #  field-name     = token
@@ -63,30 +67,25 @@ field_name = token
 # See: https://www.rfc-editor.org/errata_search.php?rfc=7230&eid=4189
 #
 # So our definition of field_content attempts to fix it up...
-vchar_or_obs_text = rb"[\x21-\xff]"
+vchar_or_obs_text = r"[\x21-\xff]"
 field_vchar = vchar_or_obs_text
-field_content = rb"%(field_vchar)s+(?:[ \t]+%(field_vchar)s+)*" % {
-    b"field_vchar": field_vchar,
-}
+field_content = r"{field_vchar}+(?:[ \t]+{field_vchar}+)*".format(**globals())
+
 # We handle obs-fold at a different level, and our fixed-up field_content
 # already grows to swallow the whole value, so ? instead of *
-field_value = rb"(%(field_content)s)?" % {b"field_content": field_content}
+field_value = r"({field_content})?".format(**globals())
 
 #  header-field   = field-name ":" OWS field-value OWS
 header_field = (
-    rb"^"
-    rb"(?P<field_name>%(field_name)s)"
-    rb":"
-    rb"%(OWS)s"
-    rb"(?P<field_value>%(field_value)s)"
-    rb"%(OWS)s"
-    rb"$"
-    % {
-        b"field_name": field_name,
-        b"field_value": field_value,
-        b"OWS": OWS,
-    })
-header_field_re = re.compile(header_field)
+    r"^"
+    r"(?P<field_name>{field_name})"
+    r":"
+    r"{OWS}"
+    r"(?P<field_value>{field_value})"
+    r"{OWS}"
+    r"$"
+    .format(**globals()))
+header_field_re = re.compile(header_field.encode("ascii"))
 
 # Remember that this has to run in O(n) time -- so e.g. the bytearray cast is
 # critical.
@@ -126,20 +125,16 @@ def _decode_header_lines(lines):
 # URL, host+port (for connect), or even "*", but in any case we are guaranteed
 # that it contains no spaces (see sec 3.1.1).
 method = token
-request_target = br"[^ ]+"
-http_version = br"HTTP/(?P<http_version>[0-9]\.[0-9])"
+request_target = r"[^ ]+"
+http_version = r"HTTP/(?P<http_version>[0-9]\.[0-9])"
 request_line = (
-    br"(?P<method>%(method)s)"
-    br" "
-    br"(?P<target>%(request_target)s)"
-    br" "
-    br"%(http_version)s"
-    % {
-        b"method": method,
-        b"request_target": request_target,
-        b"http_version": http_version,
-    })
-request_line_re = re.compile(request_line)
+    r"(?P<method>{method})"
+    r" "
+    r"(?P<target>{request_target})"
+    r" "
+    r"{http_version}"
+    .format(**globals()))
+request_line_re = re.compile(request_line.encode("ascii"))
 
 def maybe_read_from_IDLE_client(buf):
     lines = buf.maybe_extract_lines()
@@ -153,23 +148,18 @@ def maybe_read_from_IDLE_client(buf):
 #   status-line = HTTP-version SP status-code SP reason-phrase CRLF
 #   status-code    = 3DIGIT
 #   reason-phrase  = *( HTAB / SP / VCHAR / obs-text )
-status_code = br"[0-9]{3}"
-reason_phrase = br"([ \t]|%(vchar_or_obs_text)s)*" % {
-    b"vchar_or_obs_text": vchar_or_obs_text}
+status_code = r"[0-9]{3}"
+reason_phrase = r"([ \t]|{vchar_or_obs_text})*".format(**globals())
 status_line = (
-    br"^"
-    br"%(http_version)s"
-    br" "
-    br"(?P<status_code>%(status_code)s)"
-    br" "
-    br"%(reason_phrase)s"
-    br"$"
-    % {
-        b"http_version": http_version,
-        b"status_code": status_code,
-        b"reason_phrase": reason_phrase,
-    })
-status_line_re = re.compile(status_line)
+    r"^"
+    r"{http_version}"
+    r" "
+    r"(?P<status_code>{status_code})"
+    r" "
+    r"{reason_phrase}"
+    r"$"
+    .format(**globals()))
+status_line_re = re.compile(status_line.encode("ascii"))
 
 def maybe_read_from_SEND_RESPONSE_server(buf):
     lines = buf.maybe_extract_lines()
@@ -195,26 +185,26 @@ class ContentLengthReader:
         return Data(data=data)
 
 
-HEXDIG = br"[0-9A-Fa-f]"
+HEXDIG = r"[0-9A-Fa-f]"
 # Actually
 #
 #      chunk-size     = 1*HEXDIG
 #
 # but we impose an upper-limit to avoid ridiculosity. len(str(2**64)) == 20
-chunk_size = br"(%(HEXDIG)s){1,20}" % {b"HEXDIG": HEXDIG}
+chunk_size = r"({HEXDIG}){{1,20}}".format(**globals())
 # Actually
 #
 #     chunk-ext      = *( ";" chunk-ext-name [ "=" chunk-ext-val ] )
 #
 # but we aren't parsing the things so we don't really care.
-chunk_ext = br";.*"
+chunk_ext = r";.*"
 chunk_header = (
-    br"(?P<chunk_size>%(chunk_size)s)"
-    br"(?P<chunk_ext>%(chunk_ext)s)?"
-    br"\r\n"
-    % {b"chunk_size": chunk_size, b"chunk_ext": chunk_ext})
+    r"(?P<chunk_size>{chunk_size})"
+    r"(?P<chunk_ext>{chunk_ext})?"
+    r"\r\n"
+    .format(**globals()))
 
-chunk_header_re = re.compile(chunk_header)
+chunk_header_re = re.compile(chunk_header.encode("ascii"))
 class ChunkedReader:
     def __init__(self):
         self._bytes_in_chunk = 0
