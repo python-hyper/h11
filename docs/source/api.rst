@@ -533,11 +533,12 @@ connection is reusable, and when there are multiple requests and
 responses flowing through the same connection we need to be careful
 not to get confused about which request goes with which response.
 
-At the protocol level, a connection is reusable if, and only if, both
+h11 considers a connection to be reusable if, and only if, both
 sides (a) speak HTTP/1.1 (HTTP/1.0 did have some complex and fragile
-support for keep-alive bolted on, but h11 doesn't support that),
-and (b) neither side has explicitly disabled keep-alive by sending a
-``Connection: close`` header.
+support for keep-alive bolted on, but h11 currently doesn't support
+that -- possibly this will be added in the future), and (b) neither
+side has explicitly disabled keep-alive by sending a ``Connection:
+close`` header.
 
 If you plan to make only a single request or response and then close
 the connection, you should manually set the ``Connection: close``
@@ -563,8 +564,9 @@ lack of protocol support, one of the sides just unilaterally closed
 the connection -- then the state machines will skip past the
 :data:`DONE` state directly to the :data:`MUST_CLOSE` or
 :data:`CLOSED` states. In this case, trying to call
-:meth:`~.Connection.prepare_to_use` will raise an error, and you
-should just close this connection and make a new one.
+:meth:`~.Connection.prepare_to_use` will raise an error, and the only
+thing you can legally do is to close this connection and make a new
+one.
 
 HTTP/1.1 also allows for a more aggressive form of connection re-use,
 in which a client sends multiple requests in quick succession, and
@@ -741,18 +743,111 @@ before issuing any blocking read.
 Closing connections
 ...................
 
-XX TODO
+h11 represents a connection shutdown with the special event type
+:class:`ConnectionClosed`. You can send this event, in which case
+:meth:`~.Connection.send` will simply update the state machine and
+then return ``None``. You can receive this event, if you call
+``conn.receive_data(b"")``. (The actual receipt might be delayed if
+the connection is :ref:`paused <flow-control>`.) It's safe and legal
+to call ``conn.receive_data(b"")`` multiple times, and once you've
+done this once, then all future calls to
+:meth:`~.Connection.receive_data` will also return
+``ConnectionClosed()``:
 
-ConnectionClosed means that this side won't be sending any more data
+.. ipython:: python
 
-CLOSED / MUST_CLOSE
+   conn = h11.Connection(our_role=h11.CLIENT)
+   conn.receive_data(b"")
+   conn.receive_data(b"")
+   conn.receive_data(None)
 
-you can close at any moment of course -- the purpose of the state
-machine is just to distinguish between clean close (safely
-transitioning to CLOSED) versus unclean close (raising an exception
-and transitioning to ERROR)
+(Or if you try to actually pass new data in after calling
+``conn.receive_data(b"")``, that will raise an exception.)
 
-the special shutdown rules in RFC 7230
+h11 is careful about interpreting connection closure in a *half-duplex
+fashion*. TCP sockets pretend to be a two-way connection, but really
+they're two one-way connections. In particular, it's possible for one
+party to shut down their sending connection -- which causes the other
+side to be notified that the connection has closed via the usual
+``socket.recv(...) -> b""`` mechanism -- while still being able to
+read from their receiving connection. (On Unix, this is generally
+accomplished via the ``shutdown(2)`` system call.) So, for example, a
+client could send a request, and then close their socket for writing
+to indicate that they won't be sending any more requests, and then
+read the response. It's this kind of closure that is indicated by
+h11's :class:`ConnectionClosed`: it means that this party will not be
+sending any more data -- nothing more, nothing less. You can see this
+reflected in the :ref:`state machine <state-machine>`, in which one
+party transitioning to :data:`CLOSED` doesn't immediately halt the
+connection, but merely prevents it from continuing for another
+request/response cycle.
+
+The state machine also indicates that :class:`ConnectionClosed` events
+can only happen in certain states. This isn't true, of course -- any
+party can close their connection at any time, and h11 can't stop
+them. But what h11 can do is distinguish between clean and unclean
+closes. For example, if both sides complete a request/response cycle
+and then close the connection, that's a clean closure and everyone
+will transition to the :data:`CLOSED` state in an orderly fashion. On
+the other hand, if one party suddenly closes the connection while
+they're in the middle of sending a chunked response body, or when they
+promised a ``Content-Length:`` of 1000 bytes but have only sent 500,
+then h11 knows that this is a violation of the HTTP protocol, and will
+raise a :exc:`ProtocolError`. Basically h11 treats an unexpected
+close the same way it would treat unexpected, uninterpretable data
+arriving -- it lets you know that something has gone wrong.
+
+As a client, the proper way to perform a single request and then close
+the connection is:
+
+1) Send a :class:`Request` with ``Connection: close``
+
+2) Send the rest of the request body
+
+3) Read the server's :class:`Response` and body
+
+4) ``conn.our_state is h11.MUST_CLOSE`` will now be true. Call
+   ``conn.send(ConnectionClosed())`` and then close the socket. Or
+   really you could just close the socket -- the thing calling
+   ``send`` will do is raise an error if you're not in
+   :data:`MUST_CLOSE` as expected. So it's between you and your
+   conscience and your code reviewers.
+
+(Technically it would also be legal to shutdown your socket for
+writing as step 2.5, but this doesn't serve any purpose and some
+buggy servers might get annoyed, so it's not recommended.)
+
+As a server, the proper way to perform a response is:
+
+1) Send your :class:`Response` and body
+
+2) Check if ``conn.our_state is h11.MUST_CLOSE``. This might happen
+   for a variety of reasons; for example, if the response had unknown
+   length and the client speaks only HTTP/1.0, then the client will
+   not consider the connection complete until we issue a close.
+
+You should be particularly careful to take into consideration the
+following note fromx `RFC 7230 section 6.6
+<https://tools.ietf.org/html/rfc7230#section-6.6>`_:
+
+   If a server performs an immediate close of a TCP connection, there is
+   a significant risk that the client will not be able to read the last
+   HTTP response.  If the server receives additional data from the
+   client on a fully closed connection, such as another request that was
+   sent by the client before receiving the server's response, the
+   server's TCP stack will send a reset packet to the client;
+   unfortunately, the reset packet might erase the client's
+   unacknowledged input buffers before they can be read and interpreted
+   by the client's HTTP parser.
+
+   To avoid the TCP reset problem, servers typically close a connection
+   in stages.  First, the server performs a half-close by closing only
+   the write side of the read/write connection.  The server then
+   continues to read from the connection until it receives a
+   corresponding close by the client, or until the server is reasonably
+   certain that its own TCP stack has received the client's
+   acknowledgement of the packet(s) containing the server's last
+   response.  Finally, the server fully closes the connection.
 
 
 .. _switching-protocols:
@@ -760,14 +855,80 @@ the special shutdown rules in RFC 7230
 Switching protocols
 ...................
 
-XX TODO
+h11 supports two kinds of "protocol switches": requests with method
+``CONNECT``, and the newer ``Upgrade:`` header, most commonly used for
+negotiating WebSocket connections. Both follow the same pattern: the
+client proposes that they switch from regular HTTP to some other kind
+of interaction, and then the server either rejects the suggestion --
+in which case we return to regular HTTP rules -- or else accepts
+it. (For ``CONNECT``, acceptance means a response with 2xx status
+code; for ``Upgrade:``, acceptance means an
+:class:`InformationalResponse` with status ``101 Switching
+Protocols``) If the proposal is accepted, then both sides switch to
+doing something else with their socket, and h11's job is done.
 
-our umbrella term for Upgrade: and CONNECT -- in both cases h11's job
-is to get out of the way and make a smooth handover to the code
-handling the next protocol
+As a developer using h11, it's your responsibility to send and
+interpret the actual ``CONNECT`` or ``Upgrade:`` request and response,
+and to figure out what to do after the handover; it's h11's job to
+understand what's going on, and help you make the handover
+smoothly.
+
+Specifically, what h11 does is :ref:`pause <flow-control>` parsing
+incoming data at the boundary between the two protocols, and then you
+can retrieve any unprocessed data from the
+:attr:`Connection.trailing_data` attribute.
 
 
 .. _sendfile:
 
 sendfile
 ........
+
+Many networking APIs provide some efficient way to send particular
+data, e.g. asking the operating system to stream files directly off of
+the disk and into a socket without passing through userspace.
+
+It's possible to use these APIs together with h11. The basic strategy
+is:
+
+* Create some placeholder object representing the special data, that
+  your networking code knows how to "send" by invoking whatever the
+  appropriate underlying APIs are.
+
+* Make sure your placeholder object implements a ``__len__`` method
+  returning its size in bytes.
+
+* Call ``conn.send_with_data_passthrough(Data(data=<your placeholder
+  object>))``
+
+* This returns a list whose contents are a mixture of (a) bytes-like
+  objects, and (b) your placeholder object. You should send them to
+  the network in order.
+
+Here's a sketch of what this might look like:
+
+.. code-block:: python
+
+   class FilePlaceholder:
+       def __init__(self, file, offset, count):
+           self.file = file
+           self.offset = offset
+           self.count = count
+
+       def __len__(self):
+           return self.count
+
+   def send_data(sock, data):
+       if isinstance(data, FilePlaceholder):
+           # socket.sendfile added in Python 3.5
+           sock.sendfile(data.file, data.offset, data.count)
+       else:
+           sock.sendfile(data)
+
+   placeholder = FilePlaceholder(open("...", "rb"), 0, 200)
+   for data in conn.send_with_data_passthrough(Data(data=placeholder)):
+       send_data(sock, data)
+
+This works with all the different framing modes (``Content-Length``,
+``Transfer-Encoding: chunked``, etc.) -- h11 will add any necessary
+framing data, update its internal state, and away you go.
