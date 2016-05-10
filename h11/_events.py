@@ -248,18 +248,18 @@ class Paused(_EventBundle):
 
     .. attribute:: reason
 
-       A string indicating why the parser is paused. One of:
+       The remote peer's state that triggered the pause. One of:
 
-       * ``"pipelining"``: a client has started sending another request before
+       * :data:`h11.DONE`: a client has started sending another request before
          we finished responding to their first request. Cleared by finishing
          the response and then calling :meth:`Connection.prepare_to_reuse`.
 
-       * ``"might-switch-protocol"``: a client is in the
+       * :data:`MIGHT_SWITCH_PROTOCOL`: a client is in the
          :data:`MIGHT_SWITCH_PROTOCOL` state, and is waiting for the server to
          either accept or reject the proposed protocol switch. See
          :ref:`switching-protocols` for details.
 
-       * ``"switched-protocol"``: the remote peer is the
+       * :data:`SWITCHED_PROTOCOL`: the remote peer is the
          :data:`SWITCHED_PROTOCOL` state. h11 isn't going to parse any more
          data that they send, because they're no longer speaking HTTP. See
          :ref:`switching-protocols` for details.

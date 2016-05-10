@@ -425,11 +425,9 @@ class Connection:
         # if we have data in our buffer, then we definitely aren't getting
         # a ConnectionClosed() immediately and we need to pause.
         if state is DONE and self._receive_buffer:
-            return Paused(reason="pipelining")
-        if state is MIGHT_SWITCH_PROTOCOL:
-            return Paused(reason="might-switch-protocol")
-        if state is SWITCHED_PROTOCOL:
-            return Paused(reason="switched-protocol")
+            return Paused(reason=state)
+        if state is MIGHT_SWITCH_PROTOCOL or state is SWITCHED_PROTOCOL:
+            return Paused(reason=state)
         assert self._reader is not None
         event = self._reader(self._receive_buffer)
         if event is None:

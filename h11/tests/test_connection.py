@@ -355,7 +355,7 @@ def test_max_buffer_size_countermeasure():
                            + b"X" * 1000)
             == [Request(method="GET", target="/1", headers=[("host", "a")]),
                 EndOfMessage(),
-                Paused(reason="pipelining")])
+                Paused(reason=DONE)])
     # Even more data comes in, no problem
     assert c.receive_data(b"X" * 1000)
     # We can respond and reuse to get the second pipelined request
@@ -365,7 +365,7 @@ def test_max_buffer_size_countermeasure():
     assert (c.receive_data(None)
             == [Request(method="GET", target="/2", headers=[("host", "b")]),
                 EndOfMessage(),
-                Paused(reason="pipelining")])
+                Paused(reason=DONE)])
     # But once we unpause and try to read the next message, the buffer size is
     # enforced again
     c.send(Response(status_code=200, headers=[]))
@@ -410,13 +410,13 @@ def test_pipelining():
                 headers=[("Host", "a.com"), ("Content-Length", "5")]),
         Data(data=b"12345"),
         EndOfMessage(),
-        Paused(reason="pipelining"),
+        Paused(reason=DONE),
         ]
     assert c.their_state is DONE
     assert c.our_state is SEND_RESPONSE
 
     # Pause pseudo-events are re-emitted each time through:
-    assert c.receive_data(None) == [Paused(reason="pipelining")]
+    assert c.receive_data(None) == [Paused(reason=DONE)]
 
     c.send(Response(status_code=200, headers=[]))
     c.send(EndOfMessage())
@@ -431,7 +431,7 @@ def test_pipelining():
                 headers=[("Host", "a.com"), ("Content-Length", "5")]),
         Data(data=b"67890"),
         EndOfMessage(),
-        Paused(reason="pipelining"),
+        Paused(reason=DONE),
     ]
     c.send(Response(status_code=200, headers=[]))
     c.send(EndOfMessage())
@@ -449,12 +449,12 @@ def test_pipelining():
 
     # Arrival of more data triggers pause
     assert c.receive_data(None) == []
-    assert c.receive_data(b"SADF") == [Paused(reason="pipelining")]
+    assert c.receive_data(b"SADF") == [Paused(reason=DONE)]
     assert c.trailing_data == (b"SADF", False)
-    assert c.receive_data(b"") == [Paused(reason="pipelining")]
+    assert c.receive_data(b"") == [Paused(reason=DONE)]
     assert c.trailing_data == (b"SADF", True)
-    assert c.receive_data(None) == [Paused(reason="pipelining")]
-    assert c.receive_data(b"") == [Paused(reason="pipelining")]
+    assert c.receive_data(None) == [Paused(reason=DONE)]
+    assert c.receive_data(b"") == [Paused(reason=DONE)]
     # Can't call receive_data with non-empty buf after closing it
     with pytest.raises(RuntimeError):
         c.receive_data(b"FDSA")
@@ -507,11 +507,11 @@ def test_protocol_switch():
                    [Data(data=b"1"), EndOfMessage()],
                    expect=[Data(data=b"1"),
                            EndOfMessage(),
-                           Paused(reason="might-switch-protocol")])
+                           Paused(reason=MIGHT_SWITCH_PROTOCOL)])
             for conn in p.conns:
                 assert conn.client_state is MIGHT_SWITCH_PROTOCOL
             assert p.conn[SERVER].receive_data(None) == [
-                Paused(reason="might-switch-protocol"),
+                Paused(reason=MIGHT_SWITCH_PROTOCOL),
             ]
             return p
 
@@ -529,15 +529,15 @@ def test_protocol_switch():
         # Test accept case
         p = setup()
         p.send(SERVER, accept,
-               expect=[accept, Paused(reason="switched-protocol")])
+               expect=[accept, Paused(reason=SWITCHED_PROTOCOL)])
         for conn in p.conns:
             assert conn.client_state is SWITCHED_PROTOCOL
             assert conn.server_state is SWITCHED_PROTOCOL
             assert conn.receive_data(b"123") == [
-                Paused(reason="switched-protocol"),
+                Paused(reason=SWITCHED_PROTOCOL),
             ]
             assert conn.receive_data(b"456") == [
-                Paused(reason="switched-protocol"),
+                Paused(reason=SWITCHED_PROTOCOL),
             ]
             assert conn.trailing_data == (b"123456", False)
 
@@ -548,15 +548,15 @@ def test_protocol_switch():
         p = setup()
         sc = p.conn[SERVER]
         assert sc.receive_data(b"GET / HTTP/1.0\r\n\r\n") == [
-            Paused(reason="might-switch-protocol"),
+            Paused(reason=MIGHT_SWITCH_PROTOCOL),
         ]
         assert sc.receive_data(None) == [
-            Paused(reason="might-switch-protocol"),
+            Paused(reason=MIGHT_SWITCH_PROTOCOL),
         ]
         assert sc.trailing_data == (b"GET / HTTP/1.0\r\n\r\n", False)
         sc.send(deny)
         assert sc.receive_data(None) == [
-            Paused(reason="pipelining"),
+            Paused(reason=DONE),
         ]
         sc.send(EndOfMessage())
         sc.prepare_to_reuse()
@@ -571,22 +571,22 @@ def test_protocol_switch():
         p = setup()
         sc = p.conn[SERVER]
         assert sc.receive_data(b"") == [
-            Paused(reason="might-switch-protocol"),
+            Paused(reason=MIGHT_SWITCH_PROTOCOL),
         ]
         assert sc.receive_data(None) == [
-            Paused(reason="might-switch-protocol"),
+            Paused(reason=MIGHT_SWITCH_PROTOCOL),
         ]
         assert sc.trailing_data == (b"", True)
         p.send(SERVER, accept,
-               expect=[accept, Paused(reason="switched-protocol")])
+               expect=[accept, Paused(reason=SWITCHED_PROTOCOL)])
         assert sc.receive_data(None) == [
-            Paused(reason="switched-protocol"),
+            Paused(reason=SWITCHED_PROTOCOL),
         ]
 
         p = setup()
         sc = p.conn[SERVER]
         assert sc.receive_data(b"") == [
-            Paused(reason="might-switch-protocol"),
+            Paused(reason=MIGHT_SWITCH_PROTOCOL),
         ]
         sc.send(deny)
         assert sc.receive_data(None) == [
@@ -601,7 +601,7 @@ def test_protocol_switch():
                 Request(method="GET", target="/", headers=[("Host", "a")]))
         p = setup()
         p.send(SERVER, accept,
-               expect=[accept, Paused(reason="switched-protocol")])
+               expect=[accept, Paused(reason=SWITCHED_PROTOCOL)])
         with pytest.raises(ProtocolError):
             p.conn[SERVER].send(Data(data=b"123"))
 
