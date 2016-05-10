@@ -243,8 +243,9 @@ If the server didn't support keep-alive, then these would be
 :data:`MUST_CLOSE` and either :data:`MUST_CLOSE` or :data:`CLOSED`,
 respectively (depending on whether we'd seen the socket actually close
 yet). :data:`DONE` / :data:`DONE`, on the other hand, means that this
-request/response cycle has totally finished, and that we can start
-over and send a new one on this same connection.
+request/response cycle has totally finished, but the connection itself
+is still viable, and we can start over and send a new request on this
+same connection.
 
 To do this, we tell h11 to get ready (this is needed as a safety
 measure to make sure different requests/responses on the same
@@ -294,7 +295,7 @@ Here's some ideas of things you might try:
   request, and then collects up all the resulting :class:`Data`
   objects, concatenates their payloads, and returns it.
 
-* Adapt the above code to use your favorite non-blocking
+* Adapt the above code to use your favorite non-blocking API
 
 * Use h11 to write a simple HTTP server. (If you get stuck, there's
   `an example in the test suite

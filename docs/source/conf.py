@@ -50,7 +50,7 @@ html_theme_options = {
     # Make the maximum page width wider (default 920 px, including 220 px
     # sidebar)
     # http://stackoverflow.com/a/32258604/1925449
-    "page_width": "1020px",
+    #"page_width": "1020px",
 }
 
 # Undocumented trick: if we def setup here in conf.py, it gets called just
