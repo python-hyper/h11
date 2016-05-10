@@ -16,14 +16,86 @@ from h11._state import (
 _EVENT_COLOR = "#002092"
 _STATE_COLOR = "#017517"
 _SPECIAL_COLOR = "#7600a1"
-def make_dot(role, out_path):
-    with open(out_path, "w") as f:
-        f.write(
-"""digraph {
+
+HEADER = """
+digraph {
   graph [fontname = "Lato"]
   node  [fontname = "Lato"]
   edge  [fontname = "Lato"]
+"""
 
+def finish(machine_name):
+    return ("""
+  labelloc="t"
+  labeljust="l"
+  label=<<FONT POINT-SIZE="20">h11 state machine: {}</FONT>>
+}}
+"""
+            .format(machine_name))
+
+class Edges:
+    def __init__(self):
+        self.edges = []
+
+    def e(self, source, target, label, color, italicize=False, weight=1):
+        if italicize:
+            quoted_label = "<<i>{}</i>>".format(label)
+        else:
+            quoted_label = '<{}>'.format(label)
+        self.edges.append(
+            '{source} -> {target} [\n'
+            '  label={quoted_label},\n'
+            '  color="{color}", fontcolor="{color}",\n'
+            '  weight={weight},\n'
+            ']\n'
+            .format(**locals()))
+
+    def write(self, f):
+        self.edges.sort()
+        f.write("".join(self.edges))
+
+def make_dot_special_state(out_path):
+    with open(out_path, "w") as f:
+        f.write(HEADER)
+        f.write("""
+  kaT [label=<<i>keep-alive is enabled<br/>initial state</i>>]
+  kaF [label=<<i>keep-alive is disabled</i>>]
+
+  upF [label=<<i>No potential Upgrade: pending<br/>initial state</i>>]
+  upT [label=<<i>Potential Upgrade: pending</i>>]
+
+  coF [label=<<i>No potential CONNECT pending<br/>initial state</i>>]
+  coT [label=<<i>Potential CONNECT pending</i>>]
+""")
+        edges = Edges()
+        for s in ["kaT", "kaF"]:
+            edges.e(s, "kaF",
+                    "Request/response with<br/>HTTP/1.0 or Connection: close",
+                    color=_EVENT_COLOR,
+                    italicize=True)
+
+        edges.e("upF", "upT",
+                "Request with Upgrade:",
+                color=_EVENT_COLOR, italicize=True)
+        edges.e("upT", "upF",
+                "Response",
+                color=_EVENT_COLOR, italicize=True)
+
+        edges.e("coF", "coT",
+                "Request with CONNECT",
+                color=_EVENT_COLOR, italicize=True)
+        edges.e("coT", "coF",
+                "Response without 2xx status",
+                color=_EVENT_COLOR, italicize=True)
+
+        edges.write(f)
+
+        f.write(finish("special states"))
+
+def make_dot(role, out_path):
+    with open(out_path, "w") as f:
+        f.write(HEADER)
+        f.write("""
   IDLE [label=<IDLE<BR/><i>start state</i>>]
   // move ERROR down to the bottom
   {rank=same CLOSED ERROR}
@@ -36,19 +108,7 @@ def make_dot(role, out_path):
         # layout... with other orders I've seen really terrible layouts, and
         # had to do things like move the server's IDLE->MUST_CLOSE to the top
         # of the file to fix them.
-        edges = []
-        def edge(source, target, label, color, italicize=False, weight=1):
-            if italicize:
-                quoted_label = "<<i>{}</i>>".format(label)
-            else:
-                quoted_label = '<{}>'.format(label)
-            edges.append(
-                '{source} -> {target} [\n'
-                '  label={quoted_label},\n'
-                '  color="{color}", fontcolor="{color}",\n'
-                '  weight={weight},\n'
-                ']\n'
-                .format(**locals()))
+        edges = Edges()
 
         CORE_EVENTS = {Request, InformationalResponse,
                        Response, Data, EndOfMessage}
@@ -80,8 +140,8 @@ def make_dot(role, out_path):
                         assert False
                 else:
                     name = event_type.__name__
-                edge(source_state, target_state, name, color,
-                     weight=weight, italicize=italicize)
+                edges.e(source_state, target_state, name, color,
+                        weight=weight, italicize=italicize)
 
         for state_pair, updates in STATE_TRIGGERED_TRANSITIONS.items():
             if role not in updates:
@@ -90,38 +150,29 @@ def make_dot(role, out_path):
                 (our_state, their_state) = state_pair
             else:
                 (their_state, our_state) = state_pair
-            edge(our_state, updates[role],
-                 "<i>peer in</i><BR/>{}".format(their_state),
-                 color=_STATE_COLOR)
+            edges.e(our_state, updates[role],
+                    "<i>peer in</i><BR/>{}".format(their_state),
+                    color=_STATE_COLOR)
 
         if role is CLIENT:
-            edge(DONE, MIGHT_SWITCH_PROTOCOL,
-                 "Upgrade: or CONNECT<BR/>request is pending",
-                 _STATE_COLOR,
-                 italicize=True)
-            edge(MIGHT_SWITCH_PROTOCOL, DONE,
-                 "Upgrade: or CONNECT<BR/>request was denied",
-                 _STATE_COLOR,
-                 italicize=True)
+            edges.e(DONE, MIGHT_SWITCH_PROTOCOL,
+                    "Potential Upgrade:<BR/>or CONNECT pending",
+                    _STATE_COLOR,
+                    italicize=True)
+            edges.e(MIGHT_SWITCH_PROTOCOL, DONE,
+                    "No potential Upgrade:<BR/>or CONNECT pending",
+                    _STATE_COLOR,
+                    italicize=True)
 
-        edge(DONE, MUST_CLOSE, "keep-alive<BR/>is disabled", _STATE_COLOR,
-             italicize=True)
-        edge(DONE, IDLE, "prepare_to_reuse()", _SPECIAL_COLOR)
+        edges.e(DONE, MUST_CLOSE, "keep-alive<BR/>is disabled", _STATE_COLOR,
+                italicize=True)
+        edges.e(DONE, IDLE, "prepare_to_reuse()", _SPECIAL_COLOR)
 
-        edges.sort()
-        f.write("".join(edges))
+        edges.write(f)
 
         # For some reason labelfontsize doesn't seem to do anything, but this
         # works
-        f.write("""
-  labelloc="t"
-  labeljust="l"
-  label=<<FONT POINT-SIZE="20">h11 state machine: {}</FONT>>
-"""
-                .format(role))
-
-
-        f.write("\n}\n")
+        f.write(finish(role))
 
 my_dir = os.path.dirname(__file__)
 out_dir = os.path.join(my_dir, "_static")
@@ -132,3 +183,8 @@ for role in (CLIENT, SERVER):
     svg_path = dot_path[:-3] + "svg"
     make_dot(role, dot_path)
     subprocess.check_call(["dot", "-Tsvg", dot_path, "-o", svg_path])
+
+dot_path = os.path.join(out_dir, "special-states.dot")
+svg_path = dot_path[:-3] + "svg"
+make_dot_special_state(dot_path)
+subprocess.check_call(["dot", "-Tsvg", dot_path, "-o", svg_path])

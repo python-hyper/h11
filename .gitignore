@@ -3,6 +3,8 @@ docs/source/_static/CLIENT.dot
 docs/source/_static/CLIENT.svg
 docs/source/_static/SERVER.dot
 docs/source/_static/SERVER.svg
+docs/source/_static/special-states.dot
+docs/source/_static/special-states.svg
 docs/build/
 
 # Byte-compiled / optimized / DLL files

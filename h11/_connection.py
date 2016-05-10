@@ -198,6 +198,17 @@ class Connection:
                 and self.client_is_waiting_for_100_continue)
 
     def prepare_to_reuse(self):
+        """Attempt to reset our connection state for a new request/response
+        cycle.
+
+        If both client and server are in :data:`DONE` state, then resets them
+        both to :data:`IDLE` state in preparation for a new request/response
+        cycle on this same connection. Otherwise, raises a
+        :exc:`ProtocolError`.
+
+        See :ref:`keepalive-and-pipelining`.
+
+        """
         old_states = dict(self._cstate.states)
         self._cstate.prepare_to_reuse()
         self._request_method = None

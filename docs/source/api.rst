@@ -5,11 +5,6 @@ API documentation
 
 .. module:: h11
 
-.. ipython:: python
-   :suppress:
-
-   import h11
-
 .. contents::
 
 h11 has a fairly small public API, with all public symbols available
@@ -19,6 +14,7 @@ directly at the top level:
 
    In [2]: import h11
 
+   @verbatim
    In [3]: h11.<TAB>
    h11.CLIENT                 h11.MIGHT_SWITCH_PROTOCOL
    h11.CLOSED                 h11.MUST_CLOSE
@@ -220,31 +216,80 @@ The two main state machines look like this (click on each to expand):
       :width: 100%
       :align: top
 
+
 ============== ==============
 |client-image| |server-image|
 ============== ==============
 
-If you squint, you can see the client's IDLE -> SEND_BODY -> DONE path
-and the server's IDLE -> SEND_RESPONSE -> SEND_BODY -> DONE path,
-which encode the basic sequence of events we described above. But
-there's a fair amount of other stuff going on here as well.
+And the three special small machines look like this:
 
-The first thing you should notice is the different colors
-need to know is that there are actually two
-different ways that h11's state machines can change state.
+.. image:: _static/special-states.svg
+   :target: _static/special-states.svg
+   :width: 100%
 
-extra stuff: MUST_CLOSE, prepare_to_reuse, protocol switching,
-how you get to ERROR, and server jumping to SEND_RESPONSE
 
-how to read this diagram: blue versus green versus purple, italics
-versus upright
+If you squint at the first two diagrams, you can see the client's IDLE
+-> SEND_BODY -> DONE path and the server's IDLE -> SEND_RESPONSE ->
+SEND_BODY -> DONE path, which encode the basic sequence of events we
+described above. But there's a fair amount of other stuff going on
+here as well.
 
-.. ipython:: python
+The first thing you should notice is the different colors. These
+correspond to the different ways that our state machines can change
+state.
 
-   conn = h11.Connection(our_role=h11.CLIENT)
-   conn.client_state, conn.server_state
-   conn.send(h11.Request(method="GET", target="/", headers=[("Host", "example.com")]));
-   conn.client_state, conn.server_state
+* Dark blue arcs are *event-triggered transitions*: if we're in state
+  A, and this event happens, when we switch to state B. For the client
+  machines, these transitions always happen when the client *sends* an
+  event. For the server machine, most of them involve the server
+  sending an event, except that the server also goes from IDLE ->
+  SEND_RESPONSE when the client sends a :class:`Request`.
+
+* Green arcs are *state-triggered transitions*: these are somewhat
+  unusual, and are used to couple together the different state
+  machines -- if, at any moment, one machine is in state A and another
+  machine is in state B, then the first machine immediately
+  transitions to state C. For example, if the CLIENT machine is in
+  state DONE, and the SERVER machine is in the CLOSED state, then the
+  CLIENT machine transitions to MUST_CLOSE. And the same thing happens
+  if the CLIENT machine is in the state DONE and the keep-alive
+  machine is in the state disabled.
+
+* There are also two purple arcs labeled
+  :meth:`~Connection.prepare_to_send`: these correspond to an explicit
+  method call documented below.
+
+Here's why we have all the stuff in those diagrams above, beyond
+what's needed to handle the basic request/response cycle:
+
+* Server sending a :class:`Response` directly from :data:`IDLE`: This
+  is used for error responses, when the client's request never arrived
+  (e.g. 408 Request Timed Out) or was unparseable gibberish (400 Bad
+  Request) and thus didn't register with our state machine as a real
+  :class:`Request`.
+
+* The transitions involving :data:`MUST_CLOSE` and :data:`CLOSE`:
+  keep-alive and shutdown handling; see
+  :ref:`keepalive-and-pipelining` and :ref:`closing`.
+
+* The transitions involving :data:`MIGHT_SWITCH_PROTOCOL` and
+  :data:`SWITCHED_PROTOCOL`: See :ref:`switching-protocols`.
+
+* That weird :data:`ERROR` state hanging out all lonely on the bottom:
+  to avoid cluttering the diagram, we don't draw any arcs coming into
+  this node, but that doesn't mean it can't be entered. In fact, it
+  can be entered from any state: if any exception occurs while trying
+  to send/receive data, then the corresponding machine will transition
+  directly to this state. Once there, though, it can never leave --
+  that part of the diagram is accurate. See :ref:`error-handling`.
+
+And finally, note that in these diagrams, all the labels that are in
+*italics* are informal English descriptions of things that happen in
+the code, while the labels in upright text correspond to actual
+objects in the public API. You've already seen the event objects like
+:class:`Request` and :class:`Response`; there are also a set of opaque
+sentinel values that you can use to track and query the client and
+server's states:
 
 .. data:: IDLE
 .. data:: SEND_RESPONSE
@@ -256,11 +301,34 @@ versus upright
 .. data:: SWITCHED_PROTOCOL
 .. data:: ERROR
 
+For example, we can see that initially the client and server start in
+state :data:`IDLE` / :data:`IDLE`:
+
+.. ipython:: python
+
+   conn = h11.Connection(our_role=h11.CLIENT)
+   conn.client_state, conn.server_state
+
+And then if the client sends a :class:`Request`, then the client
+switches to state :data:`SEND_BODY`, while the server switches to
+state :data:`SEND_RESPONSE`:
+
+.. ipython:: python
+
+   conn.send(h11.Request(method="GET", target="/", headers=[("Host", "example.com")]));
+   conn.client_state, conn.server_state
+
+And we can test these values directly using constants like :data:`SEND_BODY`:
+
 .. ipython:: python
 
    conn.client_state is h11.SEND_BODY
 
-The connection object
+This shows how the :class:`Connection` type tracks these state
+machines and lets you query their current state.
+
+
+The Connection object
 ---------------------
 
 There are two special constants used to indicate the two different
@@ -454,10 +522,71 @@ cases:
 
 .. _keepalive-and-pipelining:
 
-Re-using a connection (keep-alive)
-..................................
+Re-using a connection: keep-alive and pipelining
+................................................
 
-Connection: close
+HTTP/1.1 allows a connection to be re-used for multiple
+request/response cycles (also known as "keep-alive"). This can make
+things faster by letting us skip the costly connection setup, but it
+does create some complexities: we have to keep track of whether a
+connection is reusable, and when there are multiple requests and
+responses flowing through the same connection we need to be careful
+not to get confused about which request goes with which response.
+
+At the protocol level, a connection is reusable if, and only if, both
+sides (a) speak HTTP/1.1 (HTTP/1.0 did have some complex and fragile
+support for keep-alive bolted on, but h11 doesn't support that),
+and (b) neither side has explicitly disabled keep-alive by sending a
+``Connection: close`` header.
+
+If you plan to make only a single request or response and then close
+the connection, you should manually set the ``Connection: close``
+header in your request/response. h11 will notice and update its state
+appropriately.
+
+There are also some situations where you are required to send a
+``Connection: close`` header, e.g. if you are a server talking to a
+client that doesn't support keep-alive. You don't need to worry about
+these cases -- h11 will automatically add this header when
+necessary. Just worry about setting it when it's actually something
+that you're actively choosing.
+
+If you want to re-use a connection, you have to wait until both the
+request and the response have been completed, bringing both the client
+and server to the :data:`DONE` state. Once this has happened, you can
+explicitly call :meth:`Connection.prepare_to_reuse` to reset both
+sides back to the :data:`IDLE` state. This makes sure that the client
+and server remain synched up.
+
+If keep-alive is disabled for whatever reason -- explicit headers,
+lack of protocol support, one of the sides just unilaterally closed
+the connection -- then the state machines will skip past the
+:data:`DONE` state directly to the :data:`MUST_CLOSE` or
+:data:`CLOSED` states. In this case, trying to call
+:meth:`~.Connection.prepare_to_use` will raise an error, and you
+should just close this connection and make a new one.
+
+HTTP/1.1 also allows for a more aggressive form of connection re-use,
+in which a client sends multiple requests in quick succession, and
+then waits for the responses to stream back in order
+("pipelining"). This is generally considered to have been a bad idea,
+because it makes things like error recovery very complicated.
+
+As a client, h11 does not support pipelining. This is enforced by the
+structure of the state machine: after sending one :class:`Request`,
+you can't send another until after calling
+:meth:`~.Connection.prepare_to_reuse`, and you can't call
+:meth:`~.Connection.prepare_to_reuse` until the server has entered the
+:data:`DONE` state, which requires reading the server's full
+response.
+
+As a server, h11 provides the minimal support for pipelining required
+to comply with the HTTP/1.1 standard: if the client sends multiple
+pipelined requests, then we the first request until we reach the
+:data:`DONE` state, and then :meth:`~.Connection.receive_data` will
+pause and refuse to parse any more events until the response is
+completed and :meth:`~.Connection.prepare_to_reuse` is called. See the
+next section for more details.
 
 
 .. _flow-control:
@@ -465,16 +594,165 @@ Connection: close
 Flow control
 ............
 
-calling receive_data(None)
+h11 always does the absolute minimum of buffering that it can get away
+with: :meth:`~.Connection.send` always returns the full data to send
+immediately, and :meth:`~.Connection.recieve_data` always greedily
+parses and returns as many events as possible from its current
+buffer. So you can be sure that no data or events will suddenly appear
+and need processing, except when you call these methods. And
+presumably you know when you want to send things. But there is one
+thing you still need to know: you don't want to read data from the
+remote peer if it can't be processed (i.e., you want to apply
+backpressure and avoid building arbitrarily large buffers), and you
+definitely don't want to block waiting on data from the remote peer at
+the same time that it's blocked waiting for you, because that will
+cause a deadlock.
 
-they_are_expecting_100_continue
+We assume that if you're implementing a client then you're clever
+enough not to sit around trying to read more data from the server when
+there's no response pending. But there are a few more subtle ways that
+reading in HTTP can go wrong, and h11 provides two ways to help you
+avoid these situations.
 
-:class:`Paused`
+First, it keeps track of the `client's ``Expect: 100-continue`` status
+<https://tools.ietf.org/html/rfc7231#section-5.1.1>`_. you can read
+the spec for details, but basically the way this works if that
+sometimes clients will send a :class:`Request` with an ``Expect:
+100-continue`` header, and then they will stop there, before sending
+the body, until they see some response from the server (or possibly
+some timeout occurs). The server's response can be an
+:class:`InformationalResponse` with status ``100 Continue``, or
+anything really (e.g. a full :class:`Response` with an error
+code). The crucial thing as a server, though, is that you should never
+block trying to read a request body if the client is blocked waiting
+for you to tell them to send the request body.
+
+The simple way to avoid this is to make sure that before you block
+waiting to read data, always execute some code like:
+
+.. code-block:: python
+
+   if conn.they_are_waiting_for_100_continue:
+       send(conn, h11.InformationalResponse(100, headers=[...]))
+   do_read(...)
+
+The other mechanism h11 provides to help you manage read flow control
+is the :class:`Paused` pseudo-event. Unlike other events, the
+:class:`Paused` event doesn't contain information sent from the remote
+peer; if :meth:`~.Connection.receive_data` returns one of these, it
+means that :meth:`~.Connection.receive_data` has stopped processing
+its data buffer and isn't going to process any more until the remote
+peer's state (:attr:`Connection.their_state`) changes to something
+different.
+
+There are three possible reasons to enter a paused state:
+
+* The remote peer is in the :data:`DONE` state, but sent more data,
+  i.e., a client is attempting to :ref:`pipeline requests
+  <keepalive-and-pipelining>`. In the :data:`DONE` state,
+  :meth:`~.Connection.receive_data` can return :class:`ConnectionClosed`
+  events, but if any actual data is received then it will pause, and
+  stay that way until a successful call to
+  :meth:`~.Connection.prepare_to_reuse`.
+
+* The remote client is in the :data:`MIGHT_SWITCH_PROTOCOL` state (see
+  :ref:`switching-protocols`). This really shouldn't happen, because
+  they don't know yet whether the protocol switch will actually happen,
+  but OTOH it certainly isn't correct for us to go ahead and parse the
+  data they sent as if it were HTTP, when it might not be. So if this
+  happens, we pause.
+
+* The remote peer is in the :data:`SWITCHED_PROTOCOL` state (see
+  :ref:`switching-protocols`). We certainly aren't going to try to
+  parse their data -- it's not HTTP, or at least not HTTP directed at
+  us. If this happens, we pause.
+
+Once the connection has entered a paused state, then it's safe to keep
+calling :meth:`~.Connection.receive_data` -- it will just keep
+returning new :class:`Paused` events -- but instead you should
+probably stop reading from the network; all you're going to accomplish
+is to shove more and more data into our internal buffers, where it's
+just going to there using more and more memory. (And we do *not*
+enforce the regular maximum buffer size limits when in a paused state
+-- if we did then you might go over the limit in a single call to
+:meth:`~.Connection.receive_data`, not because you or the remote peer
+did anything wrong, but just because a fair amount of data all came in
+at the same time we entered the paused state.) And simply reading more
+data will never trigger an unpause -- for that something external has
+to happen, usually a call to :meth:`~.Connection.prepare_to_reuse`.
+
+And that's the other tricky moment: when you come out of a paused
+state, you shouldn't immediately read from the network. Consider the
+situation where a client sends two pipelined requests, and then blocks
+waiting for the two responses. It's possible the two requests will
+arrive together, and be enqueued into our receive buffer together:
+
+.. ipython:: python
+
+   conn = h11.Connection(our_role=h11.SERVER)
+   conn.receive_data(
+       b"GET /1 HTTP/1.1\r\nHost: example.com\r\n\r\n"
+       b"GET /1 HTTP/1.1\r\nHost: example.com\r\n\r\n"
+   )
+
+Notice how we get back only the first :class:`Request` and its (empty)
+body, then a :class:`Paused` event.
+
+We process the first request:
+
+.. ipython:: python
+
+   conn.send(h11.Response(status_code=200, headers=[]))
+   conn.send(h11.EndOfMessage())
+
+And then reset the connection to handle the next:
+
+.. ipython:: python
+
+   conn.prepare_to_reuse()
+
+This has unpaused our receive buffer, so now we're ready to read more
+data from the network right? Well, no-- the client is done sending
+data, we already have all their data, so if we block waiting for more
+data now, then we'll be waiting forever.
+
+That would be bad.
+
+Instead, what we have to do after unpausing is make an explicit call
+to :meth:`~.Connection.receive_data` with ``None`` as the argument,
+which means "I don't have any more data for you, but could you check
+the data you already have buffered in case there's anything else you
+can parse now that you couldn't before?". And once we've done this and
+processed the events we get back, we can continue as normal:
+
+.. ipython:: python
+
+   conn.receive_data(None)
+
+It is always safe to call ``conn.receive_data(None)``; if there aren't
+any new events to return, it will simply return ``[]``, and if the
+connection is paused, it will return a :class:`Paused` event. If you
+want to be conservative, you can defensively call this immediately
+before issuing any blocking read.
+
 
 .. _closing:
 
-Closing a connection
-....................
+Closing connections
+...................
+
+XX TODO
+
+ConnectionClosed means that this side won't be sending any more data
+
+CLOSED / MUST_CLOSE
+
+you can close at any moment of course -- the purpose of the state
+machine is just to distinguish between clean close (safely
+transitioning to CLOSED) versus unclean close (raising an exception
+and transitioning to ERROR)
+
+the special shutdown rules in RFC 7230
 
 
 .. _switching-protocols:
@@ -482,8 +760,14 @@ Closing a connection
 Switching protocols
 ...................
 
+XX TODO
+
+our umbrella term for Upgrade: and CONNECT -- in both cases h11's job
+is to get out of the way and make a smooth handover to the code
+handling the next protocol
+
 
 .. _sendfile:
 
-Sendfile
+sendfile
 ........
