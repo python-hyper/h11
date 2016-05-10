@@ -43,7 +43,9 @@ and forth between a client and a server, instead of thinking in terms
 of bytes.
 
 All events behave in essentially similar ways. Let's take
-:class:`Request` as an example. It has four fields:
+:class:`Request` as an example. Like all events, this is a "final"
+class -- you cannot subclass it. And like all events, it has several
+fields. For :class:`Request`, there are four of them:
 :attr:`~.Request.method`, :attr:`~.Request.target``,
 :attr:`~.Request.headers``, and
 :attr:`~.Request.http_version``. :attr:`~.Request.http_version``
@@ -120,9 +122,8 @@ If any names are detected with leading or trailing whitespace, then
 this is an error ("in the past, differences in the handling of such
 whitespace have led to security vulnerabilities" -- `RFC 7230
 <https://tools.ietf.org/html/rfc7230#section-3.2.4>`_). We also check
-for other protocol violations like the presence of multiple
-``Content-Length`` fields, and may add additional checks in the
-future.
+for other protocol violations, e.g. ``Content-Length: hello`` is an
+error. We may add additional checks in the future.
 
 .. _http_version-format:
 
@@ -137,12 +138,12 @@ strings. Note that the HTTP standard `specifically guarantees
 version numbers will consist of exactly two digits separated by a dot,
 so comparisons like ``req.http_version < b"1.1"`` are safe and valid.
 
-When constructing an event, you generally shouldn't specify
+When manually constructing an event, you generally shouldn't specify
 :attr:`http_version`, because it defaults to ``b"1.1"``, and if you
 attempt to override this to some other value then
-:meth:`Connection.send` will reject your event as invalid. But you
-might receive events with other values here from remote peers that do
-not speak HTTP/1.1.
+:meth:`Connection.send` will reject your event -- h11 only speaks
+HTTP/1.1. But it does understand other versions of HTTP, so you might
+receive events with other ``http_version`` values from remote peers.
 
 Here's the complete set of events supported by h11:
 
