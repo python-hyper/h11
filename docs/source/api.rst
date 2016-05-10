@@ -170,20 +170,38 @@ Here's the complete set of events supported by h11:
 The state machine
 -----------------
 
-Important to realize that this isn't one state machine for when we're
-a client and a different one for when we're a server: every
-:class:`Connection`: object is always tracking *both* state machines.
+Now that you know what the different events are, the next question is:
+what can you do with them?
 
-client: sends a :class:`Request` event, zero or more :class:`Data`
-events, and an :class:`EndOfMessage` event.
+A basic HTTP request/response cycle looks like this:
 
-The server waits to receive the :class:`Request` event, and then sends
-zero or more :class:`InformationalResponse` events, a
-:class:`Response` event, zero or more :class:`Data` events, and a
-:class:`EndOfMessage` event.
+* The client sends:
 
-And then, either both sides close the connection, or else they re-use
-the connection for another request/response cycle.
+  * one :class:`Request` event with request metadata and headers,
+  * zero or more :class:`Data` events with the request body (if any),
+  * and an :class:`EndOfMessage` event.
+
+* And then the server replies with:
+
+  * zero or more :class:`InformationalResponse` events,
+  * one :class:`Response` event,
+  * zero or more :class:`Data` events with the response body (if any),
+  * and a :class:`EndOfMessage` event.
+
+And once that's finished, both sides either close the connection, or
+they go back to the top and re-use it for another request/response
+cycle.
+
+To coordinate this interaction, the h11 :class:`Connection` object
+maintains several state machines: one that tracks what the client is
+doing, one that tracks what the server is doing, and a few more tiny
+ones to track whether :ref:`keep-alive <keepalive-and-pipelining>` is
+enabled and whether the client has proposed to :ref:`switch protocols
+<switching-protocols>`. h11 always keeps track of all of these state
+machines, regardless of whether it's currently playing the client or
+server role.
+
+The two main state machines look like this (click on each to expand):
 
 .. ipython:: python
    :suppress:
@@ -192,17 +210,31 @@ the connection for another request/response cycle.
    import subprocess
    subprocess.check_call([sys.executable, "source/make-state-diagrams.py"])
 
-.. figure:: _static/CLIENT.svg
-   :target: _static/CLIENT.svg
-   :width: 800px
+.. |client-image| image:: _static/CLIENT.svg
+      :target: _static/CLIENT.svg
+      :width: 100%
+      :align: top
 
+.. |server-image| image:: _static/SERVER.svg
+      :target: _static/SERVER.svg
+      :width: 100%
+      :align: top
 
-.. figure:: _static/SERVER.svg
-   :target: _static/SERVER.svg
-   :width: 800px
+============== ==============
+|client-image| |server-image|
+============== ==============
+
+If you squint, you can see the client's IDLE -> SEND_BODY -> DONE path
+and the server's IDLE -> SEND_RESPONSE -> SEND_BODY -> DONE path,
+which encode the basic sequence of events we described above. But
+there's a fair amount of other stuff going on here as well.
+
+The first thing you should notice is the different colors
+need to know is that there are actually two
+different ways that h11's state machines can change state.
 
 extra stuff: MUST_CLOSE, prepare_to_reuse, protocol switching,
-Response directly from IDLE
+how you get to ERROR, and server jumping to SEND_RESPONSE
 
 how to read this diagram: blue versus green versus purple, italics
 versus upright
@@ -290,7 +322,7 @@ want to implement:
    .. attribute:: they_are_waiting_for_100_continue
 
       True if :attr:`their_role` is :data:`CLIENT` and
-      :attr:`client_is_waiting_for_100_continue` is True.
+      :attr:`client_is_waiting_for_100_continue`.
 
    .. autoattribute:: trailing_data
 
@@ -345,7 +377,7 @@ There are four cases where this exception might be raised:
   connection.
 
 
-.. _flow-control:
+.. _framing:
 
 Message body framing: ``Content-Length`` and all that
 .........................................................
@@ -428,6 +460,8 @@ Re-using a connection (keep-alive)
 Connection: close
 
 
+.. _flow-control:
+
 Flow control
 ............
 
@@ -435,6 +469,7 @@ calling receive_data(None)
 
 they_are_expecting_100_continue
 
+:class:`Paused`
 
 .. _closing:
 
