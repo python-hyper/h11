@@ -387,11 +387,20 @@ class Connection:
 
             # Buffer maintainence
             self._receive_buffer.compress()
-            if len(self._receive_buffer) > self._max_buffer_size:
-                # 431 is "Request header fields too large" which is pretty
-                # much the only situation where we can get here
-                raise ProtocolError("Receive buffer too long",
-                                    error_status_hint=431)
+            if events and type(events[-1]) is Paused:
+                # We don't enforce buffer size limits when Paused, because
+                # avoiding ever-growing buffers here indicates a problem with
+                # the user code, not with the remote client (and otherwise
+                # it's entirely possible that a single receive_data call all
+                # by itself could put us over the limit, with no real way to
+                # avoid it)
+                pass
+            else:
+                if len(self._receive_buffer) > self._max_buffer_size:
+                    # 431 is "Request header fields too large" which is pretty
+                    # much the only situation where we can get here
+                    raise ProtocolError("Receive buffer too long",
+                                        error_status_hint=431)
 
             # We've greedily processed all possible events, so if there's no
             # more data coming, we better either be paused or else have

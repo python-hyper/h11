@@ -347,6 +347,32 @@ def test_max_buffer_size_countermeasure():
         EndOfMessage(),
     ]
 
+    # Exceeding the max buffer size is fine if we are paused
+    c = Connection(SERVER, max_buffer_size=100)
+    # Two pipelined requests in a big big buffer
+    assert (c.receive_data(b"GET /1 HTTP/1.1\r\nHost: a\r\n\r\n"
+                           b"GET /2 HTTP/1.1\r\nHost: b\r\n\r\n"
+                           + b"X" * 1000)
+            == [Request(method="GET", target="/1", headers=[("host", "a")]),
+                EndOfMessage(),
+                Paused(reason="pipelining")])
+    # Even more data comes in, no problem
+    assert c.receive_data(b"X" * 1000)
+    # We can respond and reuse to get the second pipelined request
+    c.send(Response(status_code=200, headers=[]))
+    c.send(EndOfMessage())
+    c.prepare_to_reuse()
+    assert (c.receive_data(None)
+            == [Request(method="GET", target="/2", headers=[("host", "b")]),
+                EndOfMessage(),
+                Paused(reason="pipelining")])
+    # But once we unpause and try to read the next message, the buffer size is
+    # enforced again
+    c.send(Response(status_code=200, headers=[]))
+    c.send(EndOfMessage())
+    c.prepare_to_reuse()
+    with pytest.raises(ProtocolError):
+        c.receive_data(None)
 
 def test_reuse_simple():
     p = ConnectionPair()
