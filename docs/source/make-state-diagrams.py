@@ -19,7 +19,7 @@ _SPECIAL_COLOR = "#7600a1"
 
 HEADER = """
 digraph {
-  graph [fontname = "Lato"]
+  graph [fontname = "Lato" bgcolor="transparent"]
   node  [fontname = "Lato"]
   edge  [fontname = "Lato"]
 """

@@ -198,7 +198,7 @@ enabled and whether the client has proposed to :ref:`switch protocols
 machines, regardless of whether it's currently playing the client or
 server role.
 
-The two main state machines look like this (click on each to expand):
+The state machines look like this (click on each to expand):
 
 .. ipython:: python
    :suppress:
@@ -219,17 +219,15 @@ The two main state machines look like this (click on each to expand):
       :width: 100%
       :align: top
 
-
-============== ==============
-|client-image| |server-image|
-============== ==============
-
-And the three special small machines look like this:
-
-.. image:: _static/special-states.svg
+.. |special-image| image:: _static/special-states.svg
    :target: _static/special-states.svg
    :width: 100%
 
++----------------+----------------+
+| |client-image| | |server-image| |
++----------------+----------------+
+|        |special-image|          |
++---------------------------------+
 
 If you squint at the first two diagrams, you can see the client's IDLE
 -> SEND_BODY -> DONE path and the server's IDLE -> SEND_RESPONSE ->
