@@ -1,8 +1,10 @@
 language: python
 python:
+  - 2.7
   - 3.3  # probably irrelevant but so far supporting it has been free
   - 3.4
   - 3.5
+  - pypy
 sudo: false
 
 before_install:
