@@ -1,5 +1,5 @@
 import os.path
-from contextlib import contextmanager
+from contextlib import contextmanager, closing
 import socket
 import threading
 import json
@@ -43,7 +43,7 @@ class SingleMindedRequestHandler(SimpleHTTPRequestHandler):
 
 def test_h11_as_client():
     with socket_server(SingleMindedRequestHandler) as httpd:
-        with socket.create_connection(httpd.server_address) as s:
+        with closing(socket.create_connection(httpd.server_address)) as s:
             c = h11.Connection(h11.CLIENT)
 
             s.sendall(c.send(h11.Request(
@@ -67,7 +67,7 @@ def test_h11_as_client():
 
 class H11RequestHandler(socketserver.BaseRequestHandler):
     def handle(self):
-        with self.request as s:
+        with closing(self.request) as s:
             c = h11.Connection(h11.SERVER)
             request = None
             done = False
@@ -96,7 +96,8 @@ class H11RequestHandler(socketserver.BaseRequestHandler):
 def test_h11_as_server():
     with socket_server(H11RequestHandler) as httpd:
         host, port = httpd.server_address
-        with urlopen("http://{}:{}/some-path".format(host, port)) as f:
+        url = "http://{}:{}/some-path".format(host, port)
+        with closing(urlopen(url)) as f:
             assert f.getcode() == 200
             data = f.read()
     info = json.loads(data.decode("ascii"))
