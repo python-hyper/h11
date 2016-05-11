@@ -28,7 +28,9 @@ https://httpbin.org/xml:
 .. ipython:: python
 
    import ssl, socket
-   sock = ssl.wrap_socket(socket.create_connection(("httpbin.org", 443)),
+
+   ctx = ssl.create_default_context()
+   sock = ctx.wrap_socket(socket.create_connection(("httpbin.org", 443)),
                           server_hostname="httpbin.org")
 
    # Send request
@@ -62,8 +64,10 @@ like before, but now we'll also import :mod:`h11`, and create a
    import ssl, socket
    import h11
 
-   sock = ssl.wrap_socket(socket.create_connection(("httpbin.org", 443)),
+   ctx = ssl.create_default_context()
+   sock = ctx.wrap_socket(socket.create_connection(("httpbin.org", 443)),
                           server_hostname="httpbin.org")
+
    conn = h11.Connection(our_role=h11.CLIENT)
 
 Next, to send an event to the server, there are three steps we have to
