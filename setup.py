@@ -1,5 +1,5 @@
 import sys
-from setuptools import setup
+from setuptools import setup, find_packages
 
 # defines __version__
 exec(open("h11/_version.py").read())
@@ -13,8 +13,11 @@ setup(
     author="Nathaniel J. Smith",
     author_email="njs@pobox.com",
     license="MIT",
-    packages=["h11"],
+    packages=find_packages(),
     url="https://github.com/njsmith/h11",
+    # This means, just install *everything* you see under zs/, even if it
+    # doesn't look like a source file, so long as it appears in MANIFEST.in:
+    include_package_data=True,
     classifiers = [
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
