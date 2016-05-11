@@ -25,8 +25,8 @@ import h11
 def socket_server(handler):
     httpd = socketserver.TCPServer(("127.0.0.1", 0), handler)
     thread = threading.Thread(target=httpd.serve_forever,
-                              kwargs={"poll_interval": 0.01},
-                              daemon=True)
+                              kwargs={"poll_interval": 0.01})
+    thread.daemon = True
     try:
         thread.start()
         yield httpd
