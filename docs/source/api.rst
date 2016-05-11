@@ -205,7 +205,9 @@ The two main state machines look like this (click on each to expand):
 
    import sys
    import subprocess
-   subprocess.check_call([sys.executable, "source/make-state-diagrams.py"])
+   subprocess.check_call([sys.executable,
+                          sys._h11_hack_docs_source_path
+                          + "/make-state-diagrams.py"])
 
 .. |client-image| image:: _static/CLIENT.svg
       :target: _static/CLIENT.svg

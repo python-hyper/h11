@@ -162,7 +162,8 @@ convenience methods:
 .. ipython:: python
    :suppress:
 
-    with open("source/_examples/myclient.py") as f:
+    import sys
+    with open(sys._h11_hack_docs_source_path + "/_examples/myclient.py") as f:
         exec(f.read())
 
 And then we can send requests:

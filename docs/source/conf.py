@@ -16,7 +16,23 @@
 import sys
 import os
 
-print("Running in", os.getcwd())
+################################################################
+# hack hack
+#
+# The live ipython examples want to know where the docs source/ directory is,
+# so that they can find files that live there.
+#
+# There's no guarantee that our CWD == the source directory, but conf.py
+# *does* know what directory it lives in, so it can stash that in a public
+# place where the later code can find it.
+#
+# (In particular, the sphinx Makefile runs sphinx-build from a different
+# directory -- but RTD runs sphinx-build directly from inside the source/
+# directory, so there's no single value of this that works for both.)
+#
+import os.path
+sys._h11_hack_docs_source_path = os.path.dirname(__file__)
+################################################################
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
