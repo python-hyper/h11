@@ -2,24 +2,30 @@ h11
 ===
 
 .. image:: https://travis-ci.org/njsmith/h11.svg?branch=master
-    :target: https://travis-ci.org/njsmith/h11
+   :target: https://travis-ci.org/njsmith/h11
+   :alt: Automated test status
 
 .. image:: https://codecov.io/gh/njsmith/h11/branch/master/graph/badge.svg
-  :target: https://codecov.io/gh/njsmith/h11
+   :target: https://codecov.io/gh/njsmith/h11
+   :alt: Test coverage
+
+.. image:: https://readthedocs.org/projects/h11/badge/?version=latest
+   :target: http://h11.readthedocs.io/en/latest/?badge=latest
+   :alt: Documentation Status
 
 This is a little HTTP/1.1 library written from scratch in Python,
 heavily inspired by `hyper-h2 <https://hyper-h2.readthedocs.io/>`_.
 
-This is a pure protocol library; like h2, it contains no IO code
-whatsoever. This means you can hook h11 up to your favorite network
-API, and that could be anything you want: synchronous, threaded,
-asynchronous, or your own implementation of `RFC 6214
+This is a "bring-your-own-I/O" library; like h2, it contains no IO
+code whatsoever. This means you can hook h11 up to your favorite
+network API, and that could be anything you want: synchronous,
+threaded, asynchronous, or your own implementation of `RFC 6214
 <https://tools.ietf.org/html/rfc6214>`_ -- h11 won't judge you.
 (Compare this to the current state of the art, where every time a `new
 network API <https://curio.readthedocs.io/>`_ comes along then someone
 gets to start over reimplementing the entire HTTP protocol from
-scratch.) Cory Benfield made an `excellent blog post describing this
-"bring-your-own I/O" approach
+scratch.) Cory Benfield made an `excellent blog post describing the
+benefits of this approach
 <https://lukasa.co.uk/2015/10/The_New_Hyper/>`_.
 
 This also means that h11 is not immediately useful out of the box:
@@ -57,35 +63,27 @@ the ones that you receive as a server and vice-versa.
 `Here's an example of a tiny HTTP client
 <https://github.com/njsmith/h11/blob/master/tiny-client-demo.py>`_
 
+It also has `a fine manual <https://h11.readthedocs.io/>`_.
 
 FAQ
 ---
 
 *Whyyyyy?*
 
-NIH is fun! Also I got mildly annoyed at some trivial and probably
-easily fixable issues in `aiohttp <https://aiohttp.readthedocs.io/>`_,
-so rather than spend a few hours debugging them I spent a few days
-writing my own HTTP stack from scratch.
-
-*...that's a terrible reason.*
-
-Well, ok... I also wanted to play with `Curio
+I wanted to play with HTTP in `Curio
 <https://curio.readthedocs.io/en/latest/tutorial.html>`_, which has no
-HTTP library, and I was feeling inspired by Curio's elegantly
-featureful minimalism and Cory's call-to-arms blog-post.
-
-And, most importantly, I was sick and needed a gloriously pointless
-yak-shaving project to distract me from all the things I should have
-been doing instead. Perhaps it won't turn out to be quite as pointless
-as all that, but either way at least I learned some stuff.
+HTTP library. So I thought, no big deal, Python has, like, a dozen
+different implementations of HTTP, surely I can find one that's
+reusable. I didn't find one, but I did find Cory's call-to-arms
+blog-post. So I figured, well, fine, if I have to implement HTTP from
+scratch, at least I can make sure no-one *else* has to ever again.
 
 *Should I use it?*
 
 Maybe. You should be aware that it's a very young project. But, it's
-feature complete and has an exhaustive test-suite, so the next step is
-for people to try using it and see how it goes :-). If you do then
-please do report back!
+feature complete and has an exhaustive test-suite and complete docs,
+so the next step is for people to try using it and see how it goes
+:-). If you do then please do report back!
 
 *What are the features/limitations?*
 
@@ -110,9 +108,10 @@ library.
 It has a test suite with 100.0% coverage for both statements and
 branches.
 
-Currently it only supports Python 3.5, though it wouldn't be hard to
-expand this to support other versions, including 2.7. (Originally it
-had a Cython wrapper for `http-parser
+Currently it only supports Python 3 (testing on 3.3-3.5), though it
+wouldn't be hard to expand add Python 2.7 support too, I just haven't
+gotten around to it. Feel free to submit a PR. (Originally it had a
+Cython wrapper for `http-parser
 <https://github.com/nodejs/http-parser>`_ and a beautiful nested state
 machine implemented with ``yield from`` to postprocess the output. But
 I had to take these out -- the new *parser* needs fewer lines-of-code
@@ -139,11 +138,6 @@ is now quite small and simple, I'm still annoyed that I haven't
 figured out how to make it even smaller and simpler. (Unfortunately,
 HTTP does not lend itself to simplicity.)
 
-At a more concrete, roadmappy kind of level, my current todo list is:
-
-* Write a manual
-* Try using it for some real things
-
 The API is ~feature complete and I don't expect the general outlines
 to change much, but you can't judge an API's ergonomics until you
 actually document and use it, so I'd expect some changes in the
@@ -155,127 +149,10 @@ There's no setup.py or anything yet. I'd start with::
 
   $ git clone git@github.com:njsmith/h11
   $ cd h11
-  $ python35 tiny-client-demo.py
+  $ python3 tiny-client-demo.py
 
 and go from there.
 
 *License?*
 
 MIT
-
-
-Some technical minutia for HTTP nerds
--------------------------------------
-
-Of the headers defined in RFC 7230, the ones h11 knows and has some
-special-case logic to care about are: ``Connection:``,
-``Transfer-Encoding:``, ``Content-Length:``, ``Host:``, ``Upgrade:``,
-and ``Expect:`` (which is really from `RFC 7231
-<https://tools.ietf.org/html/rfc7231#section-5.1.1>`_ but
-whatever). The other headers in RFC 7230 are ``TE:``, ``Trailer:``,
-and ``Via:``; h11 also supports these in the sense that it ignores
-them and that's really all it should be doing.
-
-Transfer-Encoding support: we only know ``chunked``, not ``gzip`` or
-``deflate``. We're in good company in this: node.js at least doesn't
-handle anything besides ``chunked`` either. So I'm not too worried
-about this being a problem in practice. But I'm not majorly opposed to
-adding support for more features here either.
-
-When parsing chunked encoding, we parse but discard "chunk
-extensions". This is an extremely obscure feature that allows
-arbitrary metadata to be interleaved into a chunked transfer
-stream. This metadata has no standard uses, and proxies are allowed to
-strip it out. I don't think anyone will notice this lack, but it could
-be added if someone really wants it; I just ran out of energy for
-implementing weirdo features no-one uses.
-
-Protocol changing/upgrading: h11 has has full support for
-transitioning to a new protocol, via either Upgrade: headers (e.g.,
-``Upgrade: websocket``) or the ``CONNECT`` method. Note that this
-*doesn't* mean that h11 actually *implements* the WebSocket protocol
--- though a bring-your-own-I/O WebSocket library would indeed be
-pretty sweet, someone should definitely implement that. It just means
-that h11 has the hooks needed to let you implement hand-off to a
-different protocol.
-
-Currently we implement support for "obsolete line folding" when
-reading HTTP headers. This is an optional part of the spec --
-conforming HTTP/1.1 implementations MUST NOT send continuation lines,
-and conforming HTTP/1.1 servers MAY send 400 Bad Request responses
-back at clients who do send them (`ref
-<https://tools.ietf.org/html/rfc7230#section-3.2.4>`_). I'm tempted to
-remove it, since it adds some complicated and ugly code right at the
-center of the request/response parsing loop, and I'm not sure whether
-anyone actually needs it. Unfortunately a few major implementations
-that I spot-checked (node.js, go) do still seem to support it, so it
-might or might not be obsolete in practice -- it's hard to know.
-
-Cute trick: we also support ``sendfile``. Or at least, we give you the
-tools you need to support ``sendfile``. Specifically, the payload of a
-``Data`` event can be any object that has a ``__len__``, and we'll
-pass it back out unchanged at the appropriate place in the output
-stream. So this is useful for e.g. if you want to use ``os.sendfile``
-to send some data: pass in a placeholder object like
-``conn.send(Data(data=placeholder), combine=False)`` and you'll get
-back a list of things-to-send, which will be a mixture ``bytes``-like
-objects containing any framing stuff + your original object. Then your
-write loop can be like::
-
-    for piece in data_pieces:
-        if isinstance(piece, FilePlaceholder):
-            sock.sendfile(*piece.sendfile_args())
-        else:
-            sock.sendall(piece)
-
-
-Connection lifecycle
-....................
-
-We fully support HTTP/1.1 keep-alive.
-
-We have a little bit of support for HTTP/1.1 pipelining -- basically
-the minimum that's required by the standard. In server mode we can
-handle pipelined requests in a serial manner, responding completely to
-each request before reading the next (and our API is designed to make
-it easy for servers to keep this straight). Client mode doesn't
-support pipelining at all. As far as I can tell, this matches the
-state of the art in all the major HTTP implementations: the consensus
-seems to be that HTTP/1.1 pipelining was a nice try but unworkable in
-practice, and if you really need pipelining to work then instead of
-trying to fix HTTP/1.1 you should switch to HTTP/2.0. (Now that I know
-more about how HTTP works internally I'm inclined to agree.)
-
-The HTTP/1.0 Connection: keep-alive pseudo-standard is currently not
-supported. (Note that this only affects h11 as a server, because h11
-as a client always speaks HTTP/1.1.) Supporting this would be
-possible, but it's fragile and finicky and I'm suspicious that if we
-leave it out then no-one will notice or care. HTTP/1.1 is now almost
-old enough to vote in United States elections. I get that people
-sometimes write HTTP/1.0 clients because they don't want to deal with
-annoying stuff like chunked encoding, and I completely sympathize with
-that, but I'm guessing that you're not going to find too many people
-these days who care desperately about keep-alive *and at the same
-time* are too lazy to implement Transfer-Encoding: chunked. Still,
-this would be my bet as to the missing feature that people are most
-likely to eventually complain about...
-
-
-Trippy state machine diagrams
-.............................
-
-We model the state of an HTTP/1.1 connection as a pair of linked state
-machines, one for each of the peers. Blue is an "event" sent by that
-peer, green is a transition triggered by the (client state, server
-state) tuple taking on a particular value, and purple is special
-cases. (NB these are slightly out of date. TODO: make the doc build
-automatically re-run the code that regenerates these from the
-source. Once we have a doc build...)
-
-Client side:
-
-.. image:: https://vorpus.org/~njs/tmp/h11-client-2016-05-04.svg
-
-Server side:
-
-.. image:: https://vorpus.org/~njs/tmp/h11-server-2016-05-04.svg
