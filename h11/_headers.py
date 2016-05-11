@@ -92,7 +92,7 @@ def normalize_and_validate(headers):
         new_headers.append((name, value))
     return new_headers
 
-def get_comma_header(headers, name, *, lowercase=True):
+def get_comma_header(headers, name, lowercase=True):
     # Should only be used for headers whose value is a list of comma-separated
     # values. Use lowercase=True for case-insensitive ones.
     #
