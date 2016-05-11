@@ -8,5 +8,4 @@ omit=
 exclude_lines =
   pragma: no cover
   ^def test_
-  # version specific: *
 precision = 1
