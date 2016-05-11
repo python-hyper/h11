@@ -1,6 +1,9 @@
 # Makefile for Sphinx documentation
 #
 
+# So the build will be able to find the h11 sources
+export PYTHONPATH := $(CURDIR)/..
+
 # You can set these variables from the command line.
 SPHINXOPTS    =
 SPHINXBUILD   = sphinx-build
