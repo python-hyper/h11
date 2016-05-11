@@ -52,6 +52,11 @@ Vital statistics:
 
 * License: MIT
 
+* Code of conduct: Contributors are requested to follow our `code of
+  conduct
+  <https://github.com/njsmith/h11/blob/master/CODE_OF_CONDUCT.md>`_ in
+  all project spaces.
+
 
 Contents
 --------
