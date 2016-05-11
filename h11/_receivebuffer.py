@@ -1,4 +1,7 @@
+import sys
+
 __all__ = ["ReceiveBuffer"]
+
 
 # Operations we want to support:
 # - find next \r\n or \r\n\r\n, or wait until there is one
@@ -27,6 +30,10 @@ class ReceiveBuffer(object):
     # for @property unprocessed_data
     def __bytes__(self):
         return bytes(self._data[self._start:])
+
+    if sys.version_info[0] < 3:  # version specific: Python 2
+        __str__ = __bytes__
+        __nonzero__ = __bool__
 
     def __len__(self):
         return len(self._data) - self._start
