@@ -1,11 +1,23 @@
 import os.path
 from contextlib import contextmanager
 import socket
-import socketserver
 import threading
-from http.server import SimpleHTTPRequestHandler
 import json
-from urllib.request import urlopen
+
+try:
+    from urllib.request import urlopen
+except ImportError:  # version specific: Python 2
+    from urllib2 import urlopen
+
+try:
+    import socketserver
+except ImportError:  # version specific: Python 2
+    import SocketServer as socketserver
+
+try:
+    from http.server import SimpleHTTPRequestHandler
+except ImportError:  # version specific: Python 2
+    from SimpleHTTPServer import SimpleHTTPRequestHandler
 
 import h11
 
