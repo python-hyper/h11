@@ -13,9 +13,19 @@ from ._state import CLIENT, SERVER, IDLE, SEND_RESPONSE, SEND_BODY
 
 __all__ = ["WRITERS"]
 
+# Equivalent of bstr % values, that works on python 3.x for x < 5
+def bytesmod(bstr, values):
+    decoded_values = []
+    for value in values:
+        if isinstance(value, bytes):
+            decoded_values.append(value.decode("ascii"))
+        else:
+            decoded_values.append(value)
+    return (bstr.decode("ascii") % tuple(decoded_values)).encode("ascii")
+
 def write_headers(headers, write):
     for name, value in headers:
-        write(b"%s: %s\r\n" % (name, value))
+        write(bytesmod(b"%s: %s\r\n", (name, value)))
     write(b"\r\n")
 
 # XX FIXME: "Since the Host field-value is critical information for
@@ -24,7 +34,7 @@ def write_headers(headers, write):
 def write_request(request, write):
     if request.http_version != b"1.1":
         raise ProtocolError("I only send HTTP/1.1")
-    write(b"%s %s HTTP/1.1\r\n" % (request.method, request.target))
+    write(bytesmod(b"%s %s HTTP/1.1\r\n", (request.method, request.target)))
     write_headers(request.headers, write)
 
 # Shared between InformationalResponse and Response
@@ -40,7 +50,7 @@ def write_any_response(response, write):
     # from stdlib's http.HTTPStatus table. Or maybe just steal their enums
     # (either by import or copy/paste). We already accept them as status codes
     # since they're of type IntEnum < int.
-    write(b"HTTP/1.1 %s \r\n" % (status_bytes,))
+    write(bytesmod(b"HTTP/1.1 %s \r\n", (status_bytes,)))
     write_headers(response.headers, write)
 
 class BodyWriter:
@@ -76,7 +86,7 @@ class ContentLengthWriter(BodyWriter):
 
 class ChunkedWriter(BodyWriter):
     def send_data(self, data, write):
-        write(b"%x\r\n" % (len(data),))
+        write(bytesmod(b"%x\r\n", (len(data),)))
         write(data)
         write(b"\r\n")
 
