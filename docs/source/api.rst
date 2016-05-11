@@ -30,7 +30,7 @@ directly at the top level:
 
 These symbols fall into three main categories: event classes, special
 constants used to track different connection states, and the
-:class:`Connection` class. We'll describe them in that order.
+:class:`Connection` class itself. We'll describe them in that order.
 
 .. _events:
 
@@ -396,13 +396,10 @@ want to implement:
    .. autoattribute:: trailing_data
 
 
-Special topics
---------------
-
 .. _error-handling:
 
 Error handling
-..............
+--------------
 
 Given the vagaries of networks and the folks on the other side of
 them, it's extremely important to be prepared for errors.
@@ -449,7 +446,7 @@ There are four cases where this exception might be raised:
 .. _framing:
 
 Message body framing: ``Content-Length`` and all that
-.........................................................
+-----------------------------------------------------
 
 There are two different headers that HTTP/1.1 uses to indicate a
 framing mechanism for request/response bodies: ``Content-Length`` and
@@ -524,7 +521,7 @@ cases:
 .. _keepalive-and-pipelining:
 
 Re-using a connection: keep-alive and pipelining
-................................................
+------------------------------------------------
 
 HTTP/1.1 allows a connection to be re-used for multiple
 request/response cycles (also known as "keep-alive"). This can make
@@ -595,7 +592,7 @@ next section for more details.
 .. _flow-control:
 
 Flow control
-............
+------------
 
 h11 always does the absolute minimum of buffering that it can get away
 with: :meth:`~.Connection.send` always returns the full data to send
@@ -742,7 +739,7 @@ before issuing any blocking read.
 .. _closing:
 
 Closing connections
-...................
+-------------------
 
 h11 represents a connection shutdown with the special event type
 :class:`ConnectionClosed`. You can send this event, in which case
@@ -854,7 +851,7 @@ following note fromx `RFC 7230 section 6.6
 .. _switching-protocols:
 
 Switching protocols
-...................
+-------------------
 
 h11 supports two kinds of "protocol switches": requests with method
 ``CONNECT``, and the newer ``Upgrade:`` header, most commonly used for
@@ -882,8 +879,8 @@ can retrieve any unprocessed data from the
 
 .. _sendfile:
 
-sendfile
-........
+Support for ``sendfile()``
+--------------------------
 
 Many networking APIs provide some efficient way to send particular
 data, e.g. asking the operating system to stream files directly off of
@@ -936,7 +933,7 @@ framing data, update its internal state, and away you go.
 
 
 Identifying h11 in requests and responses
-.........................................
+-----------------------------------------
 
 According to RFC 7231, client requests are supposed to include a
 ``User-Agent:`` header identifying what software they're using, and
