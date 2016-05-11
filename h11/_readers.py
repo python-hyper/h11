@@ -89,7 +89,7 @@ header_field_re = re.compile(header_field.encode("ascii"))
 
 # Remember that this has to run in O(n) time -- so e.g. the bytearray cast is
 # critical.
-obs_fold_re = re.compile(rb"[ \t]+")
+obs_fold_re = re.compile(br"[ \t]+")
 def _obsolete_line_fold(lines):
     it = iter(lines)
     last = None
