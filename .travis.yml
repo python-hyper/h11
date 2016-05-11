@@ -6,7 +6,7 @@ python:
 sudo: false
 
 before_install:
-  - pip install pytest pytest-cov codecov
+  - pip install -r test-requirements.txt
 
 script:
   - py.test --cov=h11 --cov-config=.coveragerc h11
