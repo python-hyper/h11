@@ -145,7 +145,7 @@ details.
 
 *How do I try it?*
 
-There's no setup.py or anything yet. I'd start with::
+There aren't any official releases yet -- I'd start with:
 
   $ git clone git@github.com:njsmith/h11
   $ cd h11
