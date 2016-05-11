@@ -70,6 +70,12 @@ class _EventBundle(object):
         return (self.__class__ == other.__class__
                 and self.__dict__ == other.__dict__)
 
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    # This is an unhashable type.
+    __hash__ = None
+
 
 class Request(_EventBundle):
     """The beginning of an HTTP request.
