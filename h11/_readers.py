@@ -236,7 +236,7 @@ class ChunkedReader(object):
                 return None
             matches = validate(chunk_header_re, chunk_header)
             # XX FIXME: we discard chunk extensions. Does anyone care?
-            self._bytes_in_chunk = int(matches["chunk_size"], base=16)
+            self._bytes_in_chunk = int(bytes(matches["chunk_size"]), base=16)
             if self._bytes_in_chunk == 0:
                 self._reading_trailer = True
                 return self(buf)
