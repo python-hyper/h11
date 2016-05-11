@@ -1,8 +1,10 @@
 import socket
+import ssl
 import h11
 
 conn = h11.Connection(our_role=h11.CLIENT)
-sock = socket.create_connection(("www.python.org", 80))
+sock = ssl.wrap_socket(socket.create_connection(("www.python.org", 443)),
+                       server_hostname="www.python.org")
 
 def send(event):
     # Pass the event through h11's state machine and encoding machinery
