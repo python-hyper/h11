@@ -16,9 +16,9 @@ directly at the top level:
 
    @verbatim
    In [3]: h11.<TAB>
-   h11.CLIENT                 h11.MIGHT_SWITCH_PROTOCOL
-   h11.CLOSED                 h11.MUST_CLOSE
-   h11.Connection             h11.Paused
+   h11.CLIENT                 h11.MUST_CLOSE
+   h11.CLOSED                 h11.Paused
+   h11.Connection             h11.PRODUCT_ID
    h11.ConnectionClosed       h11.ProtocolError
    h11.Data                   h11.Request
    h11.DONE                   h11.Response
@@ -26,11 +26,11 @@ directly at the top level:
    h11.ERROR                  h11.SEND_RESPONSE
    h11.IDLE                   h11.SERVER
    h11.InformationalResponse  h11.SWITCHED_PROTOCOL
+   h11.MIGHT_SWITCH_PROTOCOL
 
-These symbols fall into three categories: event classes, special
+These symbols fall into three main categories: event classes, special
 constants used to track different connection states, and the
 :class:`Connection` class. We'll describe them in that order.
-
 
 .. _events:
 
@@ -935,3 +935,25 @@ Here's a sketch of what this might look like:
 This works with all the different framing modes (``Content-Length``,
 ``Transfer-Encoding: chunked``, etc.) -- h11 will add any necessary
 framing data, update its internal state, and away you go.
+
+
+Identifying h11 in requests and responses
+.........................................
+
+According to RFC 7231, client requests are supposed to include a
+``User-Agent:`` header identifying what software they're using, and
+servers are supposed to respond with a ``Server:`` header doing the
+same. h11 doesn't construct these headers for you, but to make it
+easier for you to construct this header, it provides:
+
+.. data:: PRODUCT_ID
+
+   A string suitable for identifying the current version of h11 in a
+   ``User-Agent:`` or ``Server:`` header.
+
+   The version of h11 that was used to build these docs identified
+   itself as:
+
+   .. ipython:: python
+
+      h11.PRODUCT_ID

@@ -6,6 +6,9 @@
 # semantics to check that what you're asking to write to the wire is sensible,
 # but at least it gets you out of dealing with the wire itself.
 
+from ._version import __version__
+PRODUCT_ID = "h11/" + __version__
+
 from ._util import ProtocolError
 from ._events import *
 from ._connection import *
