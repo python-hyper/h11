@@ -197,7 +197,7 @@ STATE_TRIGGERED_TRANSITIONS = {
     (IDLE, CLOSED): {CLIENT: MUST_CLOSE},
 }
 
-class ConnectionState:
+class ConnectionState(object):
     def __init__(self):
         # Extra bits of state that don't quite fit into the state model.
 

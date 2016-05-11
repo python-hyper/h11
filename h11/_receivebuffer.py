@@ -13,7 +13,7 @@ __all__ = ["ReceiveBuffer"]
 #   of constantly copying
 # WARNING:
 # - I haven't benchmarked or profiled any of this yet.
-class ReceiveBuffer:
+class ReceiveBuffer(object):
     def __init__(self):
         self._data = bytearray()
         # These are both absolute offsets into self._data:

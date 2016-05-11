@@ -32,7 +32,7 @@ def validate(regex, data, msg="malformed data"):
 
 # Sentinel values
 # Inherits identity-based comparison and hashing from object
-class Sentinel:
+class Sentinel(object):
     def __init__(self, name):
         self._name = name
 

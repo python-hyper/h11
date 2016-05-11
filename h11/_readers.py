@@ -205,7 +205,7 @@ chunk_header = (
     .format(**globals()))
 
 chunk_header_re = re.compile(chunk_header.encode("ascii"))
-class ChunkedReader:
+class ChunkedReader(object):
     def __init__(self):
         self._bytes_in_chunk = 0
         # After reading a chunk, we have to throw away the trailing \r\n; if
@@ -250,7 +250,7 @@ class ChunkedReader:
         return Data(data=data)
 
 
-class Http10Reader:
+class Http10Reader(object):
     def __call__(self, buf):
         data = buf.maybe_extract_at_most(999999999)
         if data is None:

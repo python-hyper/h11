@@ -20,7 +20,7 @@ __all__ = [
 ]
 
 
-class _EventBundle:
+class _EventBundle(object):
     _fields = []
     _defaults = {}
 
