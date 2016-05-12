@@ -236,6 +236,8 @@ class ChunkedReader(object):
                 return None
             matches = validate(chunk_header_re, chunk_header)
             # XX FIXME: we discard chunk extensions. Does anyone care?
+            # We convert to bytes because Python 2's `int()` function doesn't
+            # work properly on bytearray objects.
             self._bytes_in_chunk = int(bytes(matches["chunk_size"]), base=16)
             if self._bytes_in_chunk == 0:
                 self._reading_trailer = True
