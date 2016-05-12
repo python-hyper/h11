@@ -9,6 +9,7 @@ sudo: false
 
 before_install:
   - pip install -r test-requirements.txt
+  - pip install codecov
 
 script:
   - py.test --cov=h11 --cov-config=.coveragerc h11
