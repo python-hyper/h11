@@ -53,7 +53,7 @@ def write_any_response(response, write):
     write(bytesmod(b"HTTP/1.1 %s \r\n", (status_bytes,)))
     write_headers(response.headers, write)
 
-class BodyWriter:
+class BodyWriter(object):
     def __call__(self, event, write):
         if type(event) is Data:
             self.send_data(event.data, write)

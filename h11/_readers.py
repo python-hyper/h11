@@ -205,7 +205,7 @@ chunk_header = (
     .format(**globals()))
 
 chunk_header_re = re.compile(chunk_header.encode("ascii"))
-class ChunkedReader:
+class ChunkedReader(object):
     def __init__(self):
         self._bytes_in_chunk = 0
         # After reading a chunk, we have to throw away the trailing \r\n; if
@@ -236,7 +236,9 @@ class ChunkedReader:
                 return None
             matches = validate(chunk_header_re, chunk_header)
             # XX FIXME: we discard chunk extensions. Does anyone care?
-            self._bytes_in_chunk = int(matches["chunk_size"], base=16)
+            # We convert to bytes because Python 2's `int()` function doesn't
+            # work properly on bytearray objects.
+            self._bytes_in_chunk = int(bytes(matches["chunk_size"]), base=16)
             if self._bytes_in_chunk == 0:
                 self._reading_trailer = True
                 return self(buf)
@@ -250,7 +252,7 @@ class ChunkedReader:
         return Data(data=data)
 
 
-class Http10Reader:
+class Http10Reader(object):
     def __call__(self, buf):
         data = buf.maybe_extract_at_most(999999999)
         if data is None:

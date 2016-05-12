@@ -108,10 +108,8 @@ library.
 It has a test suite with 100.0% coverage for both statements and
 branches.
 
-Currently it only supports Python 3 (testing on 3.3-3.5), though it
-wouldn't be hard to expand add Python 2.7 support too, I just haven't
-gotten around to it. Feel free to submit a PR. (Originally it had a
-Cython wrapper for `http-parser
+Currently it supports Python 3 (testing on 3.3-3.5), Python 2.7, and PyPy.
+(Originally it had a Cython wrapper for `http-parser
 <https://github.com/nodejs/http-parser>`_ and a beautiful nested state
 machine implemented with ``yield from`` to postprocess the output. But
 I had to take these out -- the new *parser* needs fewer lines-of-code

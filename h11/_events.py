@@ -20,7 +20,7 @@ __all__ = [
 ]
 
 
-class _EventBundle:
+class _EventBundle(object):
     _fields = []
     _defaults = {}
 
@@ -69,6 +69,12 @@ class _EventBundle:
     def __eq__(self, other):
         return (self.__class__ == other.__class__
                 and self.__dict__ == other.__dict__)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    # This is an unhashable type.
+    __hash__ = None
 
 
 class Request(_EventBundle):
