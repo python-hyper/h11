@@ -13,9 +13,17 @@ or just:
    cd fuzz
    PYTHONPATH=.. py-afl-fuzz -o results -i afl-server-examples/ -- python ./afl-server.py
 
-(You may need to add ``AFL_SKIP_CPUFREQ=1`` if you want to play with
-it on a laptop and don't want to bother messing with your cpufreq
-config.)
+Note 1: You may need to add ``AFL_SKIP_CPUFREQ=1`` if you want to play
+with it on a laptop and don't want to bother messing with your cpufreq
+config.
+
+Note 2: You may see some false "hangs" due to afl's aggressive default
+timeouts. I think this might be intentional, and serve to discourage
+afl from wasting time exploring arbitrarily longer and longer inputs?
+Or you can set the timeout explicitly with ``-t $MILLISECONDS``.
+
+Note 3: `Parallel fuzzing is a good thing
+<https://github.com/mirrorer/afl/blob/master/docs/parallel_fuzzing.txt>`_.
 
 Right now we just have a simple test that throws garbage at the server
 ``receive_data`` and makes sure that it's either accepted or raises
