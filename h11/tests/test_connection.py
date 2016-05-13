@@ -837,3 +837,16 @@ def test_408_request_timeout():
     # anything from client
     p = ConnectionPair()
     p.send(SERVER, Response(status_code=408, headers=[]))
+
+# This used to raise IndexError
+def test_empty_request():
+    c = Connection(SERVER)
+    with pytest.raises(ProtocolError):
+        c.receive_data(b"\r\n")
+
+# This used to raise IndexError
+def test_empty_response():
+    c = Connection(CLIENT)
+    c.send(Request(method="GET", target="/", headers=[("Host", "a")]))
+    with pytest.raises(ProtocolError):
+        c.receive_data(b"\r\n")
