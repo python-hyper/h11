@@ -140,6 +140,8 @@ def maybe_read_from_IDLE_client(buf):
     lines = buf.maybe_extract_lines()
     if lines is None:
         return None
+    if not lines:
+        raise ProtocolError("no request line received")
     matches = validate(request_line_re, lines[0])
     return Request(headers=list(_decode_header_lines(lines[1:])), **matches)
 
@@ -165,6 +167,8 @@ def maybe_read_from_SEND_RESPONSE_server(buf):
     lines = buf.maybe_extract_lines()
     if lines is None:
         return None
+    if not lines:
+        raise ProtocolError("no response line received")
     matches = validate(status_line_re, lines[0])
     status_code = matches["status_code"] = int(matches["status_code"])
     class_ = InformationalResponse if status_code < 200 else Response
