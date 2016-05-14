@@ -1,4 +1,5 @@
 include LICENSE.txt README.rst notes.org tiny-client-demo.py
 recursive-include docs *
 recursive-include h11/tests/data *
+recursive-include fuzz *
 prune doc/build
