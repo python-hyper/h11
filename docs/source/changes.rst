@@ -1,4 +1,9 @@
 History of changes
 ==================
 
-No releases yet.
+.. currentmodule:: h11
+
+v0.5.0
+------
+
+* Initial release.
