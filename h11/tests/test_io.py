@@ -331,3 +331,23 @@ def test_Http10Writer():
 
     with pytest.raises(ProtocolError):
         dowrite(w, EndOfMessage(headers=[("Etag", "asdf")]))
+
+def test_reject_garbage_after_request_line():
+    with pytest.raises(ProtocolError):
+        tr(READERS[SERVER, SEND_RESPONSE],
+           b"HTTP/1.0 200 OK\x00xxxx\r\n\r\n",
+           None)
+
+def test_reject_garbage_after_response_line():
+    with pytest.raises(ProtocolError):
+        tr(READERS[CLIENT, IDLE],
+           b"HEAD /foo HTTP/1.1 xxxxxx\r\n"
+           b"Host: a\r\n\r\n",
+           None)
+
+def test_reject_garbage_in_header_line():
+    with pytest.raises(ProtocolError):
+        tr(READERS[CLIENT, IDLE],
+           b"HEAD /foo HTTP/1.1\r\n"
+           b"Host: foo\x00bar\r\n\r\n",
+           None)

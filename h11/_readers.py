@@ -128,11 +128,13 @@ method = token
 request_target = r"[^ ]+"
 http_version = r"HTTP/(?P<http_version>[0-9]\.[0-9])"
 request_line = (
+    r"^"
     r"(?P<method>{method})"
     r" "
     r"(?P<target>{request_target})"
     r" "
     r"{http_version}"
+    r"$"
     .format(**globals()))
 request_line_re = re.compile(request_line.encode("ascii"))
 
