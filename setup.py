@@ -1,4 +1,3 @@
-import sys
 from setuptools import setup, find_packages
 
 # defines __version__
@@ -18,7 +17,7 @@ setup(
     # This means, just install *everything* you see under zs/, even if it
     # doesn't look like a source file, so long as it appears in MANIFEST.in:
     include_package_data=True,
-    classifiers = [
+    classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
