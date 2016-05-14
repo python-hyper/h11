@@ -281,6 +281,21 @@ def test_ChunkedReader():
                   + b"0\r\n\r\n",
                   [Data(data=b"x" * 0xaa), EndOfMessage()])
 
+    # refuses arbitrarily long chunk integers
+    with pytest.raises(ProtocolError):
+        # Technically this is legal HTTP/1.1, but we refuse to process chunk
+        # sizes that don't fit into 20 characters of hex
+        t_body_reader(ChunkedReader,
+                      b"9" * 100
+                      + b"\r\nxxx",
+                      [Data(data=b"xxx")])
+
+    # refuses garbage in the chunk count
+    with pytest.raises(ProtocolError):
+        t_body_reader(ChunkedReader,
+                      b"10\x00\r\nxxx",
+                      None)
+
     # handles (and discards) "chunk extensions" omg wtf
     t_body_reader(ChunkedReader,
                   b"5; hello=there\r\n"
