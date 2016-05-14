@@ -92,10 +92,7 @@ def test_Connection_basics_and_content_length():
         b"content-length: 10\r\n\r\n")
 
     for conn in p.conns:
-        assert conn.state_of(CLIENT) is SEND_BODY
-        assert conn.client_state is SEND_BODY
-        assert conn.state_of(SERVER) is SEND_RESPONSE
-        assert conn.server_state is SEND_RESPONSE
+        assert conn.states == {CLIENT: SEND_BODY, SERVER: SEND_RESPONSE}
     assert p.conn[CLIENT].our_state is SEND_BODY
     assert p.conn[CLIENT].their_state is SEND_RESPONSE
     assert p.conn[SERVER].our_state is SEND_RESPONSE
@@ -114,8 +111,7 @@ def test_Connection_basics_and_content_length():
     assert data == b"HTTP/1.1 200 \r\ncontent-length: 11\r\n\r\n"
 
     for conn in p.conns:
-        assert conn.client_state is SEND_BODY
-        assert conn.server_state is SEND_BODY
+        assert conn.states == {CLIENT: SEND_BODY, SERVER: SEND_BODY}
 
     assert p.conn[CLIENT].their_http_version == b"1.1"
     assert p.conn[SERVER].their_http_version == b"1.1"
@@ -129,8 +125,7 @@ def test_Connection_basics_and_content_length():
     assert data == b""
 
     for conn in p.conns:
-        assert conn.client_state is DONE
-        assert conn.server_state is SEND_BODY
+        assert conn.states == {CLIENT: DONE, SERVER: SEND_BODY}
 
     data = p.send(SERVER, Data(data=b"1234567890"))
     assert data == b"1234567890"
@@ -141,8 +136,7 @@ def test_Connection_basics_and_content_length():
     assert data == b""
 
     for conn in p.conns:
-        assert conn.client_state is DONE
-        assert conn.server_state is DONE
+        assert conn.states == {CLIENT: DONE, SERVER: DONE}
 
 def test_chunked():
     p = ConnectionPair()
@@ -166,8 +160,7 @@ def test_chunked():
     p.send(SERVER, EndOfMessage())
 
     for conn in p.conns:
-        assert conn.client_state is DONE
-        assert conn.server_state is DONE
+        assert conn.states == {CLIENT: DONE, SERVER: DONE}
 
 def test_client_talking_to_http10_server():
     c = Connection(CLIENT)
@@ -259,7 +252,7 @@ def test_automagic_connection_close_handling():
                              ("Connection", "close")]),
             EndOfMessage()])
     for conn in p.conns:
-        assert conn.client_state is MUST_CLOSE
+        assert conn.states[CLIENT] is MUST_CLOSE
     # And if the client sets it, the server automatically echoes it back
     p.send(SERVER,
            # no header here...
@@ -270,8 +263,7 @@ def test_automagic_connection_close_handling():
                             headers=[("connection", "close")]),
                    EndOfMessage()])
     for conn in p.conns:
-        assert conn.client_state is MUST_CLOSE
-        assert conn.server_state is MUST_CLOSE
+        assert conn.states == {CLIENT: MUST_CLOSE, SERVER: MUST_CLOSE}
 
 
 def test_100_continue():
@@ -383,8 +375,7 @@ def test_reuse_simple():
            [Response(status_code=200, headers=[]),
             EndOfMessage()])
     for conn in p.conns:
-        assert conn.client_state is DONE
-        assert conn.server_state is DONE
+        assert conn.states == {CLIENT: DONE, SERVER: DONE}
         conn.prepare_to_reuse()
 
     p.send(CLIENT,
@@ -502,14 +493,14 @@ def test_protocol_switch():
             # No switch-related state change stuff yet; the client has to
             # finish the request before that kicks in
             for conn in p.conns:
-                assert conn.client_state is SEND_BODY
+                assert conn.states[CLIENT] is SEND_BODY
             p.send(CLIENT,
                    [Data(data=b"1"), EndOfMessage()],
                    expect=[Data(data=b"1"),
                            EndOfMessage(),
                            Paused(reason=MIGHT_SWITCH_PROTOCOL)])
             for conn in p.conns:
-                assert conn.client_state is MIGHT_SWITCH_PROTOCOL
+                assert conn.states[CLIENT] is MIGHT_SWITCH_PROTOCOL
             assert p.conn[SERVER].receive_data(None) == [
                 Paused(reason=MIGHT_SWITCH_PROTOCOL),
             ]
@@ -519,8 +510,7 @@ def test_protocol_switch():
         p = setup()
         p.send(SERVER, deny)
         for conn in p.conns:
-            assert conn.client_state is DONE
-            assert conn.server_state is SEND_BODY
+            assert conn.states == {CLIENT: DONE, SERVER: SEND_BODY}
         p.send(SERVER, EndOfMessage())
         # Check that re-use is still allowed after a denial
         for conn in p.conns:
@@ -531,8 +521,8 @@ def test_protocol_switch():
         p.send(SERVER, accept,
                expect=[accept, Paused(reason=SWITCHED_PROTOCOL)])
         for conn in p.conns:
-            assert conn.client_state is SWITCHED_PROTOCOL
-            assert conn.server_state is SWITCHED_PROTOCOL
+            assert conn.states == {CLIENT: SWITCHED_PROTOCOL,
+                                   SERVER: SWITCHED_PROTOCOL}
             assert conn.receive_data(b"123") == [
                 Paused(reason=SWITCHED_PROTOCOL),
             ]
@@ -617,8 +607,10 @@ def test_close_simple():
             p = ConnectionPair()
             p.send(who_shot_first, ConnectionClosed())
             for conn in p.conns:
-                assert conn.state_of(who_shot_first) is CLOSED
-                assert conn.state_of(who_shot_second) is MUST_CLOSE
+                assert conn.states == {
+                    who_shot_first: CLOSED,
+                    who_shot_second: MUST_CLOSE,
+                }
             return p
         # You can keep putting b"" into a closed connection, and you keep
         # getting ConnectionClosed() out:
@@ -656,16 +648,14 @@ def test_close_different_states():
     p = ConnectionPair()
     p.send(CLIENT, ConnectionClosed())
     for conn in p.conns:
-        assert conn.client_state is CLOSED
-        assert conn.server_state is MUST_CLOSE
+        assert conn.states == {CLIENT: CLOSED, SERVER: MUST_CLOSE}
 
     # Client after request
     p = ConnectionPair()
     p.send(CLIENT, req)
     p.send(CLIENT, ConnectionClosed())
     for conn in p.conns:
-        assert conn.client_state is CLOSED
-        assert conn.server_state is SEND_RESPONSE
+        assert conn.states == {CLIENT: CLOSED, SERVER: SEND_RESPONSE}
 
     # Server after request -> not allowed
     p = ConnectionPair()
@@ -681,8 +671,7 @@ def test_close_different_states():
     p.send(SERVER, resp)
     p.send(SERVER, ConnectionClosed())
     for conn in p.conns:
-        assert conn.client_state is MUST_CLOSE
-        assert conn.server_state is CLOSED
+        assert conn.states == {CLIENT: MUST_CLOSE, SERVER: CLOSED}
 
     # Both after closing (ConnectionClosed() is idempotent)
     p = ConnectionPair()
@@ -714,10 +703,10 @@ def test_pipelined_close():
         b"GET /2 HTTP/1.1\r\nHost: a.com\r\nContent-Length: 5\r\n\r\n"
         b"67890")
     c.receive_data(b"")
-    assert c.client_state is DONE
+    assert c.states[CLIENT] is DONE
     c.send(Response(status_code=200, headers=[]))
     c.send(EndOfMessage())
-    assert c.server_state is DONE
+    assert c.states[SERVER] is DONE
     c.prepare_to_reuse()
     assert c.receive_data(None) == [
         Request(method="GET", target="/2",
@@ -726,13 +715,12 @@ def test_pipelined_close():
         EndOfMessage(),
         ConnectionClosed(),
     ]
-    assert c.client_state is CLOSED
-    assert c.server_state is SEND_RESPONSE
+    assert c.states == {CLIENT: CLOSED, SERVER: SEND_RESPONSE}
     c.send(Response(status_code=200, headers=[]))
     c.send(EndOfMessage())
-    assert c.server_state is MUST_CLOSE
+    assert c.states == {CLIENT: CLOSED, SERVER: MUST_CLOSE}
     c.send(ConnectionClosed())
-    assert c.server_state is CLOSED
+    assert c.states == {CLIENT: CLOSED, SERVER: CLOSED}
 
 def test_sendfile():
     class SendfilePlaceholder:

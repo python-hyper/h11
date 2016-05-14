@@ -153,30 +153,16 @@ class Connection(object):
         # transitions, so no need to bother ConnectionState with it:
         self.client_is_waiting_for_100_continue = False
 
-    def state_of(self, role):
-        """Returns the current state of either the client or server. See
-        :ref:`state-machine` for details.
+    @property
+    def states(self):
+        """A dictionary like::
 
-        Args:
-            role: Either :data:`CLIENT` or :data:`SERVER`.
+           {CLIENT: <client state>, SERVER: <server state>}
 
-        Returns:
-            A state object, like :data:`IDLE`.
+        See :ref:`state-machine` for details.
 
         """
-        return self._cstate.states[role]
-
-    @property
-    def client_state(self):
-        """The current state of the client. See :ref:`state-machine` for
-        details."""
-        return self._cstate.states[CLIENT]
-
-    @property
-    def server_state(self):
-        """The current state of the server. See :ref:`state-machine` for
-        details."""
-        return self._cstate.states[SERVER]
+        return dict(self._cstate.states)
 
     @property
     def our_state(self):
@@ -358,9 +344,13 @@ class Connection(object):
 
         Raises:
             ProtocolError:
-                The peer has misbehaved. (Potentially this could result in
-                other types of exceptions too, but if it does then that's a
-                bug in h11 and we'd appreciate if you could let us know.)
+                The peer has misbehaved. You should close the connection
+                (possibly after sending some kind of 400 response).
+
+        For robustness you might want to be prepared to catch other exceptions
+        as well, but if this happens then please do file a bug report as well
+        -- the intention is that :exc:`ProtocolError` is the *only* exception
+        that this method should be able to raise.
 
         If this method raises any exception then it also sets
         :attr:`Connection.their_state` to :data:`ERROR` -- see

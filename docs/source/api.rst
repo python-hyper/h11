@@ -308,7 +308,7 @@ state :data:`IDLE` / :data:`IDLE`:
 .. ipython:: python
 
    conn = h11.Connection(our_role=h11.CLIENT)
-   conn.client_state, conn.server_state
+   conn.states
 
 And then if the client sends a :class:`Request`, then the client
 switches to state :data:`SEND_BODY`, while the server switches to
@@ -317,7 +317,7 @@ state :data:`SEND_RESPONSE`:
 .. ipython:: python
 
    conn.send(h11.Request(method="GET", target="/", headers=[("Host", "example.com")]));
-   conn.client_state, conn.server_state
+   conn.states
 
 And we can test these values directly using constants like :data:`SEND_BODY`:
 
@@ -358,11 +358,9 @@ want to implement:
 
       :data:`SERVER` if this is a client; :data:`CLIENT` if this is a server.
 
-   .. autoattribute:: client_state
-   .. autoattribute:: server_state
+   .. autoattribute:: states
    .. autoattribute:: our_state
    .. autoattribute:: their_state
-   .. automethod:: state_of
 
    .. attribute:: their_http_version
 
