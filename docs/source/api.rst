@@ -323,7 +323,7 @@ And we can test these values directly using constants like :data:`SEND_BODY`:
 
 .. ipython:: python
 
-   conn.client_state is h11.SEND_BODY
+   conn.states[h11.CLIENT] is h11.SEND_BODY
 
 This shows how the :class:`Connection` type tracks these state
 machines and lets you query their current state.
