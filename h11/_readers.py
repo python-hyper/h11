@@ -77,13 +77,11 @@ field_value = r"({field_content})?".format(**globals())
 
 #  header-field   = field-name ":" OWS field-value OWS
 header_field = (
-    r"^"
     r"(?P<field_name>{field_name})"
     r":"
     r"{OWS}"
     r"(?P<field_value>{field_value})"
     r"{OWS}"
-    r"$"
     .format(**globals()))
 header_field_re = re.compile(header_field.encode("ascii"))
 
@@ -128,13 +126,11 @@ method = token
 request_target = r"[^ ]+"
 http_version = r"HTTP/(?P<http_version>[0-9]\.[0-9])"
 request_line = (
-    r"^"
     r"(?P<method>{method})"
     r" "
     r"(?P<target>{request_target})"
     r" "
     r"{http_version}"
-    r"$"
     .format(**globals()))
 request_line_re = re.compile(request_line.encode("ascii"))
 
@@ -155,13 +151,11 @@ def maybe_read_from_IDLE_client(buf):
 status_code = r"[0-9]{3}"
 reason_phrase = r"([ \t]|{vchar_or_obs_text})*".format(**globals())
 status_line = (
-    r"^"
     r"{http_version}"
     r" "
     r"(?P<status_code>{status_code})"
     r" "
     r"{reason_phrase}"
-    r"$"
     .format(**globals()))
 status_line_re = re.compile(status_line.encode("ascii"))
 

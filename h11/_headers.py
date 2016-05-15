@@ -55,7 +55,7 @@ from ._util import ProtocolError, bytesify, validate
 #
 # Maybe a dict-of-lists would be better?
 
-_content_length_re = re.compile(br"^[0-9]+$")
+_content_length_re = re.compile(br"[0-9]+")
 
 def normalize_and_validate(headers):
     new_headers = []

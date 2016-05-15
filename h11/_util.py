@@ -24,8 +24,15 @@ class ProtocolError(Exception):
         Exception.__init__(self, msg)
         self.error_status_hint = error_status_hint
 
-def validate(regex, data, msg="malformed data"):
+# Equivalent to python 3.4's regex.fullmatch(data)
+def _fullmatch(regex, data): # version specific: Python < 3.4
     match = regex.match(data)
+    if match and match.end() != len(data):
+        match = None
+    return match
+
+def validate(regex, data, msg="malformed data"):
+    match = _fullmatch(regex, data)
     if not match:
         raise ProtocolError(msg)
     return match.groupdict()

@@ -21,6 +21,8 @@ def test_normalize_and_validate():
     with pytest.raises(ProtocolError):
         normalize_and_validate([("Content-Length", "asdf")])
     with pytest.raises(ProtocolError):
+        normalize_and_validate([("Content-Length", "1x")])
+    with pytest.raises(ProtocolError):
         normalize_and_validate([
             ("Content-Length", "1"),
             ("Content-Length", "2"),

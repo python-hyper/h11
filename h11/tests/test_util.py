@@ -25,6 +25,12 @@ def test_validate():
     groups = validate(my_re, b"0.1")
     assert groups == {"group1": b"0", "group2": b"1"}
 
+    # successful partial matches are an error - must match whole string
+    with pytest.raises(ProtocolError):
+        validate(my_re, b"0.1xx")
+    with pytest.raises(ProtocolError):
+        validate(my_re, b"0.1\n")
+
 def test_Sentinel():
     S = Sentinel("S")
     assert repr(S) == "S"
