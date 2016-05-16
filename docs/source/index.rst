@@ -21,16 +21,17 @@ support the full specification in the sense that any useful HTTP/1.1
 conformant application should be able to use h11.
 
 This is a "bring-your-own-I/O" protocol library; like h2, it contains
-no IO code whatsoever. This means you can hook h11 up to your favorite
-network API, and that could be anything you want: synchronous,
-threaded, asynchronous, or your own implementation of `RFC 6214
-<https://tools.ietf.org/html/rfc6214>`_ -- h11 won't judge you.  This
-is h11's main feature compared to the current state of the art, where
-every HTTP library is tightly bound to a particular network framework,
-and every time a `new network API <https://curio.readthedocs.io/>`_
-comes along then someone has to start over reimplementing the entire
-HTTP stack from scratch.  We highly recommend `Cory Benfield's
-excellent blog post about the advantages of this approach
+no I/O code whatsoever. This means you can hook h11 up to your
+favorite network API, and that could be anything you want:
+synchronous, threaded, asynchronous, or your own implementation of
+`RFC 6214 <https://tools.ietf.org/html/rfc6214>`_ -- h11 won't judge
+you.  This is h11's main feature compared to the current state of the
+art, where every HTTP library is tightly bound to a particular network
+framework, and every time a `new network API
+<https://curio.readthedocs.io/>`_ comes along then someone has to
+start over reimplementing the entire HTTP stack from scratch.  We
+highly recommend `Cory Benfield's excellent blog post about the
+advantages of this approach
 <https://lukasa.co.uk/2015/10/The_New_Hyper/>`_.
 
 This also means that h11 is not immediately useful out of the box:
@@ -39,13 +40,15 @@ that could directly replace ``requests`` or ``twisted.web`` or
 whatever. But h11 makes it much easier to implement something like
 ``requests`` or ``twisted.web``.
 
-Vital statistics:
+
+Vital statistics
+----------------
 
 * Requirements: Python 2.7 or Python 3.3+, including PyPy
 
-* Install: *not yet*
+* Install: ``pip install h11``
 
-* Source: https://github.com/njsmith/h11
+* Sources and bug tracker: https://github.com/njsmith/h11
 
 * Docs: https://h11.readthedocs.io
 

@@ -143,11 +143,12 @@ details.
 
 *How do I try it?*
 
-There aren't any official releases yet -- I'd start with:
+.. code-block:: sh
 
+  $ pip install h11
   $ git clone git@github.com:njsmith/h11
-  $ cd h11
-  $ python3 tiny-client-demo.py
+  $ cd h11/examples
+  $ python tiny-client-demo.py
 
 and go from there.
 
