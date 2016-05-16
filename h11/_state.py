@@ -112,7 +112,7 @@
 # script to keep it in sync!
 
 from ._events import *
-from ._util import ProtocolError, Sentinel
+from ._util import LocalProtocolError, Sentinel
 
 # Everything in __all__ gets re-exported as part of the h11 public API.
 __all__ = []
@@ -193,8 +193,10 @@ STATE_TRIGGERED_TRANSITIONS = {
     # Socket shutdown
     (CLOSED, DONE): {SERVER: MUST_CLOSE},
     (CLOSED, IDLE): {SERVER: MUST_CLOSE},
+    (ERROR, DONE): {SERVER: MUST_CLOSE},
     (DONE, CLOSED): {CLIENT: MUST_CLOSE},
     (IDLE, CLOSED): {CLIENT: MUST_CLOSE},
+    (DONE, ERROR): {CLIENT: MUST_CLOSE},
 }
 
 class ConnectionState(object):
@@ -227,7 +229,7 @@ class ConnectionState(object):
         if server_switch_event is not None:
             assert role is SERVER
             if server_switch_event not in self.pending_switch_proposals:
-                raise ProtocolError(
+                raise LocalProtocolError(
                     "Received server {} event without a pending proposal"
                     .format(server_switch_event))
             event_type = (event_type, server_switch_event)
@@ -246,7 +248,7 @@ class ConnectionState(object):
         try:
             new_state = EVENT_TRIGGERED_TRANSITIONS[role][state][event_type]
         except KeyError:
-            raise ProtocolError(
+            raise LocalProtocolError(
                 "can't handle event type {} for {} in state {}"
                 .format(event_type, role, self.states[role]))
         self.states[role] = new_state
@@ -293,7 +295,7 @@ class ConnectionState(object):
 
     def prepare_to_reuse(self):
         if self.states != {CLIENT: DONE, SERVER: DONE}:
-            raise ProtocolError("not in a reusable state")
+            raise LocalProtocolError("not in a reusable state")
         # Can't reach DONE/DONE with any of these active, but still, let's be
         # sure.
         assert self.keep_alive

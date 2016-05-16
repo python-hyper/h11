@@ -27,16 +27,21 @@ Note 3: `Parallel fuzzing is a good thing
 
 Right now we just have a simple test that throws garbage at the server
 ``receive_data`` and makes sure that it's either accepted or raises
-``ProtocolError``, never any other exceptions. (Here's a `bug in
+``RemoteProtocolError``, never any other exceptions. (As an example of
+how even this relatively simple thing can catch bugs, here's a `bug in
 gunicorn <https://github.com/benoitc/gunicorn/issues/1023>`_ that was
-found by applying this technique to gunicorn.)
+found by this approach, and `here's a bug this found in h11
+<https://github.com/njsmith/h11/commit/83bb5f34dc2ae45dedb594af94f7ddc5bf09ebba>`_... though
+that one's so simple that even basic fuzz-testing would have found it
+without any of afl's cleverness.)
+
 
 Ideas for further additions
 ---------------------------
 
 * Teach afl-server.py to watch the state machine and send responses
-  back to get things unpaused, to allow for fuzzing of pipelined and
-  unsuccessful protocol switches
+  back to get things unpaused, to allow for fuzzing of pipelined
+  requests and unsuccessful protocol switches
 
 * Add a client-side fuzzer too
 

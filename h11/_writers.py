@@ -7,7 +7,7 @@
 # - a writer
 # - or, for body writers, a dict of framin-dependent writer factories
 
-from ._util import ProtocolError
+from ._util import LocalProtocolError
 from ._events import Data, EndOfMessage
 from ._state import CLIENT, SERVER, IDLE, SEND_RESPONSE, SEND_BODY
 
@@ -33,14 +33,14 @@ def write_headers(headers, write):
 # header field following the request-line." - RFC 7230
 def write_request(request, write):
     if request.http_version != b"1.1":
-        raise ProtocolError("I only send HTTP/1.1")
+        raise LocalProtocolError("I only send HTTP/1.1")
     write(bytesmod(b"%s %s HTTP/1.1\r\n", (request.method, request.target)))
     write_headers(request.headers, write)
 
 # Shared between InformationalResponse and Response
 def write_any_response(response, write):
     if response.http_version != b"1.1":
-        raise ProtocolError("I only send HTTP/1.1")
+        raise LocalProtocolError("I only send HTTP/1.1")
     status_bytes = str(response.status_code).encode("ascii")
     # We don't bother sending ascii status messages like "OK"; they're
     # optional and ignored by the protocol. (But the space after the numeric
@@ -75,14 +75,16 @@ class ContentLengthWriter(BodyWriter):
     def send_data(self, data, write):
         self._length -= len(data)
         if self._length < 0:
-            raise ProtocolError("Too much data for declared Content-Length")
+            raise LocalProtocolError(
+                "Too much data for declared Content-Length")
         write(data)
 
     def send_eom(self, headers, write):
         if self._length != 0:
-            raise ProtocolError("Too little data for declared Content-Length")
+            raise LocalProtocolError(
+                "Too little data for declared Content-Length")
         if headers:
-            raise ProtocolError("Content-Length and trailers don't mix")
+            raise LocalProtocolError("Content-Length and trailers don't mix")
 
 class ChunkedWriter(BodyWriter):
     def send_data(self, data, write):
@@ -100,7 +102,8 @@ class Http10Writer(BodyWriter):
 
     def send_eom(self, headers, write):
         if headers:
-            raise ProtocolError("can't send trailers to HTTP/1.0 client")
+            raise LocalProtocolError(
+                "can't send trailers to HTTP/1.0 client")
         # no need to close the socket ourselves, that will be taken care of by
         # Connection: close machinery
 

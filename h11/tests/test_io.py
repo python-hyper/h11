@@ -1,6 +1,6 @@
 import pytest
 
-from .._util import ProtocolError
+from .._util import LocalProtocolError
 from .._receivebuffer import ReceiveBuffer
 from .._headers import normalize_and_validate
 from .._state import *
@@ -92,13 +92,13 @@ def test_writers_unusual():
     tw(write_headers, [], b"\r\n")
 
     # We understand HTTP/1.0, but we don't speak it
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         tw(write_request,
            Request(method="GET", target="/",
                    headers=[("Host", "foo"), ("Connection", "close")],
                    http_version="1.0"),
            None)
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         tw(write_any_response,
            Response(status_code=200, headers=[("Connection", "close")],
                     http_version="1.0"),
@@ -158,28 +158,28 @@ def test_readers_unusual():
                    ("Connection", "close"),
                    ]))
 
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         tr(READERS[CLIENT, IDLE],
            b"HEAD /foo HTTP/1.1\r\n"
            b"  folded: line\r\n\r\n",
            None)
 
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         tr(READERS[CLIENT, IDLE],
            b"HEAD /foo HTTP/1.1\r\n"
            b"foo  : line\r\n\r\n",
            None)
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         tr(READERS[CLIENT, IDLE],
            b"HEAD /foo HTTP/1.1\r\n"
            b"foo\t: line\r\n\r\n",
            None)
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         tr(READERS[CLIENT, IDLE],
            b"HEAD /foo HTTP/1.1\r\n"
            b"foo\t: line\r\n\r\n",
            None)
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         tr(READERS[CLIENT, IDLE],
            b"HEAD /foo HTTP/1.1\r\n"
            b": line\r\n\r\n",
@@ -282,7 +282,7 @@ def test_ChunkedReader():
                   [Data(data=b"x" * 0xaa), EndOfMessage()])
 
     # refuses arbitrarily long chunk integers
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         # Technically this is legal HTTP/1.1, but we refuse to process chunk
         # sizes that don't fit into 20 characters of hex
         t_body_reader(ChunkedReader,
@@ -291,7 +291,7 @@ def test_ChunkedReader():
                       [Data(data=b"xxx")])
 
     # refuses garbage in the chunk count
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         t_body_reader(ChunkedReader,
                       b"10\x00\r\nxxx",
                       None)
@@ -310,23 +310,23 @@ def test_ContentLengthWriter():
     assert dowrite(w, EndOfMessage()) == b""
 
     w = ContentLengthWriter(5)
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         dowrite(w, Data(data=b"123456"))
 
     w = ContentLengthWriter(5)
     dowrite(w, Data(data=b"123"))
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         dowrite(w, Data(data=b"456"))
 
     w = ContentLengthWriter(5)
     dowrite(w, Data(data=b"123"))
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         dowrite(w, EndOfMessage())
 
     w = ContentLengthWriter(5)
     dowrite(w, Data(data=b"123")) == b"123"
     dowrite(w, Data(data=b"45")) == b"45"
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         dowrite(w, EndOfMessage(headers=[("Etag", "asdf")]))
 
 def test_ChunkedWriter():
@@ -344,24 +344,24 @@ def test_Http10Writer():
     assert dowrite(w, Data(data=b"1234")) == b"1234"
     assert dowrite(w, EndOfMessage()) == b""
 
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         dowrite(w, EndOfMessage(headers=[("Etag", "asdf")]))
 
 def test_reject_garbage_after_request_line():
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         tr(READERS[SERVER, SEND_RESPONSE],
            b"HTTP/1.0 200 OK\x00xxxx\r\n\r\n",
            None)
 
 def test_reject_garbage_after_response_line():
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         tr(READERS[CLIENT, IDLE],
            b"HEAD /foo HTTP/1.1 xxxxxx\r\n"
            b"Host: a\r\n\r\n",
            None)
 
 def test_reject_garbage_in_header_line():
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         tr(READERS[CLIENT, IDLE],
            b"HEAD /foo HTTP/1.1\r\n"
            b"Host: foo\x00bar\r\n\r\n",

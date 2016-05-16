@@ -1,6 +1,6 @@
 import pytest
 
-from .._util import ProtocolError
+from .._util import LocalProtocolError
 from .. import _events
 from .._events import *
 
@@ -48,7 +48,7 @@ def test_event_bundle():
         T(a=0, b=0)
 
 def test_events():
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         # Missing Host:
         req = Request(method="GET", target="/", headers=[("a", "b")],
                       http_version="1.1")
@@ -73,7 +73,7 @@ def test_events():
     assert ir.headers == [(b"host", b"a")]
     assert ir.http_version == b"1.1"
 
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         InformationalResponse(status_code=200, headers=[("Host", "a")])
 
     resp = Response(status_code=204, headers=[], http_version="1.0")
@@ -81,13 +81,13 @@ def test_events():
     assert resp.headers == []
     assert resp.http_version == b"1.0"
 
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         resp = Response(status_code=100, headers=[], http_version="1.0")
 
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         Response(status_code="100", headers=[], http_version="1.0")
 
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         InformationalResponse(status_code=b"100",
                               headers=[], http_version="1.0")
 

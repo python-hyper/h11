@@ -1,28 +1,57 @@
-__all__ = ["ProtocolError", "validate", "Sentinel", "bytesify"]
+__all__ = ["ProtocolError", "LocalProtocolError", "RemoteProtocolError",
+           "validate", "Sentinel", "bytesify"]
 
-# This indicates either that you tried to do something that HTTP/1.1 says is
-# illegal, or that your peer did. Either way, you should probably close the
-# connection and think things over.
 class ProtocolError(Exception):
-    """This exception indicates a violation of the HTTP/1.1 protocol.
+    """Exception indicating a violation of the HTTP/1.1 protocol.
 
-    This might be because your perr tried to do something that HTTP/1.1 says
-    is illegal (if it's raised by :meth:`Connection.receive_data`), or that
-    you did. Either way, you should probably close the connection and think
-    things over.
+    This as an abstract base class, with two concrete base classes:
+    :exc:`LocalProtocolError`, which indicates that you tried to do something
+    that HTTP/1.1 says is illegal, and :exc:`RemoteProtocolError`, which
+    indicates that the remote peer tried to do something that HTTP/1.1 says is
+    illegal. See :ref:`error-handling` for details.
 
-    In addition to the normal Exception features, it has one attribute:
+    In addition to the normal :exc:`Exception` features, it has one attribute:
 
     .. attribute:: error_status_hint
 
-       If you're a server and you want to send an error response back to a
-       naughty client, then this gives a suggestion as to which status code
-       you might want to use. The default is 400 Bad Request, a generic
-       catch-all for protocol violations.
+       This gives a suggestion as to what status code a server might use if
+       this error occurred as part of a request.
+
+       For a :exc:`RemoteProtocolError`, this is useful as a suggestion for
+       how you might want to respond to a misbehaving peer, if you're
+       implementing a server.
+
+       For a :exc:`LocalProtocolError`, this can be taken as a suggestion for
+       how your peer might have responded to *you* if h11 had allowed you to
+       continue.
+
+       The default is 400 Bad Request, a generic catch-all for protocol
+       violations.
+
     """
     def __init__(self, msg, error_status_hint=400):
+        if type(self) is ProtocolError:
+            raise TypeError("tried to directly instantiate ProtocolError")
         Exception.__init__(self, msg)
         self.error_status_hint = error_status_hint
+
+
+# Strategy: there are a number of public APIs where a LocalProtocolError can
+# be raised (send(), all the different event constructors, ...), and only one
+# public API where RemoteProtocolError can be raised
+# (receive_data()). Therefore we always raise LocalProtocolError internally,
+# and then receive_data will translate this into a RemoteProtocolError.
+#
+# Internally:
+#   LocalProtocolError is the generic "ProtocolError".
+# Externally:
+#   LocalProtocolError is for local errors and RemoteProtocolError is for
+#   remote errors.
+class LocalProtocolError(ProtocolError):
+    pass
+
+class RemoteProtocolError(ProtocolError):
+    pass
 
 # Equivalent to python 3.4's regex.fullmatch(data)
 def _fullmatch(regex, data): # version specific: Python < 3.4
@@ -34,7 +63,7 @@ def _fullmatch(regex, data): # version specific: Python < 3.4
 def validate(regex, data, msg="malformed data"):
     match = _fullmatch(regex, data)
     if not match:
-        raise ProtocolError(msg)
+        raise LocalProtocolError(msg)
     return match.groupdict()
 
 # Sentinel values

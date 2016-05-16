@@ -1,7 +1,6 @@
-# Invariant:
-#   No matter what random garbage a client throws at us, we either
-#   successfully parse it, or else throw a ProtocolError, never any other
-#   error.
+# Invariant tested: No matter what random garbage a client throws at us, we
+# either successfully parse it, or else throw a RemoteProtocolError, never any
+# other error.
 
 import sys
 import os
@@ -24,7 +23,7 @@ server1 = h11.Connection(h11.SERVER)
 try:
     server1.receive_data(data)
     server1.receive_data(b"")
-except h11.ProtocolError:
+except h11.RemoteProtocolError:
     pass
 
 # byte at a time
@@ -32,11 +31,11 @@ server2 = h11.Connection(h11.SERVER)
 for i in range(len(data)):
     try:
         server2.receive_data(data[i:i + 1])
-    except h11.ProtocolError:
+    except h11.RemoteProtocolError:
         pass
 try:
     server2.receive_data(b"")
-except h11.ProtocolError:
+except h11.RemoteProtocolError:
     pass
 
 # Suggested by the afl-python docs -- this substantially speeds up fuzzing, at

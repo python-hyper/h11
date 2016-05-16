@@ -7,9 +7,9 @@ def test_normalize_and_validate():
     assert normalize_and_validate([(b"foo", b"bar")]) == [(b"foo", b"bar")]
 
     # no leading/trailing whitespace in names
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         normalize_and_validate([(b"foo ", "bar")])
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         normalize_and_validate([(b" foo", "bar")])
 
     # leading/trailing whitespace on values is stripped
@@ -18,11 +18,11 @@ def test_normalize_and_validate():
     # content-length
     assert (normalize_and_validate([("Content-Length", "1")])
             == [(b"content-length", b"1")])
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         normalize_and_validate([("Content-Length", "asdf")])
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         normalize_and_validate([("Content-Length", "1x")])
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         normalize_and_validate([
             ("Content-Length", "1"),
             ("Content-Length", "2"),
@@ -33,9 +33,9 @@ def test_normalize_and_validate():
             == [(b"transfer-encoding", b"chunked")])
     assert (normalize_and_validate([("Transfer-Encoding", "cHuNkEd")])
             == [(b"transfer-encoding", b"chunked")])
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         normalize_and_validate([("Transfer-Encoding", "gzip")])
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         normalize_and_validate([
             ("Transfer-Encoding", "chunked"),
             ("Transfer-Encoding", "gzip"),

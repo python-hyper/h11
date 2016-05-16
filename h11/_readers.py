@@ -3,7 +3,9 @@
 # Strategy: each reader is a callable which takes a ReceiveBuffer object, and
 # either:
 # 1) consumes some of it and returns an Event
-# 2) raises a ProtocolError
+# 2) raises a LocalProtocolError (for consistency -- e.g. we call validate()
+#    and it might raise a LocalProtocolError, so simpler just to always use
+#    this)
 # 3) returns None, meaning "I need more data"
 #
 # If they have a .read_eof attribute, then this will be called if an EOF is
@@ -15,7 +17,7 @@
 # - or, for body readers, a dict of per-framing reader factories
 
 import re
-from ._util import ProtocolError, validate
+from ._util import LocalProtocolError, validate
 from ._state import *
 from ._events import *
 
@@ -95,7 +97,8 @@ def _obsolete_line_fold(lines):
         match = obs_fold_re.match(line)
         if match:
             if last is None:
-                raise ProtocolError("continuation line at start of headers")
+                raise LocalProtocolError(
+                    "continuation line at start of headers")
             if not isinstance(last, bytearray):
                 last = bytearray(last)
             last += b" "
@@ -139,7 +142,7 @@ def maybe_read_from_IDLE_client(buf):
     if lines is None:
         return None
     if not lines:
-        raise ProtocolError("no request line received")
+        raise LocalProtocolError("no request line received")
     matches = validate(request_line_re, lines[0])
     return Request(headers=list(_decode_header_lines(lines[1:])), **matches)
 
@@ -164,7 +167,7 @@ def maybe_read_from_SEND_RESPONSE_server(buf):
     if lines is None:
         return None
     if not lines:
-        raise ProtocolError("no response line received")
+        raise LocalProtocolError("no response line received")
     matches = validate(status_line_re, lines[0])
     status_code = matches["status_code"] = int(matches["status_code"])
     class_ = InformationalResponse if status_code < 200 else Response
@@ -264,7 +267,7 @@ class Http10Reader(object):
 
 def expect_nothing(buf):
     if buf:
-        raise ProtocolError("Got data when expecting EOF")
+        raise LocalProtocolError("Got data when expecting EOF")
     return None
 
 READERS = {

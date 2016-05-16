@@ -1,6 +1,6 @@
 import pytest
 
-from .._util import ProtocolError
+from .._util import LocalProtocolError, RemoteProtocolError
 from .._events import *
 from .._state import *
 from .._connection import (
@@ -308,7 +308,7 @@ def test_max_buffer_size_countermeasure():
     # Infinitely long headers are definitely not okay
     c = Connection(SERVER)
     c.receive_data(b"GET / HTTP/1.0\r\nEndless: ")
-    with pytest.raises(ProtocolError):
+    with pytest.raises(RemoteProtocolError):
         while True:
             c.receive_data(b"a" * 1024)
 
@@ -325,7 +325,7 @@ def test_max_buffer_size_countermeasure():
 
     c = Connection(SERVER, max_buffer_size=4000)
     c.receive_data(b"GET / HTTP/1.0\r\nBig: ")
-    with pytest.raises(ProtocolError):
+    with pytest.raises(RemoteProtocolError):
         c.receive_data(b"a" * 4000)
 
     # Temporarily exceeding the max buffer size is fine; it's just maintaining
@@ -363,7 +363,7 @@ def test_max_buffer_size_countermeasure():
     c.send(Response(status_code=200, headers=[]))
     c.send(EndOfMessage())
     c.prepare_to_reuse()
-    with pytest.raises(ProtocolError):
+    with pytest.raises(RemoteProtocolError):
         c.receive_data(None)
 
 def test_reuse_simple():
@@ -450,7 +450,7 @@ def test_pipelining():
     with pytest.raises(RuntimeError):
         c.receive_data(b"FDSA")
     # Can't re-use after an error like that
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         c.prepare_to_reuse()
 
 
@@ -586,13 +586,13 @@ def test_protocol_switch():
         # You can't send after switching protocols, or while waiting for a
         # protocol switch
         p = setup()
-        with pytest.raises(ProtocolError):
+        with pytest.raises(LocalProtocolError):
             p.conn[CLIENT].send(
                 Request(method="GET", target="/", headers=[("Host", "a")]))
         p = setup()
         p.send(SERVER, accept,
                expect=[accept, Paused(reason=SWITCHED_PROTOCOL)])
-        with pytest.raises(ProtocolError):
+        with pytest.raises(LocalProtocolError):
             p.conn[SERVER].send(Data(data=b"123"))
 
 
@@ -635,7 +635,7 @@ def test_close_simple():
             p.conn[who_shot_second].receive_data(b"123")
         # And receiving new data on a MUST_CLOSE connection is a ProtocolError
         p = setup()
-        with pytest.raises(ProtocolError):
+        with pytest.raises(RemoteProtocolError):
             p.conn[who_shot_first].receive_data(b"GET")
 
 
@@ -660,9 +660,9 @@ def test_close_different_states():
     # Server after request -> not allowed
     p = ConnectionPair()
     p.send(CLIENT, req)
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         p.conn[SERVER].send(ConnectionClosed())
-    with pytest.raises(ProtocolError):
+    with pytest.raises(RemoteProtocolError):
         p.conn[CLIENT].receive_data(b"")
 
     # Server after response
@@ -687,9 +687,9 @@ def test_close_different_states():
     p.send(CLIENT,
            Request(method="GET", target="/",
                    headers=[("Host", "a"), ("Content-Length", "10")]))
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         p.conn[CLIENT].send(ConnectionClosed())
-    with pytest.raises(ProtocolError):
+    with pytest.raises(RemoteProtocolError):
         p.conn[SERVER].receive_data(b"")
 
 # Receive several requests and then client shuts down their side of the
@@ -758,13 +758,13 @@ def test_errors():
     # After a receive error, you can't receive
     for role in [CLIENT, SERVER]:
         c = Connection(our_role=role)
-        with pytest.raises(ProtocolError):
+        with pytest.raises(RemoteProtocolError):
             c.receive_data(b"gibberish\r\n\r\n")
         # Now any attempt to receive continues to raise
         assert c.their_state is ERROR
         assert c.our_state is not ERROR
         print(c._cstate.states)
-        with pytest.raises(ProtocolError):
+        with pytest.raises(RemoteProtocolError):
             c.receive_data(None)
         # But we can still yell at the client for sending us gibberish
         if role is SERVER:
@@ -800,12 +800,12 @@ def test_errors():
         assert c.our_state is not ERROR
         # Do that again, but this time sending 'bad' first
         c = conn(role)
-        with pytest.raises(ProtocolError):
+        with pytest.raises(LocalProtocolError):
             c.send(bad)
         assert c.our_state is ERROR
         assert c.their_state is not ERROR
         # Now 'good' is not so good
-        with pytest.raises(ProtocolError):
+        with pytest.raises(LocalProtocolError):
             c.send(good)
 
 def test_idle_receive_nothing():
@@ -817,7 +817,7 @@ def test_idle_receive_nothing():
 def test_connection_drop():
     c = Connection(SERVER)
     assert c.receive_data(b"GET /") == []
-    with pytest.raises(ProtocolError):
+    with pytest.raises(RemoteProtocolError):
         c.receive_data(b"")
 
 def test_408_request_timeout():
@@ -829,12 +829,12 @@ def test_408_request_timeout():
 # This used to raise IndexError
 def test_empty_request():
     c = Connection(SERVER)
-    with pytest.raises(ProtocolError):
+    with pytest.raises(RemoteProtocolError):
         c.receive_data(b"\r\n")
 
 # This used to raise IndexError
 def test_empty_response():
     c = Connection(CLIENT)
     c.send(Request(method="GET", target="/", headers=[("Host", "a")]))
-    with pytest.raises(ProtocolError):
+    with pytest.raises(RemoteProtocolError):
         c.receive_data(b"\r\n")

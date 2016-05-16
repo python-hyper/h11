@@ -1,5 +1,5 @@
 import re
-from ._util import ProtocolError, bytesify, validate
+from ._util import LocalProtocolError, bytesify, validate
 
 # Facts
 # -----
@@ -73,20 +73,20 @@ def normalize_and_validate(headers):
         # whitespace from a response message before forwarding the message
         # downstream." -- https://tools.ietf.org/html/rfc7230#section-3.2.4
         if name.strip() != name:
-            raise ProtocolError("Illegal header name {}".format(name))
+            raise LocalProtocolError("Illegal header name {}".format(name))
         if name == b"content-length":
             if saw_content_length:
-                raise ProtocolError("multiple Content-Length headers")
+                raise LocalProtocolError("multiple Content-Length headers")
             validate(_content_length_re, value, "bad Content-Length")
             saw_content_length = True
         if name == b"transfer-encoding":
             if saw_transfer_encoding:
-                raise ProtocolError("multiple Transfer-Encoding headers")
+                raise LocalProtocolError("multiple Transfer-Encoding headers")
             # "All transfer-coding names are case-insensitive"
             # -- https://tools.ietf.org/html/rfc7230#section-4
             value = value.lower()
             if value != b"chunked":
-                raise ProtocolError(
+                raise LocalProtocolError(
                     "Only Transfer-Encoding: chunked is supported")
             saw_transfer_encoding = True
         new_headers.append((name, value))

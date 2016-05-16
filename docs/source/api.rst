@@ -16,17 +16,18 @@ directly at the top level:
 
    @verbatim
    In [3]: h11.<TAB>
-   h11.CLIENT                 h11.MUST_CLOSE
-   h11.CLOSED                 h11.Paused
-   h11.Connection             h11.PRODUCT_ID
-   h11.ConnectionClosed       h11.ProtocolError
-   h11.Data                   h11.Request
-   h11.DONE                   h11.Response
-   h11.EndOfMessage           h11.SEND_BODY
-   h11.ERROR                  h11.SEND_RESPONSE
-   h11.IDLE                   h11.SERVER
-   h11.InformationalResponse  h11.SWITCHED_PROTOCOL
-   h11.MIGHT_SWITCH_PROTOCOL
+   h11.CLIENT                 h11.MIGHT_SWITCH_PROTOCOL
+   h11.CLOSED                 h11.MUST_CLOSE
+   h11.Connection             h11.Paused
+   h11.ConnectionClosed       h11.PRODUCT_ID
+   h11.Data                   h11.ProtocolError
+   h11.DONE                   h11.RemoteProtocolError
+   h11.egg-info/              h11.Request
+   h11.EndOfMessage           h11.Response
+   h11.ERROR                  h11.SEND_BODY
+   h11.IDLE                   h11.SEND_RESPONSE
+   h11.InformationalResponse  h11.SERVER
+   h11.LocalProtocolError     h11.SWITCHED_PROTOCOL
 
 These symbols fall into three main categories: event classes, special
 constants used to track different connection states, and the
@@ -402,27 +403,32 @@ Error handling
 Given the vagaries of networks and the folks on the other side of
 them, it's extremely important to be prepared for errors.
 
-Most errors in h11 are signaled by raising :exc:`ProtocolError`:
+Most errors in h11 are signaled by raising one of
+:exc:`ProtocolError`'s two concrete base classes,
+:exc:`LocalProtocolError` and :exc:`RemoteProtocolError`:
 
 .. autoexception:: ProtocolError
+.. autoexception:: LocalProtocolError
+.. autoexception:: RemoteProtocolError
 
-There are four cases where this exception might be raised:
+There are four cases where these exceptions might be raised:
 
-* When trying to instantiate an event object: This indicates that
-  something about your event is invalid. Your event wasn't
-  constructed, but there are no other consequences -- feel free to try
-  again.
+* When trying to instantiate an event object
+  (:exc:`LocalProtocolError`): This indicates that something about
+  your event is invalid. Your event wasn't constructed, but there are
+  no other consequences -- feel free to try again.
 
-* When calling :meth:`Connection.prepare_to_reuse`: This indicates
-  that the connection is not ready to be re-used, because one or both
-  of the peers are not in the :data:`DONE` state. The
-  :class:`Connection` object remains usable, and you can try again
-  later.
+* When calling :meth:`Connection.prepare_to_reuse`
+  (:exc:`LocalProtocolError`): This indicates that the connection is
+  not ready to be re-used, because one or both of the peers are not in
+  the :data:`DONE` state. The :class:`Connection` object remains
+  usable, and you can try again later.
 
-* When calling :meth:`Connection.receive_data`: This indicates that
-  the remote peer has violated our protocol assumptions. This is
-  unrecoverable -- we don't know what they're doing and we cannot
-  safely proceed. :attr:`Connection.their_state` immediately becomes
+* When calling :meth:`Connection.receive_data`
+  (:exc:`RemoteProtocolError`): This indicates that the remote peer
+  has violated our protocol assumptions. This is unrecoverable -- we
+  don't know what they're doing and we cannot safely
+  proceed. :attr:`Connection.their_state` immediately becomes
   :data:`ERROR`, and all further calls to
   :meth:`~.Connection.receive_data` will also raise
   :exc:`ProtocolError`. :meth:`Connection.send` still works as normal,
@@ -430,15 +436,16 @@ There are four cases where this exception might be raised:
   opportunity to send back a 400 Bad Request response. Your only other
   real option is to close your socket and make a new connection.
 
-* When calling :meth:`Connection.send`: This indicates that *you*
-  violated our protocol assumptions. This is also unrecoverable -- h11
-  doesn't know what you're doing, its internal state may be
-  inconsistent, and we cannot safely
-  proceed. :attr:`Connection.our_state` immediately becomes
-  :data:`ERROR`, and all further calls to :meth:`~.Connection.send`
-  will also raise :exc:`ProtocolError`. The only thing you can
-  reasonably due at this point is to close your socket and make a new
-  connection.
+* When calling :meth:`Connection.send` or
+  :meth:`Connection.send_with_data_passthrough`
+  (:exc:`LocalProtocolError`): This indicates that *you* violated our
+  protocol assumptions. This is also unrecoverable -- h11 doesn't know
+  what you're doing, its internal state may be inconsistent, and we
+  cannot safely proceed. :attr:`Connection.our_state` immediately
+  becomes :data:`ERROR`, and all further calls to
+  :meth:`~.Connection.send` will also raise :exc:`ProtocolError`. The
+  only thing you can reasonably due at this point is to close your
+  socket and make a new connection.
 
 
 .. _framing:
@@ -511,7 +518,7 @@ cases:
   since trailing headers are only legal if we actually ended up using
   ``Transfer-Encoding: chunked``. Trying to send a non-empty set of
   trailing headers to a HTTP/1.0 client will raise a
-  :exc:`ProtocolError`. If this use case is important to you, check
+  :exc:`LocalProtocolError`. If this use case is important to you, check
   :attr:`Connection.their_http_version` to confirm that the client
   speaks HTTP/1.1 before you attempt to send any trailing headers.
 

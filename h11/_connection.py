@@ -1,12 +1,14 @@
 # This contains the main Connection class. Everything in h11 revolves around
 # this.
 
+import sys
+
 # Import all event types
 from ._events import *
 # Import all state sentinels
 from ._state import *
 # Import the internal things we need
-from ._util import ProtocolError
+from ._util import LocalProtocolError, RemoteProtocolError
 from ._state import ConnectionState, _SWITCH_UPGRADE, _SWITCH_CONNECT
 from ._headers import (
     get_comma_header, set_comma_header, has_expect_100_continue,
@@ -115,7 +117,7 @@ class Connection(object):
             willing to buffer. In practice this mostly sets a limit on the
             maximum size of the request/response line + headers. If this is
             exceeded, then :meth:`receive_data` will raise
-            :exc:`ProtocolError`.
+            :exc:`RemoteProtocolError`.
 
     """
     def __init__(self, our_role, max_buffer_size=HTTP_DEFAULT_MAX_BUFFER_SIZE):
@@ -190,7 +192,7 @@ class Connection(object):
         If both client and server are in :data:`DONE` state, then resets them
         both to :data:`IDLE` state in preparation for a new request/response
         cycle on this same connection. Otherwise, raises a
-        :exc:`ProtocolError`.
+        :exc:`LocalProtocolError`.
 
         See :ref:`keepalive-and-pipelining`.
 
@@ -343,13 +345,13 @@ class Connection(object):
             A list of :ref:`event <events>` objects.
 
         Raises:
-            ProtocolError:
+            RemoteProtocolError:
                 The peer has misbehaved. You should close the connection
                 (possibly after sending some kind of 400 response).
 
         For robustness you might want to be prepared to catch other exceptions
-        as well, but if this happens then please do file a bug report as well
-        -- the intention is that :exc:`ProtocolError` is the *only* exception
+        as well, but if this happens then please do file a bug report -- the
+        intention is that :exc:`RemoteProtocolError` is the *only* exception
         that this method should be able to raise.
 
         If this method raises any exception then it also sets
@@ -359,7 +361,8 @@ class Connection(object):
         """
 
         if self.their_state is ERROR:
-            raise ProtocolError("Can't receive data when peer state is ERROR")
+            raise RemoteProtocolError(
+                "Can't receive data when peer state is ERROR")
         try:
             # Update self._receive_buffer with new data
             if data is not None:
@@ -400,8 +403,8 @@ class Connection(object):
                 if len(self._receive_buffer) > self._max_buffer_size:
                     # 431 is "Request header fields too large" which is pretty
                     # much the only situation where we can get here
-                    raise ProtocolError("Receive buffer too long",
-                                        error_status_hint=431)
+                    raise RemoteProtocolError("Receive buffer too long",
+                                              error_status_hint=431)
 
             # We've greedily processed all possible events, so if there's no
             # more data coming, we better either be paused or else have
@@ -410,14 +413,31 @@ class Connection(object):
             if self._receive_buffer_closed:
                 FINAL_EVENTS = {Paused, ConnectionClosed}
                 if not events or type(events[-1]) not in FINAL_EVENTS:
-                    raise ProtocolError(
+                    raise RemoteProtocolError(
                         "peer unexpectedly closed connection")
 
             # Return them
             return events
-        except:
+        except BaseException as exc:
             self._process_error(self.their_role)
-            raise
+            # Modifying the exception in-place is an easy way to transfer over
+            # all attributes. But unfortunately it isn't enough to just modify
+            # and then do "raise", because Python tracks the exception type
+            # (exc_info[0]) separately from the exception object
+            # (exc_info[1]), and we only modified the latter.
+            if type(exc) is LocalProtocolError:
+                exc.__class__ = RemoteProtocolError
+                if sys.version_info[0] < 3:
+                    # On py2, we can preserve the traceback with 3-argument
+                    # raise... but on py3 this is a syntax error so we have to
+                    # hide it in an exec
+                    exec("raise RemoteProtocolError, exc, sys.exc_info()[2]")
+                else:
+                    # On py3, the traceback is attached to the object, so our
+                    # in-place modification preserves it
+                    raise exc
+            else:
+                raise
 
     def _next_receive_event(self):
         state = self.their_state
@@ -455,7 +475,7 @@ class Connection(object):
             ``None``. Otherwise, returns a :term:`bytes-like object`.
 
         Raises:
-            ProtocolError:
+            LocalProtocolError:
                 Sending this event at this time would violate our
                 understanding of the HTTP/1.1 protocol.
 
@@ -479,7 +499,8 @@ class Connection(object):
 
         """
         if self.our_state is ERROR:
-            raise ProtocolError("Can't send data when our state is ERROR")
+            raise LocalProtocolError(
+                "Can't send data when our state is ERROR")
         try:
             if type(event) is Response:
                 self._clean_up_response_headers_for_sending(event)

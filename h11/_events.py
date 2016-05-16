@@ -6,7 +6,7 @@
 # Don't subclass these. Stuff will break.
 
 from . import _headers
-from ._util import bytesify, ProtocolError
+from ._util import bytesify, LocalProtocolError
 
 # Everything in __all__ gets re-exported as part of the h11 public API.
 __all__ = [
@@ -51,7 +51,7 @@ class _EventBundle(object):
 
         if "status_code" in self.__dict__:
             if not isinstance(self.status_code, int):
-                raise ProtocolError("status code must be integer")
+                raise LocalProtocolError("status code must be integer")
 
         self._validate()
 
@@ -120,7 +120,7 @@ class Request(_EventBundle):
                 if name == b"host":
                     break
             else:
-                raise ProtocolError("Missing mandatory Host: header")
+                raise LocalProtocolError("Missing mandatory Host: header")
 
 
 class _ResponseBase(_EventBundle):
@@ -155,7 +155,7 @@ class InformationalResponse(_ResponseBase):
 
     def _validate(self):
         if not (100 <= self.status_code < 200):
-            raise ProtocolError(
+            raise LocalProtocolError(
                 "InformationalResponse status_code should be in range "
                 "[100, 200), not {}"
                 .format(self.status_code))
@@ -186,7 +186,7 @@ class Response(_ResponseBase):
     """
     def _validate(self):
         if not (200 <= self.status_code < 600):
-            raise ProtocolError(
+            raise LocalProtocolError(
                 "Response status_code should be in range [200, 600), not {}"
                 .format(self.status_code))
 

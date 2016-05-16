@@ -1,6 +1,6 @@
 import pytest
 
-from .._util import ProtocolError
+from .._util import LocalProtocolError
 from .._events import *
 from .._state import *
 from .._state import ConnectionState, _SWITCH_UPGRADE, _SWITCH_CONNECT
@@ -17,7 +17,7 @@ def test_ConnectionState():
     assert cs.states == {CLIENT: SEND_BODY, SERVER: SEND_RESPONSE}
 
     # Illegal transitions raise an error and nothing happens
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         cs.process_event(CLIENT, Request)
     assert cs.states == {CLIENT: SEND_BODY, SERVER: SEND_RESPONSE}
 
@@ -149,7 +149,7 @@ def test_ConnectionState_inconsistent_protocol_switch():
         cs = ConnectionState()
         cs.process_client_switch_proposals(client_switches)
         cs.process_event(CLIENT, Request)
-        with pytest.raises(ProtocolError):
+        with pytest.raises(LocalProtocolError):
             cs.process_event(SERVER, Response, server_switch)
 
 
@@ -174,13 +174,13 @@ def test_ConnectionState_keepalive_protocol_switch_interaction():
 def test_ConnectionState_reuse():
     cs = ConnectionState()
 
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         cs.prepare_to_reuse()
 
     cs.process_event(CLIENT, Request)
     cs.process_event(CLIENT, EndOfMessage)
 
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         cs.prepare_to_reuse()
 
     cs.process_event(SERVER, Response)
@@ -197,7 +197,7 @@ def test_ConnectionState_reuse():
     cs.process_event(SERVER, Response)
     cs.process_event(SERVER, EndOfMessage)
 
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         cs.prepare_to_reuse()
 
     # One side closed
@@ -209,7 +209,7 @@ def test_ConnectionState_reuse():
     cs.process_event(SERVER, Response)
     cs.process_event(SERVER, EndOfMessage)
 
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         cs.prepare_to_reuse()
 
     # Succesful protocol switch
@@ -220,7 +220,7 @@ def test_ConnectionState_reuse():
     cs.process_event(CLIENT, EndOfMessage)
     cs.process_event(SERVER, InformationalResponse, _SWITCH_UPGRADE)
 
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         cs.prepare_to_reuse()
 
     # Failed protocol switch
@@ -239,5 +239,5 @@ def test_server_request_is_illegal():
     # There used to be a bug in how we handled the Request special case that
     # made this allowed...
     cs = ConnectionState()
-    with pytest.raises(ProtocolError):
+    with pytest.raises(LocalProtocolError):
         cs.process_event(SERVER, Request)

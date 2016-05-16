@@ -9,12 +9,12 @@
 from ._version import __version__
 PRODUCT_ID = "h11/" + __version__
 
-from ._util import ProtocolError
+from ._util import ProtocolError, LocalProtocolError, RemoteProtocolError
 from ._events import *
 from ._connection import *
 from ._state import *
 
-__all__ = ["ProtocolError"]
+__all__ = ["ProtocolError", "LocalProtocolError", "RemoteProtocolError"]
 __all__ += _events.__all__
 __all__ += _connection.__all__
 __all__ += _state.__all__
