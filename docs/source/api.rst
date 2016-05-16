@@ -242,7 +242,7 @@ state.
 
 * Dark blue arcs are *event-triggered transitions*: if we're in state
   A, and this event happens, when we switch to state B. For the client
-  machines, these transitions always happen when the client *sends* an
+  machine, these transitions always happen when the client *sends* an
   event. For the server machine, most of them involve the server
   sending an event, except that the server also goes from IDLE ->
   SEND_RESPONSE when the client sends a :class:`Request`.
