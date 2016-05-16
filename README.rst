@@ -83,7 +83,8 @@ scratch, at least I can make sure no-one *else* has to ever again.
 Maybe. You should be aware that it's a very young project. But, it's
 feature complete and has an exhaustive test-suite and complete docs,
 so the next step is for people to try using it and see how it goes
-:-). If you do then please do report back!
+:-). If you do then please let us know -- if nothing else we'll want
+to talk to you before making any incompatible changes!
 
 *What are the features/limitations?*
 
