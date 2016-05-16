@@ -1,8 +1,6 @@
 # This contains the main Connection class. Everything in h11 revolves around
 # this.
 
-import sys
-
 # Import all event types
 from ._events import *
 # Import all state sentinels
@@ -420,22 +418,8 @@ class Connection(object):
             return events
         except BaseException as exc:
             self._process_error(self.their_role)
-            # Modifying the exception in-place is an easy way to transfer over
-            # all attributes. But unfortunately it isn't enough to just modify
-            # and then do "raise", because Python tracks the exception type
-            # (exc_info[0]) separately from the exception object
-            # (exc_info[1]), and we only modified the latter.
             if type(exc) is LocalProtocolError:
-                exc.__class__ = RemoteProtocolError
-                if sys.version_info[0] < 3:
-                    # On py2, we can preserve the traceback with 3-argument
-                    # raise... but on py3 this is a syntax error so we have to
-                    # hide it in an exec
-                    exec("raise RemoteProtocolError, exc, sys.exc_info()[2]")
-                else:
-                    # On py3, the traceback is attached to the object, so our
-                    # in-place modification preserves it
-                    raise exc
+                exc._reraise_as_remote_protocol_error()
             else:
                 raise
 

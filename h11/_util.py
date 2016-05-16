@@ -1,3 +1,5 @@
+import sys
+
 __all__ = ["ProtocolError", "LocalProtocolError", "RemoteProtocolError",
            "validate", "Sentinel", "bytesify"]
 
@@ -48,7 +50,30 @@ class ProtocolError(Exception):
 #   LocalProtocolError is for local errors and RemoteProtocolError is for
 #   remote errors.
 class LocalProtocolError(ProtocolError):
-    pass
+    def _reraise_as_remote_protocol_error(self):
+        # After catching a LocalProtocolError, use this method to re-raise it
+        # as a RemoteProtocolError. This method must be called from inside an
+        # except: block.
+        #
+        # An easy way to get an equivalent RemoteProtocolError is just to
+        # modify 'self' in place.
+        self.__class__ = RemoteProtocolError
+        # But the re-raising is somewhat non-trivial -- you might think that
+        # now that we've modified the in-flight exception object, that just
+        # doing 'raise' to re-raise it would be enough. But it turns out that
+        # this doesn't work, because Python tracks the exception type
+        # (exc_info[0]) separately from the exception object (exc_info[1]),
+        # and we only modified the latter. So we really do need to re-raise
+        # the new type explicitly.
+        if sys.version_info[0] >= 3:
+            # On py3, the traceback is part of the exception object, so our
+            # in-place modification preserved it and we can just re-raise:
+            raise self
+        else:
+            # On py2, preserving the traceback requires 3-argument
+            # raise... but on py3 this is a syntax error, so we have to hide
+            # it inside an exec
+            exec("raise RemoteProtocolError, self, sys.exc_info()[2]")
 
 class RemoteProtocolError(ProtocolError):
     pass
