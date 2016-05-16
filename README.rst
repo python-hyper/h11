@@ -61,7 +61,7 @@ pleasantly symmetric API: the events you send as a client are exactly
 the ones that you receive as a server and vice-versa.
 
 `Here's an example of a tiny HTTP client
-<https://github.com/njsmith/h11/blob/master/tiny-client-demo.py>`_
+<https://github.com/njsmith/h11/blob/master/examples/tiny-client-demo.py>`_
 
 It also has `a fine manual <https://h11.readthedocs.io/>`_.
 
