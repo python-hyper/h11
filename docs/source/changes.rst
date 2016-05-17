@@ -3,8 +3,8 @@ History of changes
 
 .. currentmodule:: h11
 
-vNEXT
------
+vNEXT (????-??-??)
+------------------
 
 Backwards **in**\compatible changes:
 
@@ -18,13 +18,13 @@ Backwards compatible changes:
   triggered by our peer being in the :data:`ERROR` state.
 
 * Split :exc:`ProtocolError` into :exc:`LocalProtocolError` and
-  :exc:`RemoteProtocolError`. Use case: HTTP servers want to be able
-  to distinguish between an error that originates locally (which
-  produce a 500 status code) versus errors caused by remote
-  misbehavior (which produce a 4xx status code).
+  :exc:`RemoteProtocolError` (see :ref:`error-handling`). Use case: HTTP
+  servers want to be able to distinguish between an error that
+  originates locally (which produce a 500 status code) versus errors
+  caused by remote misbehavior (which produce a 4xx status code).
 
 
-v0.5.0
-------
+v0.5.0 (2016-05-14)
+-------------------
 
 * Initial release.
