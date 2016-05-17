@@ -47,9 +47,9 @@ All events behave in essentially similar ways. Let's take
 :class:`Request` as an example. Like all events, this is a "final"
 class -- you cannot subclass it. And like all events, it has several
 fields. For :class:`Request`, there are four of them:
-:attr:`~.Request.method`, :attr:`~.Request.target``,
-:attr:`~.Request.headers``, and
-:attr:`~.Request.http_version``. :attr:`~.Request.http_version``
+:attr:`~Request.method`, :attr:`~Request.target``,
+:attr:`~Request.headers``, and
+:attr:`~Request.http_version``. :attr:`~Request.http_version``
 defaults to ``b"1.1"``; the rest have no default, so to create a
 :class:`Request` you have to specify their values:
 
@@ -430,7 +430,7 @@ There are four cases where these exceptions might be raised:
   don't know what they're doing and we cannot safely
   proceed. :attr:`Connection.their_state` immediately becomes
   :data:`ERROR`, and all further calls to
-  :meth:`~.Connection.receive_data` will also raise
+  :meth:`~Connection.receive_data` will also raise
   :exc:`ProtocolError`. :meth:`Connection.send` still works as normal,
   so if you're implementing a server and this happens then you have an
   opportunity to send back a 400 Bad Request response. Your only other
@@ -443,7 +443,7 @@ There are four cases where these exceptions might be raised:
   what you're doing, its internal state may be inconsistent, and we
   cannot safely proceed. :attr:`Connection.our_state` immediately
   becomes :data:`ERROR`, and all further calls to
-  :meth:`~.Connection.send` will also raise :exc:`ProtocolError`. The
+  :meth:`~Connection.send` will also raise :exc:`ProtocolError`. The
   only thing you can reasonably due at this point is to close your
   socket and make a new connection.
 
@@ -567,7 +567,7 @@ lack of protocol support, one of the sides just unilaterally closed
 the connection -- then the state machines will skip past the
 :data:`DONE` state directly to the :data:`MUST_CLOSE` or
 :data:`CLOSED` states. In this case, trying to call
-:meth:`~.Connection.prepare_to_use` will raise an error, and the only
+:meth:`~Connection.prepare_to_use` will raise an error, and the only
 thing you can legally do is to close this connection and make a new
 one.
 
@@ -580,17 +580,17 @@ because it makes things like error recovery very complicated.
 As a client, h11 does not support pipelining. This is enforced by the
 structure of the state machine: after sending one :class:`Request`,
 you can't send another until after calling
-:meth:`~.Connection.prepare_to_reuse`, and you can't call
-:meth:`~.Connection.prepare_to_reuse` until the server has entered the
+:meth:`~Connection.prepare_to_reuse`, and you can't call
+:meth:`~Connection.prepare_to_reuse` until the server has entered the
 :data:`DONE` state, which requires reading the server's full
 response.
 
 As a server, h11 provides the minimal support for pipelining required
 to comply with the HTTP/1.1 standard: if the client sends multiple
 pipelined requests, then we the first request until we reach the
-:data:`DONE` state, and then :meth:`~.Connection.receive_data` will
+:data:`DONE` state, and then :meth:`~Connection.receive_data` will
 pause and refuse to parse any more events until the response is
-completed and :meth:`~.Connection.prepare_to_reuse` is called. See the
+completed and :meth:`~Connection.prepare_to_reuse` is called. See the
 next section for more details.
 
 
@@ -600,8 +600,8 @@ Flow control
 ------------
 
 h11 always does the absolute minimum of buffering that it can get away
-with: :meth:`~.Connection.send` always returns the full data to send
-immediately, and :meth:`~.Connection.recieve_data` always greedily
+with: :meth:`~Connection.send` always returns the full data to send
+immediately, and :meth:`~Connection.recieve_data` always greedily
 parses and returns as many events as possible from its current
 buffer. So you can be sure that no data or events will suddenly appear
 and need processing, except when you call these methods. And
@@ -644,8 +644,8 @@ waiting to read data, always execute some code like:
 The other mechanism h11 provides to help you manage read flow control
 is the :class:`Paused` pseudo-event. Unlike other events, the
 :class:`Paused` event doesn't contain information sent from the remote
-peer; if :meth:`~.Connection.receive_data` returns one of these, it
-means that :meth:`~.Connection.receive_data` has stopped processing
+peer; if :meth:`~Connection.receive_data` returns one of these, it
+means that :meth:`~Connection.receive_data` has stopped processing
 its data buffer and isn't going to process any more until the remote
 peer's state (:attr:`Connection.their_state`) changes to something
 different.
@@ -655,10 +655,10 @@ There are three possible reasons to enter a paused state:
 * The remote peer is in the :data:`DONE` state, but sent more data,
   i.e., a client is attempting to :ref:`pipeline requests
   <keepalive-and-pipelining>`. In the :data:`DONE` state,
-  :meth:`~.Connection.receive_data` can return :class:`ConnectionClosed`
+  :meth:`~Connection.receive_data` can return :class:`ConnectionClosed`
   events, but if any actual data is received then it will pause, and
   stay that way until a successful call to
-  :meth:`~.Connection.prepare_to_reuse`.
+  :meth:`~Connection.prepare_to_reuse`.
 
 * The remote client is in the :data:`MIGHT_SWITCH_PROTOCOL` state (see
   :ref:`switching-protocols`). This really shouldn't happen, because
@@ -673,18 +673,18 @@ There are three possible reasons to enter a paused state:
   us. If this happens, we pause.
 
 Once the connection has entered a paused state, then it's safe to keep
-calling :meth:`~.Connection.receive_data` -- it will just keep
+calling :meth:`~Connection.receive_data` -- it will just keep
 returning new :class:`Paused` events -- but instead you should
 probably stop reading from the network; all you're going to accomplish
 is to shove more and more data into our internal buffers, where it's
 just going to there using more and more memory. (And we do *not*
 enforce the regular maximum buffer size limits when in a paused state
 -- if we did then you might go over the limit in a single call to
-:meth:`~.Connection.receive_data`, not because you or the remote peer
+:meth:`~Connection.receive_data`, not because you or the remote peer
 did anything wrong, but just because a fair amount of data all came in
 at the same time we entered the paused state.) And simply reading more
 data will never trigger an unpause -- for that something external has
-to happen, usually a call to :meth:`~.Connection.prepare_to_reuse`.
+to happen, usually a call to :meth:`~Connection.prepare_to_reuse`.
 
 And that's the other tricky moment: when you come out of a paused
 state, you shouldn't immediately read from the network. Consider the
@@ -724,7 +724,7 @@ data now, then we'll be waiting forever.
 That would be bad.
 
 Instead, what we have to do after unpausing is make an explicit call
-to :meth:`~.Connection.receive_data` with ``None`` as the argument,
+to :meth:`~Connection.receive_data` with ``None`` as the argument,
 which means "I don't have any more data for you, but could you check
 the data you already have buffered in case there's anything else you
 can parse now that you couldn't before?". And once we've done this and
@@ -748,13 +748,13 @@ Closing connections
 
 h11 represents a connection shutdown with the special event type
 :class:`ConnectionClosed`. You can send this event, in which case
-:meth:`~.Connection.send` will simply update the state machine and
+:meth:`~Connection.send` will simply update the state machine and
 then return ``None``. You can receive this event, if you call
 ``conn.receive_data(b"")``. (The actual receipt might be delayed if
 the connection is :ref:`paused <flow-control>`.) It's safe and legal
 to call ``conn.receive_data(b"")`` multiple times, and once you've
 done this once, then all future calls to
-:meth:`~.Connection.receive_data` will also return
+:meth:`~Connection.receive_data` will also return
 ``ConnectionClosed()``:
 
 .. ipython:: python

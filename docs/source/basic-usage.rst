@@ -80,7 +80,7 @@ send -- in this case, a :class:`h11.Request`:
                          target="/xml",
                          headers=[("Host", "httpbin.org")])
 
-Next, we pass this to our connection's :meth:`~.Connection.send`
+Next, we pass this to our connection's :meth:`~Connection.send`
 method, which gives us back the bytes corresponding to this message:
 
 .. ipython:: python
@@ -152,7 +152,7 @@ earlier and has the response's status code (200 OK) and headers; a
 :class:`EndOfMessage` object. This similarity between what we send and
 what we receive isn't accidental: if we were using h11 to write an HTTP
 server, then these are the objects we would have created and passed to
-:meth:`~.Connection.send` -- h11 in client and server mode has an API
+:meth:`~Connection.send` -- h11 in client and server mode has an API
 that's almost exactly symmetric.
 
 
