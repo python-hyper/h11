@@ -99,6 +99,3 @@ def test_events():
 
     cc = ConnectionClosed()
     assert repr(cc) == "ConnectionClosed()"
-
-    paused = Paused(reason="some-reason")
-    assert paused.reason == "some-reason"

@@ -53,7 +53,7 @@ Ideas for further additions
   examples? pipelining and protocol switch examples?
 
 * check that the all-at-once and byte-by-byte processing give the same
-  event stream (modulo ``Paused``, and data splits)
+  event stream (modulo data splits)
 
 * maybe should split apart fancy checks versus non-fancy checks b/c speed is
   important

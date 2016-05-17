@@ -18,11 +18,10 @@ directly at the top level:
    In [3]: h11.<TAB>
    h11.CLIENT                 h11.MIGHT_SWITCH_PROTOCOL
    h11.CLOSED                 h11.MUST_CLOSE
-   h11.Connection             h11.Paused
-   h11.ConnectionClosed       h11.PRODUCT_ID
-   h11.Data                   h11.ProtocolError
-   h11.DONE                   h11.RemoteProtocolError
-   h11.egg-info/              h11.Request
+   h11.Connection             h11.PRODUCT_ID
+   h11.ConnectionClosed       h11.ProtocolError
+   h11.Data                   h11.RemoteProtocolError
+   h11.DONE                   h11.Request
    h11.EndOfMessage           h11.Response
    h11.ERROR                  h11.SEND_BODY
    h11.IDLE                   h11.SEND_RESPONSE
@@ -159,8 +158,6 @@ Here's the complete set of events supported by h11:
 .. autoclass:: EndOfMessage
 
 .. autoclass:: ConnectionClosed
-
-.. autoclass:: Paused
 
 
 .. _state-machine:
@@ -599,95 +596,94 @@ next section for more details.
 Flow control
 ------------
 
-h11 always does the absolute minimum of buffering that it can get away
-with: :meth:`~Connection.send` always returns the full data to send
-immediately, and :meth:`~Connection.recieve_data` always greedily
-parses and returns as many events as possible from its current
-buffer. So you can be sure that no data or events will suddenly appear
-and need processing, except when you call these methods. And
-presumably you know when you want to send things. But there is one
-thing you still need to know: you don't want to read data from the
-remote peer if it can't be processed (i.e., you want to apply
-backpressure and avoid building arbitrarily large buffers), and you
-definitely don't want to block waiting on data from the remote peer at
-the same time that it's blocked waiting for you, because that will
-cause a deadlock.
+h11 always does the absolute minimum of buffering that it can manage:
+:meth:`~Connection.send` and
+:meth:`~Connection.send_with_data_passthrough` always return the full
+data to send immediately, and :meth:`~Connection.recieve_data` always
+greedily parses and returns as many events as possible from its
+current buffer (with one exception discussed below). So you can be
+sure that no data or events will suddenly appear and need processing,
+except when you call these methods. And presumably you know when you
+want to send things. But there is one thing you still need to know,
+which is when it's safe to read from the remote peer: you don't want
+to read data from the remote peer if it can't be processed (i.e., you
+want to apply backpressure and avoid building arbitrarily large
+in-memory buffers), and you definitely don't want to block waiting on
+data from the remote peer at the same time that it's blocked waiting
+for you, because that will cause a deadlock.
 
-We assume that if you're implementing a client then you're clever
-enough not to sit around trying to read more data from the server when
-there's no response pending. But there are a few more subtle ways that
-reading in HTTP can go wrong, and h11 provides two ways to help you
-avoid these situations.
+For a client, this is simple: send your request, then read the
+response, then stop reading until after you've sent another request.
 
-First, it keeps track of the `client's ``Expect: 100-continue`` status
-<https://tools.ietf.org/html/rfc7231#section-5.1.1>`_. you can read
-the spec for details, but basically the way this works if that
-sometimes clients will send a :class:`Request` with an ``Expect:
-100-continue`` header, and then they will stop there, before sending
-the body, until they see some response from the server (or possibly
-some timeout occurs). The server's response can be an
-:class:`InformationalResponse` with status ``100 Continue``, or
-anything really (e.g. a full :class:`Response` with an error
+For a server, there are three more subtle points you need to keep
+track of.
+
+**First**, you have to be prepared to handle :class:`Request`\s with `an
+``Expect: 100-continue`` header
+<https://tools.ietf.org/html/rfc7231#section-5.1.1>`_. You can read
+the spec for details, but basically what this header means is that
+after sending the :class:`Request`, the client plans to pause and wait
+until they see some response from the server before sending any
+:class:`Data` (or possibly some timeout occurs). The server's response
+can be an :class:`InformationalResponse` with status ``100 Continue``,
+or anything really (e.g. a full :class:`Response` with an error
 code). The crucial thing as a server, though, is that you should never
 block trying to read a request body if the client is blocked waiting
 for you to tell them to send the request body.
 
-The simple way to avoid this is to make sure that before you block
-waiting to read data, always execute some code like:
+Fortunately, h11 makes this easy, because it tracks whether the client
+is blocked, and exposes this as
+:attr:`Connection.they_are_waiting_for_100_continue`. So you don't
+have to pay attention to the ``Expect`` header yourself; you just have
+to make sure that before you block waiting to read a request body, you
+execute some code like:
 
 .. code-block:: python
 
    if conn.they_are_waiting_for_100_continue:
-       send(conn, h11.InformationalResponse(100, headers=[...]))
+       do_send(conn, h11.InformationalResponse(100, headers=[...]))
    do_read(...)
 
-The other mechanism h11 provides to help you manage read flow control
-is the :class:`Paused` pseudo-event. Unlike other events, the
-:class:`Paused` event doesn't contain information sent from the remote
-peer; if :meth:`~Connection.receive_data` returns one of these, it
-means that :meth:`~Connection.receive_data` has stopped processing
-its data buffer and isn't going to process any more until the remote
-peer's state (:attr:`Connection.their_state`) changes to something
-different.
+In fact, if you're lazy (and what programmer isn't?) then you can just
+do this check before all reads -- it's mandatory before blocking to
+read a request body, but it's safe at any time.
 
-There are three possible reasons to enter a paused state:
+**Second**, if you're using some sort of I/O setup where you read all
+the time (e.g. in a dedicated thread or some sort of proactor), then
+you should stop reading when you get each request's
+:class:`EndOfMessage`, and don't start again until after you call
+:meth:`~Connection.prepare_to_reuse`. (Of course you should also
+follow this rule if you're using blocking I/O, but hopefully that is
+obvious -- what's not so obvious is that this applies also to threaded
+reads.) If you ignore this rule, then nothing particularly bad will
+happen -- but nothing useful will happen, either. After seeing the
+:class:`EndOfMessage`, then :meth:`~Connection.receive_data` will
+enter a "paused" state: you can call it, and it'll add any data that
+you give it to its internal buffer, but it won't actually attempt to
+parse that buffer or return any events (unless the next data you give
+it is ``b""`` indicating that the client has closed their connection,
+in which case it will return :class:`ConnectionClosed`). This state
+also does another thing: normally, as an anti-denial-of-service
+protection, h11 will error out if its internal receive buffer gets too
+big; but when we are in this paused state, this protection is
+disabled. (This is important because without it, we'd run the risk of
+treating a perfectly innocent client as if they were a DoS attacker,
+just because they sent a number of pipelined requests that all arrived
+at the same time.)
 
-* The remote peer is in the :data:`DONE` state, but sent more data,
-  i.e., a client is attempting to :ref:`pipeline requests
-  <keepalive-and-pipelining>`. In the :data:`DONE` state,
-  :meth:`~Connection.receive_data` can return :class:`ConnectionClosed`
-  events, but if any actual data is received then it will pause, and
-  stay that way until a successful call to
-  :meth:`~Connection.prepare_to_reuse`.
+So really it's best if you just stop reading from the remote socket
+during this period. If you're lucky this might even provide some
+back-pressure to the remote client to stop sending stuff so fast.
 
-* The remote client is in the :data:`MIGHT_SWITCH_PROTOCOL` state (see
-  :ref:`switching-protocols`). This really shouldn't happen, because
-  they don't know yet whether the protocol switch will actually happen,
-  but OTOH it certainly isn't correct for us to go ahead and parse the
-  data they sent as if it were HTTP, when it might not be. So if this
-  happens, we pause.
+(Note: There isn't currently any API exposed to tell you whether
+receiving is paused; you're expected to "just know" based on what
+you've recently done. So far this seems to work fine for the servers
+I've written, but if you'd find this useful then please let us know --
+it wouldn't be hard to add.)
 
-* The remote peer is in the :data:`SWITCHED_PROTOCOL` state (see
-  :ref:`switching-protocols`). We certainly aren't going to try to
-  parse their data -- it's not HTTP, or at least not HTTP directed at
-  us. If this happens, we pause.
-
-Once the connection has entered a paused state, then it's safe to keep
-calling :meth:`~Connection.receive_data` -- it will just keep
-returning new :class:`Paused` events -- but instead you should
-probably stop reading from the network; all you're going to accomplish
-is to shove more and more data into our internal buffers, where it's
-just going to there using more and more memory. (And we do *not*
-enforce the regular maximum buffer size limits when in a paused state
--- if we did then you might go over the limit in a single call to
-:meth:`~Connection.receive_data`, not because you or the remote peer
-did anything wrong, but just because a fair amount of data all came in
-at the same time we entered the paused state.) And simply reading more
-data will never trigger an unpause -- for that something external has
-to happen, usually a call to :meth:`~Connection.prepare_to_reuse`.
-
-And that's the other tricky moment: when you come out of a paused
-state, you shouldn't immediately read from the network. Consider the
+And **third**, coming out of the paused state requires a bit of
+care. After you call :meth:`~Connection.prepare_to_reuse`, you
+*must not* immediately start reading from the network. Consider the
 situation where a client sends two pipelined requests, and then blocks
 waiting for the two responses. It's possible the two requests will
 arrive together, and be enqueued into our receive buffer together:
@@ -701,7 +697,7 @@ arrive together, and be enqueued into our receive buffer together:
    )
 
 Notice how we get back only the first :class:`Request` and its (empty)
-body, then a :class:`Paused` event.
+body.
 
 We process the first request:
 
@@ -735,10 +731,58 @@ processed the events we get back, we can continue as normal:
    conn.receive_data(None)
 
 It is always safe to call ``conn.receive_data(None)``; if there aren't
-any new events to return, it will simply return ``[]``, and if the
-connection is paused, it will return a :class:`Paused` event. If you
-want to be conservative, you can defensively call this immediately
-before issuing any blocking read.
+any new events to return, it will simply return ``[]``. If you want to
+be conservative, you can defensively call this immediately before
+issuing any blocking read.
+
+
+Technical details on how the receive_data pause state is implemented
+....................................................................
+
+You probably don't need to know this to write a client or server, but
+perhaps you're curious.
+
+Internally, the pause logic doesn't distinguish between whether we're
+implementing a client or a server, and there are actually three
+possible reasons we might enter the paused state:
+
+* The remote peer is in the :data:`DONE` state, but sent more data,
+  i.e., a client is attempting to :ref:`pipeline requests
+  <keepalive-and-pipelining>`. In the :data:`DONE` state,
+  :meth:`~Connection.receive_data` can return :class:`ConnectionClosed`
+  events, but if any actual data is received then it will pause, and
+  stay that way until a successful call to
+  :meth:`~Connection.prepare_to_reuse`.
+
+* The remote client is in the :data:`MIGHT_SWITCH_PROTOCOL` state (see
+  :ref:`switching-protocols`). This really shouldn't happen, because
+  they don't know yet whether the protocol switch will actually happen,
+  but OTOH it certainly isn't correct for us to go ahead and parse the
+  data they sent as if it were HTTP, when it might not be. So if this
+  happens, we pause.
+
+* The remote peer is in the :data:`SWITCHED_PROTOCOL` state (see
+  :ref:`switching-protocols`). When this happens we certainly
+  shouldn't try to parse their data. So if this happens we pause.
+
+How does this relate to the advice given above?
+
+You don't really need to worry about the :data:`MIGHT_SWITCH_PROTOCOL`
+case, because the only way a client can get into this state is by
+entering :data:`DONE`, and the only way it can get out is by entering
+:data:`DONE` or :data:`SWITCHED_PROTOCOL`. So if you handle those
+cases correctly then you'll automatically handle this case too. And
+handling of :data:`SWITCHED_PROTOCOL` should be obvious, because if
+you've just negotiated a protocol switch you hopefully know that and
+won't try to keep using the :class:`Connection` object, and this state
+is permanent. So the only case that requires careful handling by your
+flow control logic is :data:`DONE`. And if you're implementing a
+client, even this isn't something you need to worry about, because it
+would be very weird for a server that was in the :data:`DONE` state to
+suddenly send another response in a row out-of-the-blue, before you've
+sent another request, so the simple rule of "only read when waiting
+for a response" covers this case as well. So really it's only servers
+that need special flow-control logic to handle pipelining.
 
 
 .. _closing:

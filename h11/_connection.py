@@ -375,30 +375,24 @@ class Connection(object):
             # Read out all the events we can
             events = []
             while True:
-                event = self._next_receive_event()
+                event = self._extract_next_receive_event()
                 if event is None:
                     break
                 events.append(event)
-                # The Paused pseudo-event doesn't go through the state
-                # machine, because it's purely a local signal.
-                if type(event) is Paused:
-                    break
                 self._process_event(self.their_role, event)
                 if type(event) is ConnectionClosed:
                     break
 
             # Buffer maintainence
             self._receive_buffer.compress()
-            if events and type(events[-1]) is Paused:
-                # We don't enforce buffer size limits when Paused, because
-                # avoiding ever-growing buffers here indicates a problem with
-                # the user code, not with the remote client (and otherwise
-                # it's entirely possible that a single receive_data call all
-                # by itself could put us over the limit, with no real way to
-                # avoid it)
-                pass
-            else:
-                if len(self._receive_buffer) > self._max_buffer_size:
+            if len(self._receive_buffer) > self._max_buffer_size:
+                # We don't enforce buffer size limits when paused, because
+                # ever-growing buffers here would indicate a problem with
+                # the user code, not with the remote client -- and it's
+                # entirely possible that a single receive_data call all by
+                # itself could put us over this limit, with no real way to
+                # avoid it.
+                if not self._paused():
                     # 431 is "Request header fields too large" which is pretty
                     # much the only situation where we can get here
                     raise RemoteProtocolError("Receive buffer too long",
@@ -409,8 +403,9 @@ class Connection(object):
             # delivered that ConnectionClosed -- we don't want to hang forever
             # waiting for data that never arrives.
             if self._receive_buffer_closed:
-                FINAL_EVENTS = {Paused, ConnectionClosed}
-                if not events or type(events[-1]) not in FINAL_EVENTS:
+                if not (self._paused()
+                        or (events
+                            and type(events[-1]) is ConnectionClosed)):
                     raise RemoteProtocolError(
                         "peer unexpectedly closed connection")
 
@@ -418,21 +413,26 @@ class Connection(object):
             return events
         except BaseException as exc:
             self._process_error(self.their_role)
-            if type(exc) is LocalProtocolError:
+            if isinstance(exc, LocalProtocolError):
                 exc._reraise_as_remote_protocol_error()
             else:
                 raise
 
-    def _next_receive_event(self):
+    def _paused(self):
         state = self.their_state
         # We don't pause immediately when they enter DONE, because even in
         # DONE state we can still process a ConnectionClosed() event. But
         # if we have data in our buffer, then we definitely aren't getting
         # a ConnectionClosed() immediately and we need to pause.
         if state is DONE and self._receive_buffer:
-            return Paused(reason=state)
-        if state is MIGHT_SWITCH_PROTOCOL or state is SWITCHED_PROTOCOL:
-            return Paused(reason=state)
+            return True
+        if state in {MIGHT_SWITCH_PROTOCOL, SWITCHED_PROTOCOL}:
+            return True
+        return False
+
+    def _extract_next_receive_event(self):
+        if self._paused():
+            return None
         assert self._reader is not None
         event = self._reader(self._receive_buffer)
         if event is None:

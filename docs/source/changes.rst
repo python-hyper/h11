@@ -12,6 +12,9 @@ Backwards **in**\compatible changes:
   :attr:`Connection.client_state`, :attr:`Connection.server_state` with
   the new :attr:`Connection.states`.
 
+* Removed the :class:`Paused` pseudo-event -- see :ref:`flow-control`
+  for the new way things work.
+
 Backwards compatible changes:
 
 * State machine: added a :data:`DONE` -> :data:`MUST_CLOSE` transition

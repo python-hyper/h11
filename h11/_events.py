@@ -16,7 +16,6 @@ __all__ = [
     "Data",
     "EndOfMessage",
     "ConnectionClosed",
-    "Paused",
 ]
 
 
@@ -244,32 +243,3 @@ class ConnectionClosed(_EventBundle):
     No fields.
     """
     pass
-
-class Paused(_EventBundle):
-    """A pseudo-event used for flow control.
-
-    If :meth:`Connection.receive_data` returns this event, it means that the
-    HTTP parser is in a paused condition, and won't process any new data until
-    after the condition is resolved. See :ref:`flow-control` for details.
-
-    .. attribute:: reason
-
-       The remote peer's state that triggered the pause. One of:
-
-       * :data:`h11.DONE`: a client has started sending another request before
-         we finished responding to their first request. Cleared by finishing
-         the response and then calling :meth:`Connection.prepare_to_reuse`.
-
-       * :data:`MIGHT_SWITCH_PROTOCOL`: a client is in the
-         :data:`MIGHT_SWITCH_PROTOCOL` state, and is waiting for the server to
-         either accept or reject the proposed protocol switch. See
-         :ref:`switching-protocols` for details.
-
-       * :data:`SWITCHED_PROTOCOL`: the remote peer is the
-         :data:`SWITCHED_PROTOCOL` state. h11 isn't going to parse any more
-         data that they send, because they're no longer speaking HTTP. See
-         :ref:`switching-protocols` for details.
-
-    """
-
-    _fields = ["reason"]

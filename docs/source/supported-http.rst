@@ -74,3 +74,17 @@ sure whether anyone actually needs it. Unfortunately a few major
 implementations that I spot-checked (node.js, go) do still seem to
 support reading such headers (but not generating them), so it might or
 might not be obsolete in practice -- it's hard to know.
+
+
+.. _flow-control-details:
+
+Flow control details
+--------------------
+
+The :ref:`flow-control` section in the main API docs gives a
+user-level explanation of what they need to know about flow control
+and the :meth:`Connection.receive_data` "paused" state. The internal
+implementation is slightly more involved.
+
+First, pause handling is actually identical for both the client and
+server
