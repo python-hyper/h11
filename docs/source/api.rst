@@ -618,15 +618,15 @@ response, then stop reading until after you've sent another request.
 For a server, there are three more subtle points you need to keep
 track of.
 
-**First**, you have to be prepared to handle :class:`Request`\s with `an
-``Expect: 100-continue`` header
-<https://tools.ietf.org/html/rfc7231#section-5.1.1>`_. You can read
-the spec for details, but basically what this header means is that
-after sending the :class:`Request`, the client plans to pause and wait
-until they see some response from the server before sending any
-:class:`Data` (or possibly some timeout occurs). The server's response
-can be an :class:`InformationalResponse` with status ``100 Continue``,
-or anything really (e.g. a full :class:`Response` with an error
+**First**, you have to be prepared to handle :class:`Request`\s with
+an ``Expect: 100-continue`` header. You can `read the spec
+<https://tools.ietf.org/html/rfc7231#section-5.1.1>`_ for the full
+details, but basically what this header means is that after sending
+the :class:`Request`, the client plans to pause and wait until they
+see some response from the server before sending any
+:class:`Data`. The server's response can be an
+:class:`InformationalResponse` with status ``100 Continue``, or
+anything really (e.g. a full :class:`Response` with an error
 code). The crucial thing as a server, though, is that you should never
 block trying to read a request body if the client is blocked waiting
 for you to tell them to send the request body.
@@ -666,7 +666,7 @@ in which case it will return :class:`ConnectionClosed`). This state
 also does another thing: normally, as an anti-denial-of-service
 protection, h11 will error out if its internal receive buffer gets too
 big; but when we are in this paused state, this protection is
-disabled. (This is important because without it, we'd run the risk of
+disabled. (This is important because otherwise we'd run the risk of
 treating a perfectly innocent client as if they were a DoS attacker,
 just because they sent a number of pipelined requests that all arrived
 at the same time.)
