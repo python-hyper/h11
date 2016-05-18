@@ -14,6 +14,14 @@ if sys.version_info[0] >= 3:
 else:
     in_file = sys.stdin
 
+def process_all(c):
+    while True:
+        event = c.next_event()
+        if event is h11.NEED_DATA or event is h11.PAUSED:
+            break
+        if type(event) is h11.ConnectionClosed:
+            break
+
 afl.init()
 
 data = in_file.read()
@@ -22,19 +30,20 @@ data = in_file.read()
 server1 = h11.Connection(h11.SERVER)
 try:
     server1.receive_data(data)
+    process_all(server1)
     server1.receive_data(b"")
+    process_all(server1)
 except h11.RemoteProtocolError:
     pass
 
 # byte at a time
 server2 = h11.Connection(h11.SERVER)
-for i in range(len(data)):
-    try:
-        server2.receive_data(data[i:i + 1])
-    except h11.RemoteProtocolError:
-        pass
 try:
+    for i in range(len(data)):
+        server2.receive_data(data[i:i + 1])
+        process_all(server2)
     server2.receive_data(b"")
+    process_all(server2)
 except h11.RemoteProtocolError:
     pass
 
