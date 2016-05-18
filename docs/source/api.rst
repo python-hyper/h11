@@ -362,7 +362,7 @@ The Connection object
    .. automethod:: send
    .. automethod:: send_with_data_passthrough
 
-   .. automethod:: prepare_to_reuse
+   .. automethod:: start_next_cycle
 
    .. attribute:: our_role
 
@@ -381,7 +381,7 @@ The Connection object
       The version of HTTP that our peer claims to support. ``None`` if
       we haven't yet received a request/response.
 
-      This is preserved by :meth:`prepare_to_reuse`, so it can be
+      This is preserved by :meth:`start_next_cycle`, so it can be
       handy for a client making multiple requests on the same
       connection: normally you don't know what version of HTTP the
       server supports until after you do a request and get a response
@@ -431,7 +431,7 @@ There are four cases where these exceptions might be raised:
   your event is invalid. Your event wasn't constructed, but there are
   no other consequences -- feel free to try again.
 
-* When calling :meth:`Connection.prepare_to_reuse`
+* When calling :meth:`Connection.start_next_cycle`
   (:exc:`LocalProtocolError`): This indicates that the connection is
   not ready to be re-used, because one or both of the peers are not in
   the :data:`DONE` state. The :class:`Connection` object remains
@@ -572,7 +572,7 @@ that you're actively choosing.
 If you want to re-use a connection, you have to wait until both the
 request and the response have been completed, bringing both the client
 and server to the :data:`DONE` state. Once this has happened, you can
-explicitly call :meth:`Connection.prepare_to_reuse` to reset both
+explicitly call :meth:`Connection.start_next_cycle` to reset both
 sides back to the :data:`IDLE` state. This makes sure that the client
 and server remain synched up.
 
@@ -594,8 +594,8 @@ because it makes things like error recovery very complicated.
 As a client, h11 does not support pipelining. This is enforced by the
 structure of the state machine: after sending one :class:`Request`,
 you can't send another until after calling
-:meth:`~Connection.prepare_to_reuse`, and you can't call
-:meth:`~Connection.prepare_to_reuse` until the server has entered the
+:meth:`~Connection.start_next_cycle`, and you can't call
+:meth:`~Connection.start_next_cycle` until the server has entered the
 :data:`DONE` state, which requires reading the server's full
 response.
 
@@ -604,7 +604,7 @@ to comply with the HTTP/1.1 standard: if the client sends multiple
 pipelined requests, then we the first request until we reach the
 :data:`DONE` state, and then :meth:`~Connection.next_event` will
 pause and refuse to parse any more events until the response is
-completed and :meth:`~Connection.prepare_to_reuse` is called. See the
+completed and :meth:`~Connection.start_next_cycle` is called. See the
 next section for more details.
 
 
@@ -673,7 +673,7 @@ state. There are three cases where this can happen:
    we received some more data after that. (The main situation where
    this might happen is a server responding to a pipelining client.)
    The :data:`PAUSED` state will go away after you call
-   :meth:`~Connection.prepare_to_reuse`.
+   :meth:`~Connection.start_next_cycle`.
 
 2) A successful ``CONNECT`` or ``Upgrade:`` request has caused the
    connection to switch to some other protocol (see
@@ -717,7 +717,7 @@ drives processing (e.g. you're using `Twisted
 <https://twistedmatrix.com/>`_, or implementing an
 :class:`asyncio.Protocol`), then you'll want to internally apply
 back-pressure whenever you see :data:`PAUSED`, remove back-pressure
-when you call :meth:`~Connection.prepare_to_reuse`, and otherwise just
+when you call :meth:`~Connection.start_next_cycle`, and otherwise just
 deliver events as they arrive. Something like:
 
 .. code-block:: python
@@ -755,10 +755,10 @@ deliver events as they arrive. Something like:
 
        # Called by your code when its ready to start a new
        # request/response cycle
-       def prepare_to_reuse(self):
-           self.conn.prepare_to_reuse()
+       def start_next_cycle(self):
+           self.conn.start_next_cycle()
            # New events might have been buffered internally, and only
-           # become deliverable after calling prepare_to_reuse
+           # become deliverable after calling start_next_cycle
            self._deliver_events()
            # Remove back-pressure
            self._transport.resume_reading()

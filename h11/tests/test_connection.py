@@ -361,7 +361,7 @@ def test_max_incomplete_event_size_countermeasure():
     # We can respond and reuse to get the second pipelined request
     c.send(Response(status_code=200, headers=[]))
     c.send(EndOfMessage())
-    c.prepare_to_reuse()
+    c.start_next_cycle()
     assert get_all_events(c) == [
         Request(method="GET", target="/2", headers=[("host", "b")]),
         EndOfMessage(),
@@ -371,7 +371,7 @@ def test_max_incomplete_event_size_countermeasure():
     # problem:
     c.send(Response(status_code=200, headers=[]))
     c.send(EndOfMessage())
-    c.prepare_to_reuse()
+    c.start_next_cycle()
     with pytest.raises(RemoteProtocolError):
         c.next_event()
 
@@ -385,7 +385,7 @@ def test_reuse_simple():
             EndOfMessage()])
     for conn in p.conns:
         assert conn.states == {CLIENT: DONE, SERVER: DONE}
-        conn.prepare_to_reuse()
+        conn.start_next_cycle()
 
     p.send(CLIENT,
            [Request(method="DELETE", target="/foo", headers=[("Host", "a")]),
@@ -421,7 +421,7 @@ def test_pipelining():
     assert c.their_state is DONE
     assert c.our_state is DONE
 
-    c.prepare_to_reuse()
+    c.start_next_cycle()
 
     assert get_all_events(c) == [
         Request(method="GET", target="/2",
@@ -432,7 +432,7 @@ def test_pipelining():
     assert c.next_event() is PAUSED
     c.send(Response(status_code=200, headers=[]))
     c.send(EndOfMessage())
-    c.prepare_to_reuse()
+    c.start_next_cycle()
 
     assert get_all_events(c) == [
         Request(method="GET", target="/3",
@@ -513,7 +513,7 @@ def test_protocol_switch():
         p.send(SERVER, EndOfMessage())
         # Check that re-use is still allowed after a denial
         for conn in p.conns:
-            conn.prepare_to_reuse()
+            conn.start_next_cycle()
 
         # Test accept case
         p = setup()
@@ -539,7 +539,7 @@ def test_protocol_switch():
         sc.send(deny)
         assert sc.next_event() is PAUSED
         sc.send(EndOfMessage())
-        sc.prepare_to_reuse()
+        sc.start_next_cycle()
         assert get_all_events(sc) == [
             Request(method="GET", target="/", headers=[], http_version="1.0"),
             EndOfMessage(),
@@ -692,7 +692,7 @@ def test_pipelined_close():
     c.send(Response(status_code=200, headers=[]))
     c.send(EndOfMessage())
     assert c.states[SERVER] is DONE
-    c.prepare_to_reuse()
+    c.start_next_cycle()
     assert get_all_events(c) == [
         Request(method="GET", target="/2",
                 headers=[("host", "a.com"), ("content-length", "5")]),

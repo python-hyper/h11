@@ -1,7 +1,5 @@
 Possible API breaking changes:
 
-- let's rename prepare_to_reuse -> start_next_cycle
-
 - pondering moving headers to be (default)dict of lowercase bytestrings -> ordered lists of bytestrings
 
   I guess we should get some benchmarks/profiles first, since one of the motivations would be to eliminate all these linear scans and reallocations we use when dealing with headers

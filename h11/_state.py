@@ -293,7 +293,7 @@ class ConnectionState(object):
                 # Fixed point reached
                 return
 
-    def prepare_to_reuse(self):
+    def start_next_cycle(self):
         if self.states != {CLIENT: DONE, SERVER: DONE}:
             raise LocalProtocolError("not in a reusable state")
         # Can't reach DONE/DONE with any of these active, but still, let's be

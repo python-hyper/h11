@@ -296,7 +296,7 @@ connection don't get accidentally mixed up):
 
 .. ipython:: python
 
-   client.conn.prepare_to_reuse()
+   client.conn.start_next_cycle()
 
 This resets both sides back to their initial :data:`IDLE` state,
 allowing us to send another :class:`Request`:

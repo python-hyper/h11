@@ -22,6 +22,9 @@ Backwards **in**\compatible changes:
   :attr:`Connection.client_state`, :attr:`Connection.server_state` with
   the new :attr:`Connection.states`.
 
+* Renamed the old :meth:`prepare_to_reuse` to the new
+  :meth:`~Connection.start_next_cycle`.
+
 Backwards compatible changes:
 
 * State machine: added a :data:`DONE` -> :data:`MUST_CLOSE` transition

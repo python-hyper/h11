@@ -175,18 +175,18 @@ def test_ConnectionState_reuse():
     cs = ConnectionState()
 
     with pytest.raises(LocalProtocolError):
-        cs.prepare_to_reuse()
+        cs.start_next_cycle()
 
     cs.process_event(CLIENT, Request)
     cs.process_event(CLIENT, EndOfMessage)
 
     with pytest.raises(LocalProtocolError):
-        cs.prepare_to_reuse()
+        cs.start_next_cycle()
 
     cs.process_event(SERVER, Response)
     cs.process_event(SERVER, EndOfMessage)
 
-    cs.prepare_to_reuse()
+    cs.start_next_cycle()
     assert cs.states == {CLIENT: IDLE, SERVER: IDLE}
 
     # No keepalive
@@ -198,7 +198,7 @@ def test_ConnectionState_reuse():
     cs.process_event(SERVER, EndOfMessage)
 
     with pytest.raises(LocalProtocolError):
-        cs.prepare_to_reuse()
+        cs.start_next_cycle()
 
     # One side closed
 
@@ -210,7 +210,7 @@ def test_ConnectionState_reuse():
     cs.process_event(SERVER, EndOfMessage)
 
     with pytest.raises(LocalProtocolError):
-        cs.prepare_to_reuse()
+        cs.start_next_cycle()
 
     # Succesful protocol switch
 
@@ -221,7 +221,7 @@ def test_ConnectionState_reuse():
     cs.process_event(SERVER, InformationalResponse, _SWITCH_UPGRADE)
 
     with pytest.raises(LocalProtocolError):
-        cs.prepare_to_reuse()
+        cs.start_next_cycle()
 
     # Failed protocol switch
 
@@ -232,7 +232,7 @@ def test_ConnectionState_reuse():
     cs.process_event(SERVER, Response)
     cs.process_event(SERVER, EndOfMessage)
 
-    cs.prepare_to_reuse()
+    cs.start_next_cycle()
     assert cs.states == {CLIENT: IDLE, SERVER: IDLE}
 
 def test_server_request_is_illegal():

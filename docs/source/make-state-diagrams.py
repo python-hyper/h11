@@ -166,7 +166,7 @@ def make_dot(role, out_path):
 
         edges.e(DONE, MUST_CLOSE, "keep-alive<BR/>is disabled", _STATE_COLOR,
                 italicize=True)
-        edges.e(DONE, IDLE, "prepare_to_reuse()", _SPECIAL_COLOR)
+        edges.e(DONE, IDLE, "start_next_cycle()", _SPECIAL_COLOR)
 
         edges.write(f)
 

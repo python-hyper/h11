@@ -188,7 +188,7 @@ class Connection(object):
         return (self.their_role is CLIENT
                 and self.client_is_waiting_for_100_continue)
 
-    def prepare_to_reuse(self):
+    def start_next_cycle(self):
         """Attempt to reset our connection state for a new request/response
         cycle.
 
@@ -201,7 +201,7 @@ class Connection(object):
 
         """
         old_states = dict(self._cstate.states)
-        self._cstate.prepare_to_reuse()
+        self._cstate.start_next_cycle()
         self._request_method = None
         # self.their_http_version gets left alone, since it presumably lasts
         # beyond a single request/response cycle
@@ -398,7 +398,7 @@ class Connection(object):
                are not in a state where we can process incoming data (usually
                because the peer has finished their part of the current
                request/response cycle, and you have not yet called
-               :meth:`prepare_to_reuse`). See :ref:`flow-control` for details.
+               :meth:`start_next_cycle`). See :ref:`flow-control` for details.
 
         Raises:
             RemoteProtocolError:

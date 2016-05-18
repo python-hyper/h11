@@ -211,7 +211,7 @@ async def http_serve(sock, addr):
         else:
             try:
                 wrapper.info("trying to re-use connection")
-                wrapper.conn.prepare_to_reuse()
+                wrapper.conn.start_next_cycle()
             except h11.ProtocolError:
                 states = wrapper.conn.states
                 wrapper.info("unexpected state", states, "-- bailing out")
