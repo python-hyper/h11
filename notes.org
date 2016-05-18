@@ -1,8 +1,21 @@
 Possible API breaking changes:
 
+- let's rename prepare_to_reuse -> start_next_cycle
+
 - pondering moving headers to be (default)dict of lowercase bytestrings -> ordered lists of bytestrings
 
   I guess we should get some benchmarks/profiles first, since one of the motivations would be to eliminate all these linear scans and reallocations we use when dealing with headers
+
+  - orrrrr... join most headers on "," and join Set-Cookie on ";" (HTTP/2 spec explicitly allows this!), and then we can just use a freakin' (case insensitive) dict. Terrible idea? or awesome idea?
+
+- pondering whether to adopt the HTTP/2 style of sticking request/response line information directly into the header dict.
+
+  Advantages:
+  - code that wants to handle HTTP/2 will need to handle this anyway, might make it easier to write dual-stack clients/servers
+
+  - provides a more useful downstream representation for request targets that are in full-fledged http://... form.
+
+    I'm of mixed mind about how much these matter though -- HTTP/1.1 servers are supposedly required to support them, but HTTP/1.1 clients are forbidden to send them, and in practice the transition that the HTTP/1.1 spec envisions to clients sending these all the time is... just never going to happen. So I like following specs, but in reality servers never have and never will need to support these, making it feel a bit silly. They do get sent to proxies, though -- maybe someone wants to use h11 to implement a proxy?
 
 for better tests:
 https://github.com/kevin1024/pytest-httpbin
@@ -21,43 +34,6 @@ XX TODO:
    [RFC7231]).
 
 http://coad.measurement-factory.com/details.html
-
-* should receive_data break on EndOfMessage?
-the one case where this makes a difference is when receiving from a HTTP 1.0 server, their [EndOfMessage(), ConnectionClose()] arrive in the same receive_data() call. If we don't break here, then we have to require the user to call receive_data(b"") twice in a row to get all the events. If we do break here, then we more neatly separate single request/response cycles from the underlying connection lifecycel
-I guess not breaking is fine -- if someone misses the ConnectionClose() then they can always see it in the states or get it again by calling receive_data(None) or receive_data(b""), and I think someone who has missed ConnectionClose() will necessarily do one of these operations next.
-
-* Closure
-
-You or other side can close (send ConnectionClosed()) at any time.
-
-This might be a protocol error, in which case it'll be handled like any
-protocol error: it'll raise an exception and leave the Connection object in
-an inconsistent state. Don't try to use it after this.
-
-If you really just want to kill it and make it go away, go ahead and close
-your socket. I can't stop you. The other side will cope.
-
-But if you want to do an orderly shutdown, then you should do
-
-   conn.send(ConnectionClosed())
-
-and then wait for conn.data_to_send() to give you a None, at which point you
-can close the connection (clients) or call shutdown and wait (servers).
-
-^^ actually this makes no sense -- it's not necessary to ever send ConnectionClosed(), because conn.data_to_send() is always fully up-to-date with no internal buffering. If there were internal buffering then nothing would work, because we have no way to signal that more data is available. So the lack of buffering is a fundamental guarantee of the API, which means that any time you could do send(ConnectionClosed()), you could also just close the connection. I guess the one exception would be if send() and data_to_send() were like, in different threads, so this was a communication channel between them... but Connection objects aren't even thread-safe.
-Oh, but you definitely should send ConnectionClosed() if you're doing a half-shutdown and continuing to read.
-
-In addition, h11 will automatically issue a close in two cases.
-1) when the server reaches DONE, and the HTTP/1.1 spec says that
-we need to close after this request/response. (Basically: someone has
-Connection: close set, or is using HTTP/1.0.)
-2) if we're in DONE or IDLE, and the other side is CLOSED.
-^^ this also makes no sense -- if we spontaneously emit some data_to_send, then there's no way for the user to know this. So we can't do that.
-
-Instead, we should add a new state MUST_CLOSE, and the rules:
-
-1) when a party reaches DONE, and the HTTP/1.1 spec says that they must close, then they automagically go to the MUST_CLOSE state
-2) if either party is in DONE or IDLE and the other is in CLOSED, then the party that is not CLOSED automatically goes to the MUST_CLOSE state
 
 * notes for building something on top of this
 
@@ -106,29 +82,3 @@ response. Finally, the server fully closes the connection."
 
 So this needs shutdown(2). This is what data_to_send's close means -- this
 complicated close dance.
-
-
-Implementing Expect: 100-continue on the client is also tricky: see RFC 7231
-5.1.1 for details, but in particular if you get a 417 then you have to drop
-the Expect: and then try again.
-
-On the server: HTTP/1.0 + Expect: 100-continue is like the 100-continue
-didn't even exist, you just ignore it.
-And if you want it to go away, you should send a 4xx + Connection: close +
-EOM and then we'll close it and the client won't send everything. Otherwise
-you have to read it all.
-#
-For any Expect: value besides 100-continue, it was originally intended that
-the server should blow up if it's unrecognized, but the RFC7xxx specs gave
-up on this because no-one implemented it, so now servers are free to
-blithely ignore unrecognized Expect: values.
-
-Client sends (regex):
-  Request Data* EndOfMessage
-Server sends (regex):
-  InformationalResponse* Response Data* EndOfMessage
-They are linked in two places:
-- client has wait-for-100-continue state (not shown) where the transition
-  out is receiving a InformationalResponse or Response (or timeout)
-- *both* EndOfMessage's have to arrive before *either* machine returns to
-  the start state.
