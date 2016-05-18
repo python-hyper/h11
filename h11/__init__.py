@@ -7,7 +7,7 @@
 # but at least it gets you out of dealing with the wire itself.
 
 from ._version import __version__
-PRODUCT_ID = "h11/" + __version__
+PRODUCT_ID = "python-h11/" + __version__
 
 from ._util import ProtocolError, LocalProtocolError, RemoteProtocolError
 from ._events import *

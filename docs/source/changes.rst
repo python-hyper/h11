@@ -33,6 +33,10 @@ Backwards compatible changes:
   originates locally (which produce a 500 status code) versus errors
   caused by remote misbehavior (which produce a 4xx status code).
 
+* Changed the :data:`PRODUCT_ID` from ``h11/<verson>`` to
+  ``python-h11/<version>``. (This is similar to what requests uses,
+  and much more searchable than plain h11.)
+
 
 v0.5.0 (2016-05-14)
 -------------------
