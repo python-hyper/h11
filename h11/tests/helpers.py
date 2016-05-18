@@ -1,6 +1,21 @@
 from .._events import *
 from .._state import *
-from .._connection import Connection
+from .._connection import *
+
+def get_all_events(conn):
+    got_events = []
+    while True:
+        event = conn.next_event()
+        if event in (NEED_DATA, PAUSED):
+            break
+        got_events.append(event)
+        if type(event) is ConnectionClosed:
+            break
+    return got_events
+
+def receive_and_get(conn, data):
+    conn.receive_data(data)
+    return get_all_events(conn)
 
 # Merges adjacent Data events, and converts payloads to bytestrings
 def normalize_data_events(in_events):
@@ -27,7 +42,7 @@ class ConnectionPair:
     def conns(self):
         return self.conn.values()
 
-    # expect=None to disable checking, expect=[...] to say what expected
+    # expect="match" if expect=send_events; expect=[...] to say what expected
     def send(self, role, send_events, expect="match"):
         if not isinstance(send_events, list):
             send_events = [send_events]
@@ -42,11 +57,11 @@ class ConnectionPair:
         # send uses b"" to mean b"", and None to mean closed
         # receive uses b"" to mean closed, and None to mean "try again"
         # so we have to translate between the two conventions
-        got_events = []
         if data:
-            got_events += self.conn[self.other[role]].receive_data(data)
+            self.conn[self.other[role]].receive_data(data)
         if closed:
-            got_events += self.conn[self.other[role]].receive_data(b"")
+            self.conn[self.other[role]].receive_data(b"")
+        got_events = get_all_events(self.conn[self.other[role]])
         if expect == "match":
             expect = send_events
         if not isinstance(expect, list):

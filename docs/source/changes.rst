@@ -3,10 +3,20 @@ History of changes
 
 .. currentmodule:: h11
 
-vNEXT
------
+vNEXT (????-??-??)
+------------------
+
+This is the first release since we started using h11 to write
+non-trivial server code, and this experience triggered a number of
+substantial API changes.
 
 Backwards **in**\compatible changes:
+
+* Split the old :meth:`receive_data` into the new
+  :meth:`~Connection.receive_data` and
+  :meth:`~Connection.next_event`, and replaced the old :class:`Paused`
+  pseudo-event with the new :data:`NEED_DATA` and :data:`PAUSED`
+  sentinels.
 
 * Simplified the API by replacing the old :meth:`Connection.state_of`,
   :attr:`Connection.client_state`, :attr:`Connection.server_state` with
@@ -18,13 +28,13 @@ Backwards compatible changes:
   triggered by our peer being in the :data:`ERROR` state.
 
 * Split :exc:`ProtocolError` into :exc:`LocalProtocolError` and
-  :exc:`RemoteProtocolError`. Use case: HTTP servers want to be able
-  to distinguish between an error that originates locally (which
-  produce a 500 status code) versus errors caused by remote
-  misbehavior (which produce a 4xx status code).
+  :exc:`RemoteProtocolError` (see :ref:`error-handling`). Use case: HTTP
+  servers want to be able to distinguish between an error that
+  originates locally (which produce a 500 status code) versus errors
+  caused by remote misbehavior (which produce a 4xx status code).
 
 
-v0.5.0
-------
+v0.5.0 (2016-05-14)
+-------------------
 
 * Initial release.

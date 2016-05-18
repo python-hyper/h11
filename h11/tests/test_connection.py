@@ -5,10 +5,10 @@ from .._events import *
 from .._state import *
 from .._connection import (
     _keep_alive, _body_framing,
-    Connection,
+    Connection, NEED_DATA, PAUSED,
 )
 
-from .helpers import ConnectionPair
+from .helpers import ConnectionPair, get_all_events, receive_and_get
 
 def test__keep_alive():
     assert _keep_alive(
@@ -169,23 +169,24 @@ def test_client_talking_to_http10_server():
     c.send(EndOfMessage())
     assert c.our_state is DONE
     # No content-length, so Http10 framing for body
-    assert (c.receive_data(b"HTTP/1.0 200 OK\r\n\r\n")
+    assert (receive_and_get(c, b"HTTP/1.0 200 OK\r\n\r\n")
             == [Response(status_code=200, headers=[], http_version="1.0")])
     assert c.our_state is MUST_CLOSE
-    assert (c.receive_data(b"12345") == [Data(data=b"12345")])
-    assert (c.receive_data(b"67890") == [Data(data=b"67890")])
-    assert (c.receive_data(b"") == [EndOfMessage(), ConnectionClosed()])
+    assert (receive_and_get(c, b"12345") == [Data(data=b"12345")])
+    assert (receive_and_get(c, b"67890") == [Data(data=b"67890")])
+    assert (receive_and_get(c, b"") == [EndOfMessage(), ConnectionClosed()])
     assert c.their_state is CLOSED
 
 def test_server_talking_to_http10_client():
     c = Connection(SERVER)
     # No content-length, so no body
     # NB: no host header
-    assert (c.receive_data(b"GET / HTTP/1.0\r\n\r\n")
-            == [Request(method="GET", target="/",
-                        headers=[],
-                        http_version="1.0"),
-                EndOfMessage()])
+    assert receive_and_get(c, b"GET / HTTP/1.0\r\n\r\n") == [
+        Request(method="GET", target="/",
+                headers=[],
+                http_version="1.0"),
+        EndOfMessage(),
+    ]
     assert c.their_state is MUST_CLOSE
 
     # We automatically Connection: close back at them
@@ -199,15 +200,16 @@ def test_server_talking_to_http10_client():
     # Check that it works if they do send Content-Length
     c = Connection(SERVER)
     # NB: no host header
-    assert (c.receive_data(b"POST / HTTP/1.0\r\nContent-Length: 10\r\n\r\n1")
+    assert (receive_and_get(c,
+                            b"POST / HTTP/1.0\r\nContent-Length: 10\r\n\r\n1")
             == [Request(method="POST", target="/",
                         headers=[("Content-Length", "10")],
                         http_version="1.0"),
                 Data(data=b"1")])
-    assert (c.receive_data(b"234567890")
+    assert (receive_and_get(c, b"234567890")
             == [Data(data=b"234567890"), EndOfMessage()])
     assert c.their_state is MUST_CLOSE
-    assert c.receive_data(b"") == [ConnectionClosed()]
+    assert receive_and_get(c, b"") == [ConnectionClosed()]
 
 def test_automatic_transfer_encoding_in_response():
     # Check that in responses, the user can specify either Transfer-Encoding:
@@ -237,7 +239,7 @@ def test_automatic_transfer_encoding_in_response():
         # When speaking to HTTP/1.0 client, all of the above cases get
         # normalized to no-framing-headers
         c = Connection(SERVER)
-        c.receive_data(b"GET / HTTP/1.0\r\n\r\n")
+        receive_and_get(c, b"GET / HTTP/1.0\r\n\r\n")
         assert (c.send(Response(status_code=200, headers=user_headers))
                 == b"HTTP/1.1 200 \r\nconnection: close\r\n\r\n")
         assert c.send(Data(data=b"12345")) == b"12345"
@@ -304,67 +306,74 @@ def test_100_continue():
         assert not conn.client_is_waiting_for_100_continue
         assert not conn.they_are_waiting_for_100_continue
 
-def test_max_buffer_size_countermeasure():
+def test_max_incomplete_event_size_countermeasure():
     # Infinitely long headers are definitely not okay
     c = Connection(SERVER)
     c.receive_data(b"GET / HTTP/1.0\r\nEndless: ")
+    assert c.next_event() is NEED_DATA
     with pytest.raises(RemoteProtocolError):
         while True:
             c.receive_data(b"a" * 1024)
+            c.next_event()
 
     # Checking that the same header is accepted / rejected depending on the
-    # max_buffer_size setting:
-    c = Connection(SERVER, max_buffer_size=5000)
+    # max_incomplete_event_size setting:
+    c = Connection(SERVER, max_incomplete_event_size=5000)
     c.receive_data(b"GET / HTTP/1.0\r\nBig: ")
     c.receive_data(b"a" * 4000)
-    assert c.receive_data(b"\r\n\r\n") == [
+    c.receive_data(b"\r\n\r\n")
+    assert get_all_events(c) == [
         Request(method="GET", target="/", http_version="1.0",
                 headers=[("big", "a" * 4000)]),
         EndOfMessage(),
     ]
 
-    c = Connection(SERVER, max_buffer_size=4000)
+    c = Connection(SERVER, max_incomplete_event_size=4000)
     c.receive_data(b"GET / HTTP/1.0\r\nBig: ")
+    c.receive_data(b"a" * 4000)
     with pytest.raises(RemoteProtocolError):
-        c.receive_data(b"a" * 4000)
+        c.next_event()
 
-    # Temporarily exceeding the max buffer size is fine; it's just maintaining
-    # large buffers over multiple calls that's a problem:
-    c = Connection(SERVER, max_buffer_size=5000)
+    # Temporarily exceeding the size limit is fine, as long as its done with
+    # complete events:
+    c = Connection(SERVER, max_incomplete_event_size=5000)
     c.receive_data(b"GET / HTTP/1.0\r\nContent-Length: 10000")
-    assert c.receive_data(b"\r\n\r\n" + b"a" * 10000) == [
+    c.receive_data(b"\r\n\r\n" + b"a" * 10000)
+    assert get_all_events(c) == [
         Request(method="GET", target="/", http_version="1.0",
                 headers=[("Content-Length", "10000")]),
         Data(data=b"a" * 10000),
         EndOfMessage(),
     ]
 
-    # Exceeding the max buffer size is fine if we are paused
-    c = Connection(SERVER, max_buffer_size=100)
-    # Two pipelined requests in a big big buffer
-    assert (c.receive_data(b"GET /1 HTTP/1.1\r\nHost: a\r\n\r\n"
-                           b"GET /2 HTTP/1.1\r\nHost: b\r\n\r\n"
-                           + b"X" * 1000)
-            == [Request(method="GET", target="/1", headers=[("host", "a")]),
-                EndOfMessage(),
-                Paused(reason=DONE)])
-    # Even more data comes in, no problem
-    assert c.receive_data(b"X" * 1000)
+    c = Connection(SERVER, max_incomplete_event_size=100)
+    # Two pipelined requests to create a way-too-big receive buffer... but
+    # it's fine because we're not checking
+    c.receive_data(b"GET /1 HTTP/1.1\r\nHost: a\r\n\r\n"
+                   b"GET /2 HTTP/1.1\r\nHost: b\r\n\r\n"
+                   + b"X" * 1000)
+    assert get_all_events(c) == [
+        Request(method="GET", target="/1", headers=[("host", "a")]),
+        EndOfMessage(),
+    ]
+    # Even more data comes in, still no problem
+    c.receive_data(b"X" * 1000)
     # We can respond and reuse to get the second pipelined request
     c.send(Response(status_code=200, headers=[]))
     c.send(EndOfMessage())
     c.prepare_to_reuse()
-    assert (c.receive_data(None)
-            == [Request(method="GET", target="/2", headers=[("host", "b")]),
-                EndOfMessage(),
-                Paused(reason=DONE)])
-    # But once we unpause and try to read the next message, the buffer size is
-    # enforced again
+    assert get_all_events(c) == [
+        Request(method="GET", target="/2", headers=[("host", "b")]),
+        EndOfMessage(),
+    ]
+    # But once we unpause and try to read the next message, and find that it's
+    # incomplete and the buffer is *still* way too large, then *that's* a
+    # problem:
     c.send(Response(status_code=200, headers=[]))
     c.send(EndOfMessage())
     c.prepare_to_reuse()
     with pytest.raises(RemoteProtocolError):
-        c.receive_data(None)
+        c.next_event()
 
 def test_reuse_simple():
     p = ConnectionPair()
@@ -388,26 +397,24 @@ def test_reuse_simple():
 def test_pipelining():
     # Client doesn't support pipelining, so we have to do this by hand
     c = Connection(SERVER)
-    assert c.receive_data(None) == []
+    assert c.next_event() is NEED_DATA
     # 3 requests all bunched up
-    events = c.receive_data(
+    c.receive_data(
         b"GET /1 HTTP/1.1\r\nHost: a.com\r\nContent-Length: 5\r\n\r\n"
         b"12345"
         b"GET /2 HTTP/1.1\r\nHost: a.com\r\nContent-Length: 5\r\n\r\n"
         b"67890"
         b"GET /3 HTTP/1.1\r\nHost: a.com\r\n\r\n")
-    assert events == [
+    assert get_all_events(c) == [
         Request(method="GET", target="/1",
                 headers=[("Host", "a.com"), ("Content-Length", "5")]),
         Data(data=b"12345"),
         EndOfMessage(),
-        Paused(reason=DONE),
         ]
     assert c.their_state is DONE
     assert c.our_state is SEND_RESPONSE
 
-    # Pause pseudo-events are re-emitted each time through:
-    assert c.receive_data(None) == [Paused(reason=DONE)]
+    assert c.next_event() is PAUSED
 
     c.send(Response(status_code=200, headers=[]))
     c.send(EndOfMessage())
@@ -416,43 +423,41 @@ def test_pipelining():
 
     c.prepare_to_reuse()
 
-    events = c.receive_data(None)
-    assert events == [
+    assert get_all_events(c) == [
         Request(method="GET", target="/2",
                 headers=[("Host", "a.com"), ("Content-Length", "5")]),
         Data(data=b"67890"),
         EndOfMessage(),
-        Paused(reason=DONE),
     ]
+    assert c.next_event() is PAUSED
     c.send(Response(status_code=200, headers=[]))
     c.send(EndOfMessage())
     c.prepare_to_reuse()
 
-    events = c.receive_data(None)
-    assert events == [
+    assert get_all_events(c) == [
         Request(method="GET", target="/3",
                 headers=[("Host", "a.com")]),
         EndOfMessage(),
-        # Doesn't pause this time, no trailing data
     ]
+    # Doesn't pause this time, no trailing data
+    assert c.next_event() is NEED_DATA
     c.send(Response(status_code=200, headers=[]))
     c.send(EndOfMessage())
 
     # Arrival of more data triggers pause
-    assert c.receive_data(None) == []
-    assert c.receive_data(b"SADF") == [Paused(reason=DONE)]
+    assert c.next_event() is NEED_DATA
+    c.receive_data(b"SADF")
+    assert c.next_event() is PAUSED
     assert c.trailing_data == (b"SADF", False)
-    assert c.receive_data(b"") == [Paused(reason=DONE)]
+    # If EOF arrives while paused, we don't see that either:
+    c.receive_data(b"")
     assert c.trailing_data == (b"SADF", True)
-    assert c.receive_data(None) == [Paused(reason=DONE)]
-    assert c.receive_data(b"") == [Paused(reason=DONE)]
+    assert c.next_event() is PAUSED
+    c.receive_data(b"")
+    assert c.next_event() is PAUSED
     # Can't call receive_data with non-empty buf after closing it
     with pytest.raises(RuntimeError):
         c.receive_data(b"FDSA")
-    # Can't re-use after an error like that
-    with pytest.raises(LocalProtocolError):
-        c.prepare_to_reuse()
-
 
 def test_protocol_switch():
     for (req, deny, accept) in [
@@ -494,16 +499,10 @@ def test_protocol_switch():
             # finish the request before that kicks in
             for conn in p.conns:
                 assert conn.states[CLIENT] is SEND_BODY
-            p.send(CLIENT,
-                   [Data(data=b"1"), EndOfMessage()],
-                   expect=[Data(data=b"1"),
-                           EndOfMessage(),
-                           Paused(reason=MIGHT_SWITCH_PROTOCOL)])
+            p.send(CLIENT, [Data(data=b"1"), EndOfMessage()])
             for conn in p.conns:
                 assert conn.states[CLIENT] is MIGHT_SWITCH_PROTOCOL
-            assert p.conn[SERVER].receive_data(None) == [
-                Paused(reason=MIGHT_SWITCH_PROTOCOL),
-            ]
+            assert p.conn[SERVER].next_event() is PAUSED
             return p
 
         # Test deny case
@@ -518,17 +517,14 @@ def test_protocol_switch():
 
         # Test accept case
         p = setup()
-        p.send(SERVER, accept,
-               expect=[accept, Paused(reason=SWITCHED_PROTOCOL)])
+        p.send(SERVER, accept)
         for conn in p.conns:
             assert conn.states == {CLIENT: SWITCHED_PROTOCOL,
                                    SERVER: SWITCHED_PROTOCOL}
-            assert conn.receive_data(b"123") == [
-                Paused(reason=SWITCHED_PROTOCOL),
-            ]
-            assert conn.receive_data(b"456") == [
-                Paused(reason=SWITCHED_PROTOCOL),
-            ]
+            conn.receive_data(b"123")
+            assert conn.next_event() is PAUSED
+            conn.receive_data(b"456")
+            assert conn.next_event() is PAUSED
             assert conn.trailing_data == (b"123456", False)
 
         # Pausing in might-switch, then recovery
@@ -537,20 +533,14 @@ def test_protocol_switch():
         # logic)
         p = setup()
         sc = p.conn[SERVER]
-        assert sc.receive_data(b"GET / HTTP/1.0\r\n\r\n") == [
-            Paused(reason=MIGHT_SWITCH_PROTOCOL),
-        ]
-        assert sc.receive_data(None) == [
-            Paused(reason=MIGHT_SWITCH_PROTOCOL),
-        ]
+        sc.receive_data(b"GET / HTTP/1.0\r\n\r\n")
+        assert sc.next_event() is PAUSED
         assert sc.trailing_data == (b"GET / HTTP/1.0\r\n\r\n", False)
         sc.send(deny)
-        assert sc.receive_data(None) == [
-            Paused(reason=DONE),
-        ]
+        assert sc.next_event() is PAUSED
         sc.send(EndOfMessage())
         sc.prepare_to_reuse()
-        assert sc.receive_data(None) == [
+        assert get_all_events(sc) == [
             Request(method="GET", target="/", headers=[], http_version="1.0"),
             EndOfMessage(),
         ]
@@ -560,28 +550,18 @@ def test_protocol_switch():
         # switched, we don't.
         p = setup()
         sc = p.conn[SERVER]
-        assert sc.receive_data(b"") == [
-            Paused(reason=MIGHT_SWITCH_PROTOCOL),
-        ]
-        assert sc.receive_data(None) == [
-            Paused(reason=MIGHT_SWITCH_PROTOCOL),
-        ]
+        sc.receive_data(b"")
+        assert sc.next_event() is PAUSED
         assert sc.trailing_data == (b"", True)
-        p.send(SERVER, accept,
-               expect=[accept, Paused(reason=SWITCHED_PROTOCOL)])
-        assert sc.receive_data(None) == [
-            Paused(reason=SWITCHED_PROTOCOL),
-        ]
+        p.send(SERVER, accept)
+        assert sc.next_event() is PAUSED
 
         p = setup()
         sc = p.conn[SERVER]
-        assert sc.receive_data(b"") == [
-            Paused(reason=MIGHT_SWITCH_PROTOCOL),
-        ]
+        sc.receive_data(b"") == []
+        assert sc.next_event() is PAUSED
         sc.send(deny)
-        assert sc.receive_data(None) == [
-            ConnectionClosed(),
-        ]
+        assert sc.next_event() == ConnectionClosed()
 
         # You can't send after switching protocols, or while waiting for a
         # protocol switch
@@ -590,8 +570,7 @@ def test_protocol_switch():
             p.conn[CLIENT].send(
                 Request(method="GET", target="/", headers=[("Host", "a")]))
         p = setup()
-        p.send(SERVER, accept,
-               expect=[accept, Paused(reason=SWITCHED_PROTOCOL)])
+        p.send(SERVER, accept)
         with pytest.raises(LocalProtocolError):
             p.conn[SERVER].send(Data(data=b"123"))
 
@@ -615,12 +594,10 @@ def test_close_simple():
         # You can keep putting b"" into a closed connection, and you keep
         # getting ConnectionClosed() out:
         p = setup()
-        assert p.conn[who_shot_second].receive_data(None) == [
-            ConnectionClosed(),
-        ]
-        assert p.conn[who_shot_second].receive_data(b"") == [
-            ConnectionClosed(),
-        ]
+        assert p.conn[who_shot_second].next_event() == ConnectionClosed()
+        assert p.conn[who_shot_second].next_event() == ConnectionClosed()
+        p.conn[who_shot_second].receive_data(b"")
+        assert p.conn[who_shot_second].next_event() == ConnectionClosed()
         # Second party can close...
         p = setup()
         p.send(who_shot_second, ConnectionClosed())
@@ -635,9 +612,9 @@ def test_close_simple():
             p.conn[who_shot_second].receive_data(b"123")
         # And receiving new data on a MUST_CLOSE connection is a ProtocolError
         p = setup()
+        p.conn[who_shot_first].receive_data(b"GET")
         with pytest.raises(RemoteProtocolError):
-            p.conn[who_shot_first].receive_data(b"GET")
-
+            p.conn[who_shot_first].next_event()
 
 def test_close_different_states():
     req = [Request(method="GET", target="/foo", headers=[("Host", "a")]),
@@ -662,8 +639,9 @@ def test_close_different_states():
     p.send(CLIENT, req)
     with pytest.raises(LocalProtocolError):
         p.conn[SERVER].send(ConnectionClosed())
+    p.conn[CLIENT].receive_data(b"")
     with pytest.raises(RemoteProtocolError):
-        p.conn[CLIENT].receive_data(b"")
+        p.conn[CLIENT].next_event()
 
     # Server after response
     p = ConnectionPair()
@@ -689,8 +667,9 @@ def test_close_different_states():
                    headers=[("Host", "a"), ("Content-Length", "10")]))
     with pytest.raises(LocalProtocolError):
         p.conn[CLIENT].send(ConnectionClosed())
+    p.conn[SERVER].receive_data(b"")
     with pytest.raises(RemoteProtocolError):
-        p.conn[SERVER].receive_data(b"")
+        p.conn[SERVER].next_event()
 
 # Receive several requests and then client shuts down their side of the
 # connection; we can respond to each
@@ -703,12 +682,18 @@ def test_pipelined_close():
         b"GET /2 HTTP/1.1\r\nHost: a.com\r\nContent-Length: 5\r\n\r\n"
         b"67890")
     c.receive_data(b"")
+    assert get_all_events(c) == [
+        Request(method="GET", target="/1",
+                headers=[("host", "a.com"), ("content-length", "5")]),
+        Data(data=b"12345"),
+        EndOfMessage(),
+    ]
     assert c.states[CLIENT] is DONE
     c.send(Response(status_code=200, headers=[]))
     c.send(EndOfMessage())
     assert c.states[SERVER] is DONE
     c.prepare_to_reuse()
-    assert c.receive_data(None) == [
+    assert get_all_events(c) == [
         Request(method="GET", target="/2",
                 headers=[("host", "a.com"), ("content-length", "5")]),
         Data(data=b"67890"),
@@ -730,9 +715,10 @@ def test_sendfile():
 
     def setup(header, http_version):
         c = Connection(SERVER)
-        c.receive_data("GET / HTTP/{}\r\nHost: a\r\n\r\n"
-                       .format(http_version)
-                       .encode("ascii"))
+        receive_and_get(c,
+                        "GET / HTTP/{}\r\nHost: a\r\n\r\n"
+                        .format(http_version)
+                        .encode("ascii"))
         headers = []
         if header:
             headers.append(header)
@@ -758,14 +744,15 @@ def test_errors():
     # After a receive error, you can't receive
     for role in [CLIENT, SERVER]:
         c = Connection(our_role=role)
+        c.receive_data(b"gibberish\r\n\r\n")
         with pytest.raises(RemoteProtocolError):
-            c.receive_data(b"gibberish\r\n\r\n")
+            c.next_event()
         # Now any attempt to receive continues to raise
         assert c.their_state is ERROR
         assert c.our_state is not ERROR
         print(c._cstate.states)
         with pytest.raises(RemoteProtocolError):
-            c.receive_data(None)
+            c.next_event()
         # But we can still yell at the client for sending us gibberish
         if role is SERVER:
             assert (c.send(Response(status_code=400, headers=[]))
@@ -778,7 +765,7 @@ def test_errors():
         c = Connection(our_role=role)
         if role is SERVER:
             # Put it into the state where it *could* send a response...
-            c.receive_data(b"GET / HTTP/1.0\r\n\r\n")
+            receive_and_get(c, b"GET / HTTP/1.0\r\n\r\n")
             assert c.our_state is SEND_RESPONSE
         return c
 
@@ -812,13 +799,15 @@ def test_idle_receive_nothing():
     # At one point this incorrectly raised an error
     for role in [CLIENT, SERVER]:
         c = Connection(role)
-        assert c.receive_data(None) == []
+        assert c.next_event() is NEED_DATA
 
 def test_connection_drop():
     c = Connection(SERVER)
-    assert c.receive_data(b"GET /") == []
+    c.receive_data(b"GET /")
+    assert c.next_event() is NEED_DATA
+    c.receive_data(b"")
     with pytest.raises(RemoteProtocolError):
-        c.receive_data(b"")
+        c.next_event()
 
 def test_408_request_timeout():
     # Should be able to send this spontaneously as a server without seeing
@@ -829,12 +818,14 @@ def test_408_request_timeout():
 # This used to raise IndexError
 def test_empty_request():
     c = Connection(SERVER)
+    c.receive_data(b"\r\n")
     with pytest.raises(RemoteProtocolError):
-        c.receive_data(b"\r\n")
+        c.next_event()
 
 # This used to raise IndexError
 def test_empty_response():
     c = Connection(CLIENT)
     c.send(Request(method="GET", target="/", headers=[("Host", "a")]))
+    c.receive_data(b"\r\n")
     with pytest.raises(RemoteProtocolError):
-        c.receive_data(b"\r\n")
+        c.next_event()

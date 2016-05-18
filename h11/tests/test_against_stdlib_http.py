@@ -51,18 +51,20 @@ def test_h11_as_client():
             s.sendall(c.send(h11.EndOfMessage()))
 
             data = bytearray()
-            done = False
-            while not done:
-                # Use a small read buffer to make things more challenging and
-                # exercise more paths :-)
-                for event in c.receive_data(s.recv(10)):
-                    print(event)
-                    if type(event) is h11.Response:
-                        assert event.status_code == 200
-                    if type(event) is h11.Data:
-                        data += event.data
-                    if type(event) is h11.EndOfMessage:
-                        done = True
+            while True:
+                event = c.next_event()
+                print(event)
+                if event is h11.NEED_DATA:
+                    # Use a small read buffer to make things more challenging
+                    # and exercise more paths :-)
+                    c.receive_data(s.recv(10))
+                    continue
+                if type(event) is h11.Response:
+                    assert event.status_code == 200
+                if type(event) is h11.Data:
+                    data += event.data
+                if type(event) is h11.EndOfMessage:
+                    break
             assert bytes(data) == test_file_data
 
 class H11RequestHandler(socketserver.BaseRequestHandler):
@@ -70,17 +72,17 @@ class H11RequestHandler(socketserver.BaseRequestHandler):
         with closing(self.request) as s:
             c = h11.Connection(h11.SERVER)
             request = None
-            done = False
-            while not done:
-                # Use a small read buffer to make things more challenging and
-                # exercise more paths :-)
-                for event in c.receive_data(s.recv(10)):
-                    print(event)
-                    if type(event) is h11.Request:
-                        request = event
-                    if type(event) is h11.EndOfMessage:
-                        done = True
-                        break
+            while True:
+                event = c.next_event()
+                if event is h11.NEED_DATA:
+                    # Use a small read buffer to make things more challenging
+                    # and exercise more paths :-)
+                    c.receive_data(s.recv(10))
+                    continue
+                if type(event) is h11.Request:
+                    request = event
+                if type(event) is h11.EndOfMessage:
+                    break
             info = json.dumps({
                 "method": request.method.decode("ascii"),
                 "target": request.target.decode("ascii"),
