@@ -30,31 +30,48 @@
 # Or, heck, try letting curl complete successfully ;-).
 
 # Some potential improvements, if you wanted to try and extend this to a real
-# general-purpose HTTP server:
+# general-purpose HTTP server (and to give you some hints about the many
+# considerations that go into making a robust HTTP server):
 #
-# We should probably do something cleverer with buffering responses and
-# TCP_CORK and suchlike.
+# - We should probably do something cleverer with buffering responses and
+#   TCP_CORK and suchlike.
 #
-# The timeout handling is rather crude -- we impose a flat 10 second timeout
-# on each request (starting from the end of the previous response). Something
-# cleverer would be better. Also, if a timeout is triggered we unconditionally
-# send a 500 Internal Server Error; it would be better to keep track of
-# whether the timeout is the client's fault, and if so send a 408 Request
-# Timeout.
+# - The timeout handling is rather crude -- we impose a flat 10 second timeout
+#   on each request (starting from the end of the previous
+#   response). Something finer-grained would be better. Also, if a timeout is
+#   triggered we unconditionally send a 500 Internal Server Error; it would be
+#   better to keep track of whether the timeout is the client's fault, and if
+#   so send a 408 Request Timeout.
 #
-# The error handling policy here is somewhat crude as well. It handles a lot
-# of cases perfectly, but there are corner cases where the ideal behavior is
-# more debateable. For example, if a client starts uploading a large request,
-# uses 100-Continue, and we send an error response, then we'll shut down the
-# connection immediately (for well-behaved clients) or after spending TIMEOUT
-# seconds reading and discarding their upload (for ill-behaved ones that go on
-# and try to upload their request anyway). And for clients that do this
-# without 100-Continue, we'll send the error response and then shut them down
-# after TIMEOUT seconds. This might or might not be your preferred policy,
-# though -- maybe you want to shut such clients down immediately (even if this
-# risks their not seeing the response), or maybe you're happy to let them
-# continue sending all the data and wasting your bandwidth if this is what it
-# takes to guarantee that they see your error response. Up to you, really.
+# - The error handling policy here is somewhat crude as well. It handles a lot
+#   of cases perfectly, but there are corner cases where the ideal behavior is
+#   more debateable. For example, if a client starts uploading a large
+#   request, uses 100-Continue, and we send an error response, then we'll shut
+#   down the connection immediately (for well-behaved clients) or after
+#   spending TIMEOUT seconds reading and discarding their upload (for
+#   ill-behaved ones that go on and try to upload their request anyway). And
+#   for clients that do this without 100-Continue, we'll send the error
+#   response and then shut them down after TIMEOUT seconds. This might or
+#   might not be your preferred policy, though -- maybe you want to shut such
+#   clients down immediately (even if this risks their not seeing the
+#   response), or maybe you're happy to let them continue sending all the data
+#   and wasting your bandwidth if this is what it takes to guarantee that they
+#   see your error response. Up to you, really.
+#
+# - Another example of a debateable choice: if a response handler errors out
+#   without having done *anything* -- hasn't started responding, hasn't read
+#   the request body -- then this connection actually is salvagable, if the
+#   server sends an error response + reads and discards the request body. This
+#   code sends the error response, but it doesn't try to salvage the
+#   connection by reading the request body, it just closes the
+#   connection. This is quite possibly the best option, but again this is a
+#   policy decision.
+#
+# - Our error pages always include the exception text. In real life you might
+#   want to log the exception but not send that information to the client.
+#
+# - Our error responses perhaps should include Connection: close when we know
+#   we're going to close this connection.
 
 import json
 from itertools import count
@@ -68,10 +85,12 @@ MAX_RECV = 2 ** 16
 TIMEOUT = 10
 
 ################################################################
-# I/O adapter
+# I/O adapter: h11 <-> curio
 ################################################################
 
-# The core of this would work just as well for a curio-based HTTP client.
+# The core of this could be factored out to be usable for curio-based clients
+# and servers, but as a simplified pedagogical example we don't attempt this
+# here.
 class CurioHTTPWrapper:
     _next_id = count()
 
