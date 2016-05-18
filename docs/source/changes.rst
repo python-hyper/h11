@@ -6,14 +6,21 @@ History of changes
 vNEXT (????-??-??)
 ------------------
 
+This is the first release since we started using h11 to write
+non-trivial server code, and this experience triggered a number of
+substantial API changes.
+
 Backwards **in**\compatible changes:
+
+* Split the old :meth:`receive_data` into the new
+  :meth:`~Connection.receive_data` and
+  :meth:`~Connection.next_event`, and replaced the old :class:`Paused`
+  pseudo-event with the new :data:`NEED_DATA` and :data:`PAUSED`
+  sentinels.
 
 * Simplified the API by replacing the old :meth:`Connection.state_of`,
   :attr:`Connection.client_state`, :attr:`Connection.server_state` with
   the new :attr:`Connection.states`.
-
-* Removed the :class:`Paused` pseudo-event -- see :ref:`flow-control`
-  for the new way things work.
 
 Backwards compatible changes:
 

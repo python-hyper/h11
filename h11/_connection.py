@@ -6,7 +6,7 @@ from ._events import *
 # Import all state sentinels
 from ._state import *
 # Import the internal things we need
-from ._util import LocalProtocolError, RemoteProtocolError
+from ._util import LocalProtocolError, RemoteProtocolError, Sentinel
 from ._state import ConnectionState, _SWITCH_UPGRADE, _SWITCH_CONNECT
 from ._headers import (
     get_comma_header, set_comma_header, has_expect_100_continue,
@@ -16,7 +16,10 @@ from ._readers import READERS
 from ._writers import WRITERS
 
 # Everything in __all__ gets re-exported as part of the h11 public API.
-__all__ = ["Connection"]
+__all__ = ["Connection", "NEED_DATA", "PAUSED"]
+
+NEED_DATA = Sentinel("NEED_DATA")
+PAUSED = Sentinel("PAUSED")
 
 # If we ever have this much buffered without it making a complete parseable
 # event, we error out. The only time we really buffer is when reading the
@@ -28,7 +31,7 @@ __all__ = ["Connection"]
 # - tomcat: 8 * 1024
 # - IIS: 16 * 1024
 # - Apache: <8 KiB per line>
-HTTP_DEFAULT_MAX_BUFFER_SIZE = 16 * 1024
+DEFAULT_MAX_INCOMPLETE_EVENT_SIZE = 16 * 1024
 
 # RFC 7230's rules for connection lifecycles:
 # - If either side says they want to close the connection, then the connection
@@ -110,16 +113,18 @@ class Connection(object):
         our_role: If you're implementing a client, pass :data:`h11.CLIENT`. If
             you're implementing a server, pass :data:`h11.SERVER`.
 
-        max_buffer_size (int):
-            The maximum number of bytes of received but unprocessed data we're
-            willing to buffer. In practice this mostly sets a limit on the
+        max_incomplete_event_size (int):
+            The maximum number of bytes we're willing to buffer of an
+            incomplete event. In practice this mostly sets a limit on the
             maximum size of the request/response line + headers. If this is
-            exceeded, then :meth:`receive_data` will raise
+            exceeded, then :meth:`next_event` will raise
             :exc:`RemoteProtocolError`.
 
     """
-    def __init__(self, our_role, max_buffer_size=HTTP_DEFAULT_MAX_BUFFER_SIZE):
-        self._max_buffer_size = max_buffer_size
+    def __init__(self,
+                 our_role,
+                 max_incomplete_event_size=DEFAULT_MAX_INCOMPLETE_EVENT_SIZE):
+        self._max_incomplete_event_size = max_incomplete_event_size
         # State and role tracking
         if our_role not in (CLIENT, SERVER):
             raise ValueError(
@@ -300,25 +305,16 @@ class Connection(object):
         return (bytes(self._receive_buffer), self._receive_buffer_closed)
 
     def receive_data(self, data):
-        """Convert bytes received from the remote peer into high-level events,
-        while updating our internal state machine.
+        """Add data to our internal recieve buffer.
 
         Args:
-            data (:term:`bytes-like object`, or None):
-                The new data that was just recieved.
+            data (:term:`bytes-like object`):
+                The new data that was just received.
 
-                Normally, *data* is a :term:`bytes-like object` containing new
-                data received from the peer. We append this to our internal
-                receive buffer, and then check whether any new events can be
-                parsed from it. We always parse and return as many events as
-                possible.
-
-                There are two important special cases:
-
-                **Special case 1:** If *data* is an empty byte-string like
-                ``b""``, then this indicates that the remote side has closed
-                the connection (end of file). Normally this is convenient,
-                because standard Python APIs like :meth:`file.read` or
+                Special case: If *data* is an empty byte-string like ``b""``,
+                then this indicates that the remote side has closed the
+                connection (end of file). Normally this is convenient, because
+                standard Python APIs like :meth:`file.read` or
                 :meth:`socket.recv` use ``b""`` to indicate end-of-file, while
                 other failures to read are indicated using other mechanisms
                 like raising :exc:`TimeoutError`. When using such an API you
@@ -330,109 +326,38 @@ class Connection(object):
                 make sure to check for such strings and avoid passing them to
                 :meth:`receive_data`.
 
-                **Special case 2:** If *data* is ``None``, then we don't add
-                any data to the internal receive buffer, but we attempt to
-                parse it again to see if we can pull any new events out.
-
-                :meth:`receive_data` normally pulls out all possible events
-                immediately, so this is only useful after calling
-                :meth:`prepare_to_reuse` -- see
-                :ref:`keepalive-and-pipelining` for details.
-
         Returns:
-            A list of :ref:`event <events>` objects.
+            Nothing, but after calling this you should call :meth:`next_event`
+            to parse the newly received data.
 
         Raises:
-            RemoteProtocolError:
-                The peer has misbehaved. You should close the connection
-                (possibly after sending some kind of 400 response).
+            RuntimeError:
+                Raised if you pass an empty *data*, indicating EOF, and then
+                pass a non-empty *data*, indicating more data that somehow
+                arrived after the EOF.
 
-        For robustness you might want to be prepared to catch other exceptions
-        as well, but if this happens then please do file a bug report -- the
-        intention is that :exc:`RemoteProtocolError` is the *only* exception
-        that this method should be able to raise.
-
-        If this method raises any exception then it also sets
-        :attr:`Connection.their_state` to :data:`ERROR` -- see
-        :ref:`error-handling` for discussion.
+                (Calling ``receive_data(b"")`` multiple times is fine,
+                and equivalent to calling it once.)
 
         """
-
-        if self.their_state is ERROR:
-            raise RemoteProtocolError(
-                "Can't receive data when peer state is ERROR")
-        try:
-            # Update self._receive_buffer with new data
-            if data is not None:
-                if data:
-                    if self._receive_buffer_closed:
-                        raise RuntimeError(
-                            "received close, then received more data?")
-                    self._receive_buffer += data
-                else:
-                    self._receive_buffer_closed = True
-
-            # Read out all the events we can
-            events = []
-            while True:
-                event = self._extract_next_receive_event()
-                if event is None:
-                    break
-                events.append(event)
-                self._process_event(self.their_role, event)
-                if type(event) is ConnectionClosed:
-                    break
-
-            # Buffer maintainence
-            self._receive_buffer.compress()
-            if len(self._receive_buffer) > self._max_buffer_size:
-                # We don't enforce buffer size limits when paused, because
-                # ever-growing buffers here would indicate a problem with
-                # the user code, not with the remote client -- and it's
-                # entirely possible that a single receive_data call all by
-                # itself could put us over this limit, with no real way to
-                # avoid it.
-                if not self._paused():
-                    # 431 is "Request header fields too large" which is pretty
-                    # much the only situation where we can get here
-                    raise RemoteProtocolError("Receive buffer too long",
-                                              error_status_hint=431)
-
-            # We've greedily processed all possible events, so if there's no
-            # more data coming, we better either be paused or else have
-            # delivered that ConnectionClosed -- we don't want to hang forever
-            # waiting for data that never arrives.
+        if data:
             if self._receive_buffer_closed:
-                if not (self._paused()
-                        or (events
-                            and type(events[-1]) is ConnectionClosed)):
-                    raise RemoteProtocolError(
-                        "peer unexpectedly closed connection")
+                raise RuntimeError(
+                    "received close, then received more data?")
+            self._receive_buffer += data
+        else:
+            self._receive_buffer_closed = True
 
-            # Return them
-            return events
-        except BaseException as exc:
-            self._process_error(self.their_role)
-            if isinstance(exc, LocalProtocolError):
-                exc._reraise_as_remote_protocol_error()
-            else:
-                raise
-
-    def _paused(self):
+    def _extract_next_receive_event(self):
         state = self.their_state
         # We don't pause immediately when they enter DONE, because even in
         # DONE state we can still process a ConnectionClosed() event. But
         # if we have data in our buffer, then we definitely aren't getting
         # a ConnectionClosed() immediately and we need to pause.
         if state is DONE and self._receive_buffer:
-            return True
-        if state in {MIGHT_SWITCH_PROTOCOL, SWITCHED_PROTOCOL}:
-            return True
-        return False
-
-    def _extract_next_receive_event(self):
-        if self._paused():
-            return None
+            return PAUSED
+        if state is MIGHT_SWITCH_PROTOCOL or state is SWITCHED_PROTOCOL:
+            return PAUSED
         assert self._reader is not None
         event = self._reader(self._receive_buffer)
         if event is None:
@@ -445,7 +370,76 @@ class Connection(object):
                     event = self._reader.read_eof()
                 else:
                     event = ConnectionClosed()
+        if event is None:
+            event = NEED_DATA
         return event
+
+    def next_event(self):
+        """Parse the next event out of our receive buffer, update our internal
+        state, and return it.
+
+        This is a mutating operation -- think of it like calling :func:`next`
+        on an iterator.
+
+        Returns:
+            One of three things:
+
+            1) An event object -- see :ref:`events`.
+
+            2) The special constant :data:`NEED_DATA`, which indicates that
+               you need to read more data from your socket and pass it to
+               :meth:`receive_data` before this method will be able to return
+               any more events.
+
+            3) The special constant :data:`PAUSED`, which indicates that we
+               are not in a state where we can process incoming data (usually
+               because the peer has finished their part of the current
+               request/response cycle, and you have not yet called
+               :meth:`prepare_to_reuse`). See :ref:`flow-control` for details.
+
+        Raises:
+            RemoteProtocolError:
+                The peer has misbehaved. You should close the connection
+                (possibly after sending some kind of 4xx response).
+
+        Once this method returns :class:`ConnectionClosed` once, then all
+        subsequent calls will also return :class:`ConnectionClosed`.
+
+        If this method raises any exception besides :exc:`RemoteProtocolError`
+        then that's a bug -- if it happens please file a bug report!
+
+        If this method raises any exception then it also sets
+        :attr:`Connection.their_state` to :data:`ERROR` -- see
+        :ref:`error-handling` for discussion.
+
+        """
+
+        if self.their_state is ERROR:
+            raise RemoteProtocolError(
+                "Can't receive data when peer state is ERROR")
+        try:
+            event = self._extract_next_receive_event()
+            if type(event) is not Sentinel:
+                self._process_event(self.their_role, event)
+                self._receive_buffer.compress()
+            if event is NEED_DATA:
+                if len(self._receive_buffer) > self._max_incomplete_event_size:
+                    # 431 is "Request header fields too large" which is pretty
+                    # much the only situation where we can get here
+                    raise RemoteProtocolError("Receive buffer too long",
+                                              error_status_hint=431)
+                if self._receive_buffer_closed:
+                    # We're still trying to complete some event, but that's
+                    # never going to happen because no more data is coming
+                    raise RemoteProtocolError(
+                        "peer unexpectedly closed connection")
+            return event
+        except BaseException as exc:
+            self._process_error(self.their_role)
+            if isinstance(exc, LocalProtocolError):
+                exc._reraise_as_remote_protocol_error()
+            else:
+                raise
 
     def send(self, event):
         """Convert a high-level event into bytes that can be sent to the peer,

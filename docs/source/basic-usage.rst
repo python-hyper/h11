@@ -135,15 +135,18 @@ what that actually means in any given situation, so that you don't
 have to.
 
 Finally, we have to read the server's reply. By now you can probably
-guess how this is done: we read some bytes from the network, then we
-hand them to :meth:`Connection.receive_data` and it gives us back
-high-level events from the server.
+guess how this is done, at least in the general outline: we read some
+bytes from the network, then we hand them to the connection (using
+:meth:`Connection.receive_data`) and it converts them into events
+(using :meth:`Connection.next_event`).
 
 .. ipython:: python
 
    bytes_received = sock.recv(1024)
-   events_received = conn.receive_data(bytes_received)
-   events_received
+   conn.receive_data(bytes_received)
+   conn.next_event()
+   conn.next_event()
+   conn.next_event()
 
 Here the server sent us three events: a :class:`Response` object,
 which is similar to the :class:`Request` object that we created
@@ -155,13 +158,54 @@ server, then these are the objects we would have created and passed to
 :meth:`~Connection.send` -- h11 in client and server mode has an API
 that's almost exactly symmetric.
 
+One thing we have to deal with, though, is that an entire response
+doesn't always arrive in a single call to :meth:`socket.recv` --
+sometimes the network will decide to trickle it in at its own pace, in
+multiple pieces. Let's try that again:
+
+.. ipython:: python
+
+   import ssl, socket
+   import h11
+
+   ctx = ssl.create_default_context()
+   sock = ctx.wrap_socket(socket.create_connection(("httpbin.org", 443)),
+                          server_hostname="httpbin.org")
+
+   conn = h11.Connection(our_role=h11.CLIENT)
+   request = h11.Request(method="GET",
+                         target="/xml",
+                         headers=[("Host", "httpbin.org")])
+   sock.sendall(conn.send(request))
+
+and this time, we'll read in chunks of 200 bytes, to see how h11
+handles it:
+
+.. ipython:: python
+
+   bytes_received = sock.recv(200)
+   conn.receive_data(bytes_received)
+   conn.next_event()
+
+:data:`NEED_DATA` is a special value that indicates that we, well,
+need more data. h11 has buffered the first chunk of data; let's read
+some more:
+
+.. ipython:: python
+
+   bytes_received = sock.recv(200)
+   conn.receive_data(bytes_received)
+   conn.next_event()
+
+Now it's managed to read a complete :class:`Request`.
+
 
 A basic client object
 ---------------------
 
-To make this a little more convenient to play with, we can wrap up our
-socket and :class:`Connection` into a single object with some
-convenience methods:
+Now let's use what we've learned to wrap up our socket and
+:class:`Connection` into a single object with some convenience
+methods:
 
 .. literalinclude:: _examples/myclient.py
 
@@ -186,34 +230,26 @@ And read back the events:
 
 .. ipython:: python
 
-   client.receive()
-
-What happened here? We only read a max of 200 bytes from the socket
-(see ``max_bytes=`` above), and it turns out that this wasn't enough
-to form a complete event. This happens all the time in real life, due
-to slow networks or whatever -- data trickles in at its own pace. When
-this happens, h11 buffers the unprocessed data internally, and if you
-keep reading then eventually you'll get a complete event:
-
-.. ipython:: python
-
-   client.receive()
+   client.next_event()
+   client.next_event()
 
 Note here that we received a :class:`Data` event that only has *part*
-of the response body -- h11 streams out data as it arrives, which
-might mean that you receive multiple :class:`Data` events. (Of course,
-if you're the one sending data, you can do the same thing: instead of
-buffering all your data in one giant :class:`Data` event, you can send
-multiple :class:`Data` events yourself to stream the data out
-incrementally; just make sure that you set the appropriate
-``Content-Length`` / ``Transfer-Encoding`` headers.) If we keep
-reading, we'll see more :class:`Data` events, and then eventually the
-:class:`EndOfMessage`:
+of the response body -- this is another consequence of our reading in
+small chunks. h11 tries to buffer as little as it can, so it streams
+out data as it arrives, which might mean that a message body might be
+split up into multiple :class:`Data` events. (Of course, if you're the
+one sending data, you can do the same thing: instead of buffering all
+your data in one giant :class:`Data` event, you can send multiple
+:class:`Data` events yourself to stream the data out incrementally;
+just make sure that you set the appropriate ``Content-Length`` /
+``Transfer-Encoding`` headers.) If we keep reading, we'll see more
+:class:`Data` events, and then eventually the :class:`EndOfMessage`:
 
 .. ipython:: python
 
-   client.receive()
-   client.receive()
+   client.next_event()
+   client.next_event()
+   client.next_event()
 
 Now we can see why :class:`EndOfMessage` is so important -- otherwise,
 we can't tell when we've received the end of the data. And since
@@ -225,7 +261,7 @@ will just hang forever, unless we set a timeout or interrupt it:
    :okexcept:
 
    client.sock.settimeout(2)
-   client.receive()
+   client.next_event()
 
 
 Keep-alive
@@ -239,8 +275,8 @@ can re-use this connection to send another request. There's a few ways
 we can tell. First, if it didn't, then it would have closed the
 connection already, and we would have gotten a
 :class:`ConnectionClosed` event on our last call to
-:meth:`receive`. We can also tell by checking h11's internal idea of
-what state the two sides of the conversation are in:
+:meth:`~Connection.next_event`. We can also tell by checking h11's
+internal idea of what state the two sides of the conversation are in:
 
 .. ipython:: python
 
@@ -272,7 +308,7 @@ allowing us to send another :class:`Request`:
    client.send(h11.Request(method="GET", target="/get",
                            headers=[("Host", "httpbin.org")]),
                h11.EndOfMessage())
-   client.receive(max_bytes=4096)
+   client.next_event()
 
 
 What's next?
@@ -291,7 +327,6 @@ Here's some ideas of things you might try:
                                       ("Content-Length", "10")]),
                  h11.Data(data=b"1234567890"),
                  h11.EndOfMessage())
-     client.receive(max_bytes=4096)
 
 * Experiment with what happens if you try to violate the HTTP protocol
   by sending a :class:`Response` as a client, or sending two
@@ -304,9 +339,9 @@ Here's some ideas of things you might try:
 
 * Adapt the above code to use your favorite non-blocking API
 
-* Use h11 to write a simple HTTP server. (If you get stuck, there's
-  `an example in the test suite
-  <https://github.com/njsmith/h11/blob/5b194715182e1c846277ca48f626d90ed047d61f/h11/tests/test_against_stdlib_http.py#L56-L82>`_.)
+* Use h11 to write a simple HTTP server. (If you get stuck, `here's an
+  example
+  <https://github.com/njsmith/h11/blob/master/examples/curio-server>`_.)
 
 And of course, you'll want to read the :ref:`API-documentation` for
 all the details.

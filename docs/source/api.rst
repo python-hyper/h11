@@ -16,17 +16,18 @@ directly at the top level:
 
    @verbatim
    In [3]: h11.<TAB>
-   h11.CLIENT                 h11.MIGHT_SWITCH_PROTOCOL
-   h11.CLOSED                 h11.MUST_CLOSE
-   h11.Connection             h11.PRODUCT_ID
-   h11.ConnectionClosed       h11.ProtocolError
-   h11.Data                   h11.RemoteProtocolError
-   h11.DONE                   h11.Request
-   h11.EndOfMessage           h11.Response
-   h11.ERROR                  h11.SEND_BODY
-   h11.IDLE                   h11.SEND_RESPONSE
-   h11.InformationalResponse  h11.SERVER
-   h11.LocalProtocolError     h11.SWITCHED_PROTOCOL
+   h11.CLIENT                 h11.MUST_CLOSE
+   h11.CLOSED                 h11.NEED_DATA
+   h11.Connection             h11.PAUSED
+   h11.ConnectionClosed       h11.PRODUCT_ID
+   h11.Data                   h11.ProtocolError
+   h11.DONE                   h11.RemoteProtocolError
+   h11.EndOfMessage           h11.Request
+   h11.ERROR                  h11.Response
+   h11.IDLE                   h11.SEND_BODY
+   h11.InformationalResponse  h11.SEND_RESPONSE
+   h11.LocalProtocolError     h11.SERVER
+   h11.MIGHT_SWITCH_PROTOCOL  h11.SWITCHED_PROTOCOL
 
 These symbols fall into three main categories: event classes, special
 constants used to track different connection states, and the
@@ -288,7 +289,14 @@ the code, while the labels in upright text correspond to actual
 objects in the public API. You've already seen the event objects like
 :class:`Request` and :class:`Response`; there are also a set of opaque
 sentinel values that you can use to track and query the client and
-server's states:
+server's states.
+
+
+Special constants
+-----------------
+
+h11 exposes some special constants corresponding to the different
+states described above.
 
 .. data:: IDLE
 .. data:: SEND_RESPONSE
@@ -326,23 +334,31 @@ And we can test these values directly using constants like :data:`SEND_BODY`:
 This shows how the :class:`Connection` type tracks these state
 machines and lets you query their current state.
 
-
-The Connection object
----------------------
-
-There are two special constants used to indicate the two different
-roles that a peer can play in an HTTP connection:
+The above also showed the special constants that can be used to
+indicate the two different roles that a peer can play in an HTTP
+connection:
 
 .. data:: CLIENT
 .. data:: SERVER
 
-When creating a :class:`Connection` object, you need to pass one of
-these constants to indicate which side of the HTTP conversation you
-want to implement:
+And finally, there are also two special constants that can be returned
+from :meth:`Connection.next_event`:
+
+.. data:: NEED_DATA
+.. data:: PAUSED
+
+All of these behave the same, and their behavior is modeled after
+:data:`None`: they're opaque singletons, their :meth:`__repr__` is
+their name, and you compare them with ``is``.
+
+
+The Connection object
+---------------------
 
 .. autoclass:: Connection
 
    .. automethod:: receive_data
+   .. automethod:: next_event
    .. automethod:: send
    .. automethod:: send_with_data_passthrough
 
@@ -421,17 +437,18 @@ There are four cases where these exceptions might be raised:
   the :data:`DONE` state. The :class:`Connection` object remains
   usable, and you can try again later.
 
-* When calling :meth:`Connection.receive_data`
+* When calling :meth:`Connection.next_event`
   (:exc:`RemoteProtocolError`): This indicates that the remote peer
   has violated our protocol assumptions. This is unrecoverable -- we
   don't know what they're doing and we cannot safely
   proceed. :attr:`Connection.their_state` immediately becomes
   :data:`ERROR`, and all further calls to
-  :meth:`~Connection.receive_data` will also raise
-  :exc:`ProtocolError`. :meth:`Connection.send` still works as normal,
-  so if you're implementing a server and this happens then you have an
-  opportunity to send back a 400 Bad Request response. Your only other
-  real option is to close your socket and make a new connection.
+  :meth:`~Connection.next_event` will also raise
+  :exc:`RemoteProtocolError`. :meth:`Connection.send` still works as
+  normal, so if you're implementing a server and this happens then you
+  have an opportunity to send back a 400 Bad Request response. But
+  aside from that, your only real option is to close your socket and
+  make a new connection.
 
 * When calling :meth:`Connection.send` or
   :meth:`Connection.send_with_data_passthrough`
@@ -440,9 +457,9 @@ There are four cases where these exceptions might be raised:
   what you're doing, its internal state may be inconsistent, and we
   cannot safely proceed. :attr:`Connection.our_state` immediately
   becomes :data:`ERROR`, and all further calls to
-  :meth:`~Connection.send` will also raise :exc:`ProtocolError`. The
-  only thing you can reasonably due at this point is to close your
-  socket and make a new connection.
+  :meth:`~Connection.send` will also raise
+  :exc:`LocalProtocolError`. The only thing you can reasonably due at
+  this point is to close your socket and make a new connection.
 
 
 .. _framing:
@@ -471,19 +488,19 @@ On requests, this means:
 * ``Transfer-Encoding: chunked``: You're going to send a variable /
   not yet known number of bytes.
 
-  Note 1: only HTTP/1.1 servers are required to supported
-  ``Transfer-Encoding: chunked``, and as a client you have to either
-  send this header or not before you get to see what protocol version
-  the server is using.
+  Note 1: only HTTP/1.1 servers are required to support
+  ``Transfer-Encoding: chunked``, and as a client you have to decide
+  whether to send this header before you get to see what protocol
+  version the server is using.
 
   Note 2: even though HTTP/1.1 servers are required to support
-  ``Transfer-Encoding: chunked``, this doesn't mean that they actually
-  do -- e.g., applications using Python's standard WSGI API cannot
-  accept chunked requests.
+  ``Transfer-Encoding: chunked``, this doesn't necessarily mean that
+  they actually do -- e.g., applications using Python's standard WSGI
+  API cannot accept chunked requests.
 
   Nonetheless, this is the only way to send request where you don't
-  know the size of the body ahead of time, so you might as well go
-  ahead and hope.
+  know the size of the body ahead of time, so if that's the situation
+  you find yourself in then you might as well try it and hope.
 
 On responses, things are a bit more subtle. There are effectively two
 cases:
@@ -501,7 +518,7 @@ cases:
   keep-alive, allows trailing headers, clearly distinguishes between
   successful completion and network errors), but requires an HTTP/1.1
   client; for HTTP/1.0 clients the only option is the no-headers
-  close-socket-to-indicate-completion approach.
+  approach where you have to close the socket to indicate completion.
 
   Since this is (almost) entirely a wire-level-encoding concern, h11
   abstracts it: when sending a response you can set either
@@ -559,10 +576,10 @@ explicitly call :meth:`Connection.prepare_to_reuse` to reset both
 sides back to the :data:`IDLE` state. This makes sure that the client
 and server remain synched up.
 
-If keep-alive is disabled for whatever reason -- explicit headers,
-lack of protocol support, one of the sides just unilaterally closed
-the connection -- then the state machines will skip past the
-:data:`DONE` state directly to the :data:`MUST_CLOSE` or
+If keep-alive is disabled for whatever reason -- someone set
+``Connection: close``, lack of protocol support, one of the sides just
+unilaterally closed the connection -- then the state machines will
+skip past the :data:`DONE` state directly to the :data:`MUST_CLOSE` or
 :data:`CLOSED` states. In this case, trying to call
 :meth:`~Connection.prepare_to_use` will raise an error, and the only
 thing you can legally do is to close this connection and make a new
@@ -585,7 +602,7 @@ response.
 As a server, h11 provides the minimal support for pipelining required
 to comply with the HTTP/1.1 standard: if the client sends multiple
 pipelined requests, then we the first request until we reach the
-:data:`DONE` state, and then :meth:`~Connection.receive_data` will
+:data:`DONE` state, and then :meth:`~Connection.next_event` will
 pause and refuse to parse any more events until the response is
 completed and :meth:`~Connection.prepare_to_reuse` is called. See the
 next section for more details.
@@ -596,43 +613,33 @@ next section for more details.
 Flow control
 ------------
 
-h11 always does the absolute minimum of buffering that it can manage:
-:meth:`~Connection.send` and
-:meth:`~Connection.send_with_data_passthrough` always return the full
-data to send immediately, and :meth:`~Connection.recieve_data` always
-greedily parses and returns as many events as possible from its
-current buffer (with one exception discussed below). So you can be
-sure that no data or events will suddenly appear and need processing,
-except when you call these methods. And presumably you know when you
-want to send things. But there is one thing you still need to know,
-which is when it's safe to read from the remote peer: you don't want
-to read data from the remote peer if it can't be processed (i.e., you
-want to apply backpressure and avoid building arbitrarily large
-in-memory buffers), and you definitely don't want to block waiting on
-data from the remote peer at the same time that it's blocked waiting
-for you, because that will cause a deadlock.
+Presumably you know when you want to send things, and the
+:meth:`~Connection.send` interface is very simple: it just immediately
+returns all the data you need to send for the given event, so you can
+apply whatever send buffer strategy you want. But reading from the
+remote peer is a bit trickier: you don't want to read data from the
+remote peer if it can't be processed (i.e., you want to apply
+backpressure and avoid building arbitrarily large in-memory buffers),
+and you definitely don't want to block waiting on data from the remote
+peer at the same time that it's blocked waiting for you, because that
+will cause a deadlock.
 
-For a client, this is simple: send your request, then read the
-response, then stop reading until after you've sent another request.
-
-For a server, there are three more subtle points you need to keep
-track of.
-
-**First**, you have to be prepared to handle :class:`Request`\s with
-an ``Expect: 100-continue`` header. You can `read the spec
+One complication here is that if you're implementing a server, you
+have to be prepared to handle :class:`Request`\s that have an
+``Expect: 100-continue`` header. You can `read the spec
 <https://tools.ietf.org/html/rfc7231#section-5.1.1>`_ for the full
 details, but basically what this header means is that after sending
 the :class:`Request`, the client plans to pause and wait until they
-see some response from the server before sending any
-:class:`Data`. The server's response can be an
-:class:`InformationalResponse` with status ``100 Continue``, or
-anything really (e.g. a full :class:`Response` with an error
-code). The crucial thing as a server, though, is that you should never
-block trying to read a request body if the client is blocked waiting
-for you to tell them to send the request body.
+see some response from the server before they send that request's
+:class:`Data`. The server's response would normally be an
+:class:`InformationalResponse` with status ``100 Continue``, but it
+could be anything really (e.g. a full :class:`Response` with a 4xx
+status code). The crucial thing as a server, though, is that you
+should never block trying to read a request body if the client is
+blocked waiting for you to tell them to send the request body.
 
 Fortunately, h11 makes this easy, because it tracks whether the client
-is blocked, and exposes this as
+is in the waiting-for-100-continue state, and exposes this as
 :attr:`Connection.they_are_waiting_for_100_continue`. So you don't
 have to pay attention to the ``Expect`` header yourself; you just have
 to make sure that before you block waiting to read a request body, you
@@ -648,141 +655,121 @@ In fact, if you're lazy (and what programmer isn't?) then you can just
 do this check before all reads -- it's mandatory before blocking to
 read a request body, but it's safe at any time.
 
-**Second**, if you're using some sort of I/O setup where you read all
-the time (e.g. in a dedicated thread or some sort of proactor), then
-you should stop reading when you get each request's
-:class:`EndOfMessage`, and don't start again until after you call
-:meth:`~Connection.prepare_to_reuse`. (Of course you should also
-follow this rule if you're using blocking I/O, but hopefully that is
-obvious -- what's not so obvious is that this applies also to threaded
-reads.) If you ignore this rule, then nothing particularly bad will
-happen -- but nothing useful will happen, either. After seeing the
-:class:`EndOfMessage`, then :meth:`~Connection.receive_data` will
-enter a "paused" state: you can call it, and it'll add any data that
-you give it to its internal buffer, but it won't actually attempt to
-parse that buffer or return any events (unless the next data you give
-it is ``b""`` indicating that the client has closed their connection,
-in which case it will return :class:`ConnectionClosed`). This state
-also does another thing: normally, as an anti-denial-of-service
-protection, h11 will error out if its internal receive buffer gets too
-big; but when we are in this paused state, this protection is
-disabled. (This is important because otherwise we'd run the risk of
-treating a perfectly innocent client as if they were a DoS attacker,
-just because they sent a number of pipelined requests that all arrived
-at the same time.)
+And the other thing you want to pay attention to is the special values
+that :meth:`~Connection.next_event` might return: :data:`NEED_DATA`
+and :data:`PAUSED`.
 
-So really it's best if you just stop reading from the remote socket
-during this period. If you're lucky this might even provide some
-back-pressure to the remote client to stop sending stuff so fast.
+:data:`NEED_DATA` is what it sounds like: it means that
+:meth:`~Connection.next_event` is guaranteed not to return any more
+real events until you've called :meth:`~Connection.receive_data` at
+least once.
 
-(Note: There isn't currently any API exposed to tell you whether
-receiving is paused; you're expected to "just know" based on what
-you've recently done. So far this seems to work fine for the servers
-I've written, but if you'd find this useful then please let us know --
-it wouldn't be hard to add.)
+:data:`PAUSED` is a little more subtle: it means that
+:meth:`~Connection.next_event` is guaranteed not to return any more
+real events until something else has happened to clear up the paused
+state. There are three cases where this can happen:
 
-And **third**, coming out of the paused state requires a bit of
-care. After you call :meth:`~Connection.prepare_to_reuse`, you
-*must not* immediately start reading from the network. Consider the
-situation where a client sends two pipelined requests, and then blocks
-waiting for the two responses. It's possible the two requests will
-arrive together, and be enqueued into our receive buffer together:
+1) We received a full request/response from the remote peer, and then
+   we received some more data after that. (The main situation where
+   this might happen is a server responding to a pipelining client.)
+   The :data:`PAUSED` state will go away after you call
+   :meth:`~Connection.prepare_to_reuse`.
 
-.. ipython:: python
+2) A successful ``CONNECT`` or ``Upgrade:`` request has caused the
+   connection to switch to some other protocol (see
+   :ref:`switching-protocols`). This :data:`PAUSED` state is
+   permanent; you should abandon this :class:`Connection` and go do
+   whatever it is you're going to do with your new protocol.
 
-   conn = h11.Connection(our_role=h11.SERVER)
-   conn.receive_data(
-       b"GET /1 HTTP/1.1\r\nHost: example.com\r\n\r\n"
-       b"GET /1 HTTP/1.1\r\nHost: example.com\r\n\r\n"
-   )
+3) We're a server, and the client we're talking to proposed to switch
+   protocols (see :ref:`switching-protocols`), and now is waiting to
+   find out whether their request was successful or not. Once we
+   either accept or deny their request then this will turn into one of
+   the above two states, so you probably don't need to worry about
+   handling it specially.
 
-Notice how we get back only the first :class:`Request` and its (empty)
-body.
+Putting all this together --
 
-We process the first request:
+If your I/O is organized around a "pull" strategy, where your code
+requests events as its ready to handle them (e.g. classic synchronous
+code or `Curio <http://curio.readthedocs.org/>`_), then you'll
+probably want logic that looks something like:
 
-.. ipython:: python
+.. code-block:: python
 
-   conn.send(h11.Response(status_code=200, headers=[]))
-   conn.send(h11.EndOfMessage())
+   # Replace do_sendall and do_recv with your I/O code
+   def get_next_event():
+       while True:
+           event = conn.next_event()
+           if event is h11.NEED_DATA:
+               if conn.they_are_waiting_for_100_continue:
+                   do_sendall(conn, h11.InformationalResponse(100, ...))
+               conn.receive_data(do_recv())
+               continue
+           return event
 
-And then reset the connection to handle the next:
+And then your code that calls this will need to make sure to call it
+only at appropriate times (e.g., not immediately after receiving
+:class:`EndOfMessage` or :data:`PAUSED`).
 
-.. ipython:: python
+If your I/O is organized around a "push" strategy, where the network
+drives processing (e.g. you're using `Twisted
+<https://twistedmatrix.com/>`_, or implementing an
+:class:`asyncio.Protocol`), then you'll want to internally apply
+back-pressure whenever you see :data:`PAUSED`, remove back-pressure
+when you call :meth:`~Connection.prepare_to_reuse`, and otherwise just
+deliver events as they arrive. Something like:
 
-   conn.prepare_to_reuse()
+.. code-block:: python
 
-This has unpaused our receive buffer, so now we're ready to read more
-data from the network right? Well, no-- the client is done sending
-data, we already have all their data, so if we block waiting for more
-data now, then we'll be waiting forever.
+   class HTTPProtocol(asyncio.Protocol):
+       # Save the transport for later -- needed to access the
+       # backpressure API.
+       def connection_made(self, transport):
+           self._transport = transport
 
-That would be bad.
+       # Internal helper function -- deliver all pending events
+       def _deliver_events(self):
+           while True:
+               event = self.conn.next_event()
+               if event is h11.NEED_DATA:
+                   break
+               elif event is h11.PAUSED:
+                   # Apply back-pressure
+                   self._transport.pause_reading()
+                   break
+               else:
+                   self.event_received(event)
 
-Instead, what we have to do after unpausing is make an explicit call
-to :meth:`~Connection.receive_data` with ``None`` as the argument,
-which means "I don't have any more data for you, but could you check
-the data you already have buffered in case there's anything else you
-can parse now that you couldn't before?". And once we've done this and
-processed the events we get back, we can continue as normal:
+       # Called by "someone" whenever new data appears on our socket
+       def data_received(self, data):
+           self.conn.receive_data(data)
+           self._deliver_events()
 
-.. ipython:: python
+       # Called by "someone" whenever the peer closes their socket
+       def eof_received(self):
+           self.conn.receive_data(b"")
+           self._deliver_events()
+           # asyncio will close our socket unless we return True here.
+           return True
 
-   conn.receive_data(None)
+       # Called by your code when its ready to start a new
+       # request/response cycle
+       def prepare_to_reuse(self):
+           self.conn.prepare_to_reuse()
+           # New events might have been buffered internally, and only
+           # become deliverable after calling prepare_to_reuse
+           self._deliver_events()
+           # Remove back-pressure
+           self._transport.resume_reading()
 
-It is always safe to call ``conn.receive_data(None)``; if there aren't
-any new events to return, it will simply return ``[]``. If you want to
-be conservative, you can defensively call this immediately before
-issuing any blocking read.
+       # Fill in your code here
+       def event_received(self, event):
+           ...
 
-
-Technical details on how the receive_data pause state is implemented
-....................................................................
-
-You probably don't need to know this to write a client or server, but
-perhaps you're curious.
-
-Internally, the pause logic doesn't distinguish between whether we're
-implementing a client or a server, and there are actually three
-possible reasons we might enter the paused state:
-
-* The remote peer is in the :data:`DONE` state, but sent more data,
-  i.e., a client is attempting to :ref:`pipeline requests
-  <keepalive-and-pipelining>`. In the :data:`DONE` state,
-  :meth:`~Connection.receive_data` can return :class:`ConnectionClosed`
-  events, but if any actual data is received then it will pause, and
-  stay that way until a successful call to
-  :meth:`~Connection.prepare_to_reuse`.
-
-* The remote client is in the :data:`MIGHT_SWITCH_PROTOCOL` state (see
-  :ref:`switching-protocols`). This really shouldn't happen, because
-  they don't know yet whether the protocol switch will actually happen,
-  but OTOH it certainly isn't correct for us to go ahead and parse the
-  data they sent as if it were HTTP, when it might not be. So if this
-  happens, we pause.
-
-* The remote peer is in the :data:`SWITCHED_PROTOCOL` state (see
-  :ref:`switching-protocols`). When this happens we certainly
-  shouldn't try to parse their data. So if this happens we pause.
-
-How does this relate to the advice given above?
-
-You don't really need to worry about the :data:`MIGHT_SWITCH_PROTOCOL`
-case, because the only way a client can get into this state is by
-entering :data:`DONE`, and the only way it can get out is by entering
-:data:`DONE` or :data:`SWITCHED_PROTOCOL`. So if you handle those
-cases correctly then you'll automatically handle this case too. And
-handling of :data:`SWITCHED_PROTOCOL` should be obvious, because if
-you've just negotiated a protocol switch you hopefully know that and
-won't try to keep using the :class:`Connection` object, and this state
-is permanent. So the only case that requires careful handling by your
-flow control logic is :data:`DONE`. And if you're implementing a
-client, even this isn't something you need to worry about, because it
-would be very weird for a server that was in the :data:`DONE` state to
-suddenly send another response in a row out-of-the-blue, before you've
-sent another request, so the simple rule of "only read when waiting
-for a response" covers this case as well. So really it's only servers
-that need special flow-control logic to handle pipelining.
+And your code that uses this will have to remember to check for
+:attr:`~Connection.they_are_waiting_for_100_continue` at the
+appropriate time.
 
 
 .. _closing:

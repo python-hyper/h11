@@ -39,7 +39,9 @@ class ReceiveBuffer(object):
         return len(self._data) - self._start
 
     def compress(self):
-        if self._start > 0:
+        # Heuristic: only compress if it lets us reduce size by a factor
+        # of 2
+        if self._start > len(self._data) // 2:
             self._data = self._data[self._start:]
             self._looked_at -= self._start
             self._start -= self._start

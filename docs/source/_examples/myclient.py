@@ -18,6 +18,14 @@ class MyHttpClient:
             else:
                 self.sock.sendall(data)
 
-    # max_bytes set intentionally small for pedagogical purposes
-    def receive(self, max_bytes=200):
-        return self.conn.receive_data(self.sock.recv(max_bytes))
+    # max_bytes_per_recv intentionally set low for pedagogical purposes
+    def next_event(self, max_bytes_per_recv=200):
+        while True:
+            # If we already have a complete event buffered internally, just
+            # return that. Otherwise, read some data, add it to the internal
+            # buffer, and then try again.
+            event = self.conn.next_event()
+            if event is h11.NEED_DATA:
+                self.conn.receive_data(self.sock.recv(max_bytes_per_recv))
+                continue
+            return event
