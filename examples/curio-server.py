@@ -33,9 +33,6 @@
 # general-purpose HTTP server (and to give you some hints about the many
 # considerations that go into making a robust HTTP server):
 #
-# - We should probably do something cleverer with buffering responses and
-#   TCP_CORK and suchlike.
-#
 # - The timeout handling is rather crude -- we impose a flat 10 second timeout
 #   on each request (starting from the end of the previous
 #   response). Something finer-grained would be better. Also, if a timeout is
@@ -72,6 +69,11 @@
 #
 # - Our error responses perhaps should include Connection: close when we know
 #   we're going to close this connection.
+#
+# - We don't support the HEAD method, but ought to.
+#
+# - We should probably do something cleverer with buffering responses and
+#   TCP_CORK and suchlike.
 
 import json
 from itertools import count
