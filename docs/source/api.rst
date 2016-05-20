@@ -296,17 +296,18 @@ Special constants
 -----------------
 
 h11 exposes some special constants corresponding to the different
-states described above.
+states in the client and server state machines described above. The
+complete list is:
 
 .. data:: IDLE
-.. data:: SEND_RESPONSE
-.. data:: SEND_BODY
-.. data:: DONE
-.. data:: MUST_CLOSE
-.. data:: CLOSED
-.. data:: MIGHT_SWITCH_PROTOCOL
-.. data:: SWITCHED_PROTOCOL
-.. data:: ERROR
+          SEND_RESPONSE
+          SEND_BODY
+          DONE
+          MUST_CLOSE
+          CLOSED
+          MIGHT_SWITCH_PROTOCOL
+          SWITCHED_PROTOCOL
+          ERROR
 
 For example, we can see that initially the client and server start in
 state :data:`IDLE` / :data:`IDLE`:
@@ -339,13 +340,13 @@ indicate the two different roles that a peer can play in an HTTP
 connection:
 
 .. data:: CLIENT
-.. data:: SERVER
+          SERVER
 
 And finally, there are also two special constants that can be returned
 from :meth:`Connection.next_event`:
 
 .. data:: NEED_DATA
-.. data:: PAUSED
+          PAUSED
 
 All of these behave the same, and their behavior is modeled after
 :data:`None`: they're opaque singletons, their :meth:`__repr__` is
