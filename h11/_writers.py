@@ -7,6 +7,8 @@
 # - a writer
 # - or, for body writers, a dict of framin-dependent writer factories
 
+import sys
+
 from ._util import LocalProtocolError
 from ._events import Data, EndOfMessage
 from ._state import CLIENT, SERVER, IDLE, SEND_RESPONSE, SEND_BODY
@@ -14,14 +16,18 @@ from ._state import CLIENT, SERVER, IDLE, SEND_RESPONSE, SEND_BODY
 __all__ = ["WRITERS"]
 
 # Equivalent of bstr % values, that works on python 3.x for x < 5
-def bytesmod(bstr, values):
-    decoded_values = []
-    for value in values:
-        if isinstance(value, bytes):
-            decoded_values.append(value.decode("ascii"))
-        else:
-            decoded_values.append(value)
-    return (bstr.decode("ascii") % tuple(decoded_values)).encode("ascii")
+if (3, 0) <= sys.version_info < (3, 5):
+    def bytesmod(bstr, values):
+        decoded_values = []
+        for value in values:
+            if isinstance(value, bytes):
+                decoded_values.append(value.decode("ascii"))
+            else:
+                decoded_values.append(value)
+        return (bstr.decode("ascii") % tuple(decoded_values)).encode("ascii")
+else:
+    def bytesmod(bstr, values):
+        return bstr % values
 
 def write_headers(headers, write):
     for name, value in headers:
