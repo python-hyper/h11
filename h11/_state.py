@@ -221,8 +221,8 @@ class ConnectionState(object):
         self.keep_alive = False
         self._fire_state_triggered_transitions()
 
-    def process_client_switch_proposals(self, switch_events):
-        self.pending_switch_proposals.update(switch_events)
+    def process_client_switch_proposal(self, switch_event):
+        self.pending_switch_proposals.add(switch_event)
         self._fire_state_triggered_transitions()
 
     def process_event(self, role, event_type, server_switch_event=None):

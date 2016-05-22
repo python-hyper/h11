@@ -213,12 +213,6 @@ class Connection(object):
         self._cstate.process_error(role)
         self._respond_to_state_changes(old_states)
 
-    def _client_switch_events(self, event):
-        if event.method == b"CONNECT":
-            yield _SWITCH_CONNECT
-        if get_comma_header(event.headers, "Upgrade"):
-            yield _SWITCH_UPGRADE
-
     def _server_switch_event(self, event):
         if type(event) is InformationalResponse and event.status_code == 101:
             return _SWITCH_UPGRADE
@@ -234,8 +228,10 @@ class Connection(object):
         # succeeds.
         old_states = dict(self._cstate.states)
         if role is CLIENT and type(event) is Request:
-            switch_event_iter = self._client_switch_events(event)
-            self._cstate.process_client_switch_proposals(switch_event_iter)
+            if event.method == b"CONNECT":
+                self._cstate.process_client_switch_proposal(_SWITCH_CONNECT)
+            if get_comma_header(event.headers, "Upgrade"):
+                self._cstate.process_client_switch_proposal(_SWITCH_UPGRADE)
         server_switch_event = None
         if role is SERVER:
             server_switch_event = self._server_switch_event(event)
