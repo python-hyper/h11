@@ -104,6 +104,9 @@ class Sentinel(object):
 # values. Accepts ascii-strings, or bytes/bytearray/memoryview/..., and always
 # returns bytes.
 def bytesify(s):
+    # Fast-path:
+    if type(s) is bytes:
+        return s
     if isinstance(s, str):
         s = s.encode("ascii")
     if isinstance(s, int):
