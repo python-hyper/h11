@@ -63,7 +63,7 @@ def test_ConnectionState_switch_denied():
     for switch_type in (_SWITCH_CONNECT, _SWITCH_UPGRADE):
         for deny_early in (True, False):
             cs = ConnectionState()
-            cs.process_client_switch_proposals([switch_type])
+            cs.process_client_switch_proposal(switch_type)
             cs.process_event(CLIENT, Request)
             cs.process_event(CLIENT, Data)
             assert cs.states == {CLIENT: SEND_BODY, SERVER: SEND_RESPONSE}
@@ -100,7 +100,7 @@ _response_type_for_switch = {
 def test_ConnectionState_protocol_switch_accepted():
     for switch_event in [_SWITCH_UPGRADE, _SWITCH_CONNECT]:
         cs = ConnectionState()
-        cs.process_client_switch_proposals([switch_event])
+        cs.process_client_switch_proposal(switch_event)
         cs.process_event(CLIENT, Request)
         cs.process_event(CLIENT, Data)
         assert cs.states == {CLIENT: SEND_BODY,
@@ -125,7 +125,8 @@ def test_ConnectionState_double_protocol_switch():
     # it. Because sometimes doing the silly thing is easier than not.
     for server_switch in [None, _SWITCH_UPGRADE, _SWITCH_CONNECT]:
         cs = ConnectionState()
-        cs.process_client_switch_proposals([_SWITCH_UPGRADE, _SWITCH_CONNECT])
+        cs.process_client_switch_proposal(_SWITCH_UPGRADE)
+        cs.process_client_switch_proposal(_SWITCH_CONNECT)
         cs.process_event(CLIENT, Request)
         cs.process_event(CLIENT, EndOfMessage)
         assert cs.states == {CLIENT: MIGHT_SWITCH_PROTOCOL,
@@ -147,7 +148,8 @@ def test_ConnectionState_inconsistent_protocol_switch():
             ([_SWITCH_CONNECT], _SWITCH_UPGRADE),
             ]:
         cs = ConnectionState()
-        cs.process_client_switch_proposals(client_switches)
+        for client_switch in client_switches:
+            cs.process_client_switch_proposal(client_switch)
         cs.process_event(CLIENT, Request)
         with pytest.raises(LocalProtocolError):
             cs.process_event(SERVER, Response, server_switch)
@@ -156,7 +158,7 @@ def test_ConnectionState_inconsistent_protocol_switch():
 def test_ConnectionState_keepalive_protocol_switch_interaction():
     # keep_alive=False + pending_switch_proposals
     cs = ConnectionState()
-    cs.process_client_switch_proposals([_SWITCH_UPGRADE])
+    cs.process_client_switch_proposal(_SWITCH_UPGRADE)
     cs.process_event(CLIENT, Request)
     cs.process_keep_alive_disabled()
     cs.process_event(CLIENT, Data)
@@ -215,7 +217,7 @@ def test_ConnectionState_reuse():
     # Succesful protocol switch
 
     cs = ConnectionState()
-    cs.process_client_switch_proposals([_SWITCH_UPGRADE])
+    cs.process_client_switch_proposal(_SWITCH_UPGRADE)
     cs.process_event(CLIENT, Request)
     cs.process_event(CLIENT, EndOfMessage)
     cs.process_event(SERVER, InformationalResponse, _SWITCH_UPGRADE)
@@ -226,7 +228,7 @@ def test_ConnectionState_reuse():
     # Failed protocol switch
 
     cs = ConnectionState()
-    cs.process_client_switch_proposals([_SWITCH_UPGRADE])
+    cs.process_client_switch_proposal(_SWITCH_UPGRADE)
     cs.process_event(CLIENT, Request)
     cs.process_event(CLIENT, EndOfMessage)
     cs.process_event(SERVER, Response)
