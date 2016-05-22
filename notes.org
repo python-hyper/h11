@@ -6,6 +6,8 @@ Possible API breaking changes:
 
   - orrrrr... join most headers on "," and join Set-Cookie on ";" (HTTP/2 spec explicitly allows this!), and then we can just use a freakin' (case insensitive) dict. Terrible idea? or awesome idea?
 
+    - argh, no, HTTP/2 allows joining *Cookie:* on ";". Set-Cookie header syntax makes it impossible to join them in any way :-(
+
 - pondering whether to adopt the HTTP/2 style of sticking request/response line information directly into the header dict.
 
   Advantages:
