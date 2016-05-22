@@ -7,6 +7,9 @@ docs/source/_static/special-states.dot
 docs/source/_static/special-states.svg
 docs/build/
 
+bench/results/
+fuzz/results/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
