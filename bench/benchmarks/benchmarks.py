@@ -28,15 +28,15 @@ def time_server_basic_get_with_realistic_headers():
 
     c.send(h11.Response(status_code=200,
                         headers=[
-                            ("Cache-Control", "private, max-age=0"),
-                            ("Content-Encoding", "gzip"),
-                            ("Content-Type", "text/html; charset=UTF-8"),
-                            ("Date", "Fri, 20 May 2016 09:23:41 GMT"),
-                            ("Expires", "-1"),
-                            ("Server", "gws"),
-                            ("X-Frame-Options", "SAMEORIGIN"),
-                            ("X-XSS-Protection", "1; mode=block"),
-                            ("Content-Length", "1000"),
+                            (b"Cache-Control", b"private, max-age=0"),
+                            (b"Content-Encoding", b"gzip"),
+                            (b"Content-Type", b"text/html; charset=UTF-8"),
+                            (b"Date", b"Fri, 20 May 2016 09:23:41 GMT"),
+                            (b"Expires", b"-1"),
+                            (b"Server", b"gws"),
+                            (b"X-Frame-Options", b"SAMEORIGIN"),
+                            (b"X-XSS-Protection", b"1; mode=block"),
+                            (b"Content-Length", b"1000"),
                         ]))
     c.send(h11.Data(data=b"x" * 1000))
     c.send(h11.EndOfMessage())
