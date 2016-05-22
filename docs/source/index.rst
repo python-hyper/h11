@@ -68,5 +68,6 @@ Contents
 
    basic-usage.rst
    api.rst
+   examples.rst
    supported-http.rst
    changes.rst
