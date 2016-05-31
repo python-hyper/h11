@@ -31,7 +31,7 @@ else:
 
 def write_headers(headers, write):
     for name, value in headers:
-        write(bytesmod(b"%s: %s\r\n", (name, value)))
+        write(bytesmod(b"%s: %s\r\n", (name, value.strip())))
     write(b"\r\n")
 
 # XX FIXME: "Since the Host field-value is critical information for
