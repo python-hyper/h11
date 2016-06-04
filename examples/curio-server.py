@@ -91,8 +91,8 @@ TIMEOUT = 10
 ################################################################
 
 # The core of this could be factored out to be usable for curio-based clients
-# and servers, but as a simplified pedagogical example we don't attempt this
-# here.
+# too, as well as servers. But as a simplified pedagogical example we don't
+# attempt this here.
 class CurioHTTPWrapper:
     _next_id = count()
 
