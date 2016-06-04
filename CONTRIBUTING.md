@@ -46,22 +46,24 @@ other hand, the following are all very welcome:
   [PEP 8](https://www.python.org/dev/peps/pep-0008/) style. We aren't
   blind sticklers for this though (in fact,
   [not being a blind stickler for PEP 8](https://www.python.org/dev/peps/pep-0008/#a-foolish-consistency-is-the-hobgoblin-of-little-minds)
-  is one of the requirements in PEP 8!). If you run pep8 / pycodestyle
-  over the code base then it complains about lots of things, but these
-  are generally places where "fixing the problem" would make the code
-  less readable. Still, though, when in doubt: PEP 8.
+  is one of the requirements in PEP 8!). If you run
+  [pycodestyle](https://github.com/PyCQA/pycodestyle) over the code
+  base then it complains about lots of things, but these are generally
+  places where "fixing the problem" would make the code less
+  readable. Still, though, when in doubt: PEP 8.
 
-* All code changes require at least the addition or fixing of at least
-  one test (see below for how to run the test suite). This helps us
+* If you change the code, then you have to also add or fix at least
+  one test. (See below for how to run the test suite.) This helps us
   make sure that we won't later accidentally break whatever you just
   fixed, and undo your hard work.
 
 * [Statement and branch coverage](https://codecov.io/gh/njsmith/h11)
-  should remain at 100.0%. But don't worry too much -- if you post a
-  pull request, then the codecov bot will automatically post a reply
-  letting you know whether you've managed this.
+  needs to remain at 100.0%. But don't stress too much about making
+  this work up front -- if you post a pull request, then the codecov
+  bot will automatically post a reply letting you know whether you've
+  managed this, and you can iterate to improve it.
 
-* The test suite should pass. The easy way to check is:
+* The test suite needs to pass. The easy way to check is:
 
   ```
   pip install tox
@@ -77,7 +79,7 @@ other hand, the following are all very welcome:
   or whatever just to run the tests.
 
 * Proposed speedups require some profiling and benchmarks to justify
-  the change
+  the change.
 
 * Generally each pull request should be self-contained and fix one bug
   or implement one new feature. If you can split it up, then you
