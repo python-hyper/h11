@@ -16,17 +16,19 @@ h11
 This is a little HTTP/1.1 library written from scratch in Python,
 heavily inspired by `hyper-h2 <https://hyper-h2.readthedocs.io/>`_.
 
-This is a "bring-your-own-I/O" library; like h2, it contains no IO
-code whatsoever. This means you can hook h11 up to your favorite
-network API, and that could be anything you want: synchronous,
-threaded, asynchronous, or your own implementation of `RFC 6214
+It's a "bring-your-own-I/O" library; h11 contains no IO code
+whatsoever. This means you can hook h11 up to your favorite network
+API, and that could be anything you want: synchronous, threaded,
+asynchronous, or your own implementation of `RFC 6214
 <https://tools.ietf.org/html/rfc6214>`_ -- h11 won't judge you.
 (Compare this to the current state of the art, where every time a `new
 network API <https://curio.readthedocs.io/>`_ comes along then someone
 gets to start over reimplementing the entire HTTP protocol from
 scratch.) Cory Benfield made an `excellent blog post describing the
 benefits of this approach
-<https://lukasa.co.uk/2015/10/The_New_Hyper/>`_.
+<https://lukasa.co.uk/2015/10/The_New_Hyper/>`_, or if you like video
+then here's his `PyCon 2016 talk on the same theme
+<https://www.youtube.com/watch?v=7cC3_jGwl_U>`_.
 
 This also means that h11 is not immediately useful out of the box:
 it's a toolkit for building programs that speak HTTP, not something
