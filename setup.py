@@ -14,7 +14,7 @@ setup(
     license="MIT",
     packages=find_packages(),
     url="https://github.com/njsmith/h11",
-    # This means, just install *everything* you see under zs/, even if it
+    # This means, just install *everything* you see under h11/, even if it
     # doesn't look like a source file, so long as it appears in MANIFEST.in:
     include_package_data=True,
     classifiers=[
