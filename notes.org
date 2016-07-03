@@ -19,6 +19,7 @@ Possible API breaking changes:
 
 for better tests:
 https://github.com/kevin1024/pytest-httpbin
+http://pathod.net/
 
 XX TODO:
    A server MUST NOT send a Transfer-Encoding header field in any
@@ -34,6 +35,61 @@ XX TODO:
    [RFC7231]).
 
 http://coad.measurement-factory.com/details.html
+
+* notes on URLs
+
+there are multiple not fully consistent specs
+
+[[https://tools.ietf.org/html/rfc3986][RFC 3986]] is the basic spec that RFC 7230 refers to
+RFC 3987 adds "internationalized" support
+RFC 6874 revises RFC 3986 a bit for "IPv6 zone support" -- golang has some code to handle this
+
+and then there's the [[https://url.spec.whatwg.org/][WHATWG URL spec]]
+
+some commentary on this:
+https://daniel.haxx.se/blog/2016/05/11/my-url-isnt-your-url/
+
+note that curl has been forced to handle non-RFC 3986-compliant (but WHATWG URL-compliant) URLs in Location: headers -- specifically ones containing weird numbers of slashes, and ones containing spaces (!), and maybe UTF-8 and other such fun
+
+https://news.ycombinator.com/item?id=11673058
+"I don't think cURL implements this percent encoding yet - instead, it sends out binary paths on UTF-8 locale and Linux likewise." -- https://news.ycombinator.com/item?id=11674778
+
+** looking at the go http parser
+
+spaces in HTTP/1.1 request-lines are definitely verboten -- e.g. here's the go http server code for splitting a request line (parseRequestLine), which assumes the second space represents the end of the target:
+  https://golang.org/src/net/http/request.go#L680
+
+OTOH if we scroll down to readRequest, we see that they have a special case where for CONNECT targets, they accept either host:port OR /path/with/slash (wtf):
+
+  // CONNECT requests are used two different ways, and neither uses a full URL:
+  // The standard use is to tunnel HTTPS through an HTTP proxy.
+  // It looks like "CONNECT www.google.com:443 HTTP/1.1", and the parameter is
+  // just the authority section of a URL. This information should go in req.URL.Host.
+  //
+  // The net/rpc package also uses CONNECT, but there the parameter is a path
+  // that starts with a slash. It can be parsed with the regular URL parser,
+  // and the path will end up in req.URL.Path, where it needs to be in order for
+  // RPC to work.
+
+other interesting things:
+- they have a special removeZone function to handle [[https://tools.ietf.org/html/rfc6874][RFC 6874]], which revises RFC 3986
+- they provide both a parsed URL and a raw string containing whatever was in the request line
+
+** experiment to check how firefox handles UTF-8 in URLs:
+
+$ socat - TCP-LISTEN:12345
+then browse to http://localhost:12345/✔
+
+produces:
+
+GET /%E2%9C%94 HTTP/1.1
+Host: localhost:12345
+User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:47.0) Gecko/20100101 Firefox/47.0
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en-US,en;q=0.5
+Accept-Encoding: gzip, deflate
+DNT: 1
+Connection: keep-alive
 
 * notes for building something on top of this
 
