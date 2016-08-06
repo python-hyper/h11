@@ -1,7 +1,7 @@
 import sys
 
 __all__ = ["ProtocolError", "LocalProtocolError", "RemoteProtocolError",
-           "validate", "Sentinel", "bytesify"]
+           "validate", "Sentinel", "bytesify", "make_sentinel"]
 
 class ProtocolError(Exception):
     """Exception indicating a violation of the HTTP/1.1 protocol.
@@ -91,14 +91,29 @@ def validate(regex, data, msg="malformed data"):
         raise LocalProtocolError(msg)
     return match.groupdict()
 
-# Sentinel values
-# Inherits identity-based comparison and hashing from object
 class Sentinel(object):
-    def __init__(self, name):
-        self._name = name
+    """Sentinel type for constructed sentinel types to inherit from.
+
+    The class inherits identity-based comparison and hashing from object.
+    """
+
+def make_sentinel(name):
+    """Return a sentinel value of a newly constructed type.
+
+    The constructed class is equivalent to the following:
+
+    .. code-block:: python
+
+        class <name>(Sentinel):
+            def __repr__(self):
+                return <name>
+    """
 
     def __repr__(self):
-        return self._name
+        return name
+
+    cls = type(name, (Sentinel,), dict(__repr__=__repr__))
+    return cls()
 
 # Used for methods, request targets, HTTP versions, header names, and header
 # values. Accepts ascii-strings, or bytes/bytearray/memoryview/..., and always

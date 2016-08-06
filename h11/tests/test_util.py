@@ -53,9 +53,11 @@ def test_validate():
     with pytest.raises(LocalProtocolError):
         validate(my_re, b"0.1\n")
 
-def test_Sentinel():
-    S = Sentinel("S")
+def test_make_sentinel():
+    S = make_sentinel("S")
     assert repr(S) == "S"
+    assert type(S).__name__ == "S"
+    assert isinstance(S, Sentinel)
     assert S == S
     assert S in {S}
 
