@@ -26,21 +26,21 @@ SIMPLE_CASES = [
      b"GET /a HTTP/1.1\r\nhost: foo\r\nconnection: close\r\n\r\n"),
 
     ((SERVER, SEND_RESPONSE),
-     Response(status_code=200, headers=[("Connection", "close")]),
-     b"HTTP/1.1 200 \r\nconnection: close\r\n\r\n"),
+     Response(status_code=200, headers=[("Connection", "close")], reason=b"OK"),
+     b"HTTP/1.1 200 OK\r\nconnection: close\r\n\r\n"),
 
     ((SERVER, SEND_RESPONSE),
-     Response(status_code=200, headers=[]),
-     b"HTTP/1.1 200 \r\n\r\n"),
+     Response(status_code=200, headers=[], reason=b"OK"),
+     b"HTTP/1.1 200 OK\r\n\r\n"),
 
     ((SERVER, SEND_RESPONSE),
      InformationalResponse(status_code=101,
-                           headers=[("Upgrade", "websocket")]),
-     b"HTTP/1.1 101 \r\nupgrade: websocket\r\n\r\n"),
+                           headers=[("Upgrade", "websocket")], reason=b"Upgrade"),
+     b"HTTP/1.1 101 Upgrade\r\nupgrade: websocket\r\n\r\n"),
 
     ((SERVER, SEND_RESPONSE),
-     InformationalResponse(status_code=101, headers=[]),
-     b"HTTP/1.1 101 \r\n\r\n"),
+     InformationalResponse(status_code=101, headers=[], reason=b"Upgrade"),
+     b"HTTP/1.1 101 Upgrade\r\n\r\n"),
 ]
 
 def dowrite(writer, obj):
@@ -119,7 +119,7 @@ def test_readers_unusual():
     tr(READERS[SERVER, SEND_RESPONSE],
        b"HTTP/1.0 200 OK\r\nSome: header\r\n\r\n",
        Response(status_code=200, headers=[("Some", "header")],
-                http_version="1.0"))
+                http_version="1.0", reason=b"OK"))
 
     # single-character header values (actually disallowed by the ABNF in RFC
     # 7230 -- this is a bug in the standard that we originally copied...)
@@ -127,20 +127,20 @@ def test_readers_unusual():
        b"HTTP/1.0 200 OK\r\n"
        b"Foo: a a a a a \r\n\r\n",
        Response(status_code=200, headers=[("Foo", "a a a a a")],
-                http_version="1.0"))
+                http_version="1.0", reason=b"OK"))
 
     # Empty headers -- also legal
     tr(READERS[SERVER, SEND_RESPONSE],
        b"HTTP/1.0 200 OK\r\n"
        b"Foo:\r\n\r\n",
        Response(status_code=200, headers=[("Foo", "")],
-                http_version="1.0"))
+                http_version="1.0", reason=b"OK"))
 
     tr(READERS[SERVER, SEND_RESPONSE],
        b"HTTP/1.0 200 OK\r\n"
        b"Foo: \t \t \r\n\r\n",
        Response(status_code=200, headers=[("Foo", "")],
-                http_version="1.0"))
+                http_version="1.0", reason=b"OK"))
 
     # obsolete line folding
     tr(READERS[CLIENT, IDLE],

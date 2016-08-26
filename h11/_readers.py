@@ -158,7 +158,7 @@ status_line = (
     r" "
     r"(?P<status_code>{status_code})"
     r" "
-    r"{reason_phrase}"
+    r"(?P<reason>{reason_phrase})"
     .format(**globals()))
 status_line_re = re.compile(status_line.encode("ascii"))
 

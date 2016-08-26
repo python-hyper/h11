@@ -170,7 +170,7 @@ def test_client_talking_to_http10_server():
     assert c.our_state is DONE
     # No content-length, so Http10 framing for body
     assert (receive_and_get(c, b"HTTP/1.0 200 OK\r\n\r\n")
-            == [Response(status_code=200, headers=[], http_version="1.0")])
+            == [Response(status_code=200, headers=[], http_version="1.0", reason=b"OK")])
     assert c.our_state is MUST_CLOSE
     assert (receive_and_get(c, b"12345") == [Data(data=b"12345")])
     assert (receive_and_get(c, b"67890") == [Data(data=b"67890")])

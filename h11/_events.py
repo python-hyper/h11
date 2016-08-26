@@ -44,7 +44,7 @@ class _EventBundle(object):
         if "headers" in self.__dict__:
             self.headers = _headers.normalize_and_validate(self.headers)
 
-        for field in ["method", "target", "http_version"]:
+        for field in ["method", "target", "http_version", "reason"]:
             if field in self.__dict__:
                 self.__dict__[field] = bytesify(self.__dict__[field])
 
@@ -123,8 +123,9 @@ class Request(_EventBundle):
 
 
 class _ResponseBase(_EventBundle):
-    _fields = ["status_code", "headers", "http_version"]
-    _defaults = {"http_version": b"1.1"}
+    _fields = ["status_code", "headers", "http_version", "reason"]
+    _defaults = {"http_version": b"1.1",
+                 "reason": b""}
 
 
 class InformationalResponse(_ResponseBase):

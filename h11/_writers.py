@@ -56,7 +56,7 @@ def write_any_response(response, write):
     # from stdlib's http.HTTPStatus table. Or maybe just steal their enums
     # (either by import or copy/paste). We already accept them as status codes
     # since they're of type IntEnum < int.
-    write(bytesmod(b"HTTP/1.1 %s \r\n", (status_bytes,)))
+    write(bytesmod(b"HTTP/1.1 %s %s\r\n", (status_bytes, response.reason)))
     write_headers(response.headers, write)
 
 class BodyWriter(object):
