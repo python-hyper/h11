@@ -151,6 +151,11 @@ class InformationalResponse(_ResponseBase):
        ``b"1.1"``. See :ref:`the HTTP version normalization rules
        <http_version-format>` for details.
 
+    .. attribute:: reason
+
+       The reason phrase of this response, as a byte string represent
+       short textual description of status code like ``b"OK"``.
+
     """
 
     def _validate(self):
@@ -182,6 +187,11 @@ class Response(_ResponseBase):
        The HTTP protocol version, represented as a byte string like
        ``b"1.1"``. See :ref:`the HTTP version normalization rules
        <http_version-format>` for details.
+
+    .. attribute:: reason
+
+       The reason phrase of this response, as a byte string represent
+       short textual description of status code like ``b"OK"``.
 
     """
     def _validate(self):
