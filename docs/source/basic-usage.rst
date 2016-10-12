@@ -341,7 +341,7 @@ Here's some ideas of things you might try:
 
 * Use h11 to write a simple HTTP server. (If you get stuck, `here's an
   example
-  <https://github.com/njsmith/h11/blob/master/examples/curio-server>`_.)
+  <https://github.com/njsmith/h11/blob/master/examples/curio-server.py>`_.)
 
 And of course, you'll want to read the :ref:`API-documentation` for
 all the details.
