@@ -33,6 +33,11 @@ __all__ = ["ReceiveBuffer"]
 #
 #     https://pythonclock.org/
 #
+# (Two things to double-check first though: make sure PyPy also has the
+# optimization, and benchmark to make sure it's a win, since we do have a
+# slightly clever thing where we delay calling compress() until we've
+# processed a whole event, which could in theory be slightly more efficient
+# than the internal bytearray support.)
 class ReceiveBuffer(object):
     def __init__(self):
         self._data = bytearray()
