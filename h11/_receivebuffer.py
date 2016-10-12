@@ -16,6 +16,23 @@ __all__ = ["ReceiveBuffer"]
 #   of constantly copying
 # WARNING:
 # - I haven't benchmarked or profiled any of this yet.
+#
+# Note that starting in Python 3.4, deleting the initial n bytes from a
+# bytearray is amortized O(n), thanks to some excellent work by Antoine
+# Martin:
+#
+#     https://bugs.python.org/issue19087
+#
+# This means that if we only supported 3.4+, we could get rid of the code here
+# involving self._start and self.compress, because it's doing exactly the same
+# thing that bytearray now does internally.
+#
+# BUT unfortunately, we still support 2.7, and reading short segments out of a
+# long buffer MUST be O(bytes read) to avoid DoS issues, so we can't actually
+# delete this code. Yet:
+#
+#     https://pythonclock.org/
+#
 class ReceiveBuffer(object):
     def __init__(self):
         self._data = bytearray()
@@ -42,7 +59,7 @@ class ReceiveBuffer(object):
         # Heuristic: only compress if it lets us reduce size by a factor
         # of 2
         if self._start > len(self._data) // 2:
-            self._data = self._data[self._start:]
+            del self._data[:self._start]
             self._looked_at -= self._start
             self._start -= self._start
 
