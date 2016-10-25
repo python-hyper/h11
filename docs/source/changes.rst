@@ -3,6 +3,15 @@ History of changes
 
 .. currentmodule:: h11
 
+vNEXT (????-??-??)
+-------------------
+
+* Made it so that sentinels are instances of themselves, to enable
+  certain dispatch tricks on the return value of
+  :func:`Connection.next_event` (see `issue #8
+  <https://github.com/njsmith/h11/issues/8>`).
+
+
 v0.6.0 (2016-10-24)
 -------------------
 
