@@ -3,8 +3,8 @@ History of changes
 
 .. currentmodule:: h11
 
-vNEXT (????-??-??)
-------------------
+v0.6.0 (2016-10-24)
+-------------------
 
 This is the first release since we started using h11 to write
 non-trivial server code, and this experience triggered a number of
@@ -25,6 +25,8 @@ Backwards **in**\compatible changes:
 * Renamed the old :meth:`prepare_to_reuse` to the new
   :meth:`~Connection.start_next_cycle`.
 
+* Removed the ``Paused`` pseudo-event.
+
 Backwards compatible changes:
 
 * State machine: added a :data:`DONE` -> :data:`MUST_CLOSE` transition
@@ -39,6 +41,11 @@ Backwards compatible changes:
 * Changed the :data:`PRODUCT_ID` from ``h11/<verson>`` to
   ``python-h11/<version>``. (This is similar to what requests uses,
   and much more searchable than plain h11.)
+
+Other changes:
+
+* Added a minimal benchmark suite, and used it to make a few small
+  optimizations (maybe ~20% speedup?).
 
 
 v0.5.0 (2016-05-14)
