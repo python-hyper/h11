@@ -151,7 +151,7 @@ details.
   $ pip install h11
   $ git clone git@github.com:njsmith/h11
   $ cd h11/examples
-  $ python tiny-client-demo.py
+  $ python basic-client.py
 
 and go from there.
 
