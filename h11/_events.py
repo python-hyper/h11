@@ -35,7 +35,7 @@ class _EventBundle(object):
             if field not in kwargs:
                 raise TypeError(
                     "missing required kwarg {} for {}"
-                    .format(kwarg, self.__class__.__name__))
+                    .format(field, self.__class__.__name__))
         self.__dict__.update(self._defaults)
         self.__dict__.update(kwargs)
 

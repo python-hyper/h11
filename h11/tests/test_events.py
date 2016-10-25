@@ -40,8 +40,10 @@ def test_event_bundle():
         T(a=1, b=0, c=10)
 
     # missing required field
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError) as exc:
         T(b=0)
+    # make sure we error on the right missing kwarg
+    assert 'kwarg a' in str(exc)
 
     # _validate is called
     with pytest.raises(ValueError):
