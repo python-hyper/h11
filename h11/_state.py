@@ -112,7 +112,7 @@
 # script to keep it in sync!
 
 from ._events import *
-from ._util import LocalProtocolError, Sentinel
+from ._util import LocalProtocolError, make_sentinel
 
 # Everything in __all__ gets re-exported as part of the h11 public API.
 __all__ = []
@@ -125,7 +125,7 @@ sentinels = ("CLIENT SERVER "
              # Switch types
              "_SWITCH_UPGRADE _SWITCH_CONNECT").split()
 for token in sentinels:
-    globals()[token] = Sentinel(token)
+    globals()[token] = make_sentinel(token)
 
 __all__ += [s for s in sentinels if not s.startswith("_")]
 
