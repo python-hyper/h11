@@ -153,8 +153,8 @@ class InformationalResponse(_ResponseBase):
 
     .. attribute:: reason
 
-       The reason phrase of this response, as a byte string represent
-       short textual description of status code like ``b"OK"``.
+       The reason phrase of this response, as a byte string. For example:
+       ``b"OK"``, or ``b"Not Found"``.
 
     """
 
@@ -190,8 +190,8 @@ class Response(_ResponseBase):
 
     .. attribute:: reason
 
-       The reason phrase of this response, as a byte string represent
-       short textual description of status code like ``b"OK"``.
+       The reason phrase of this response, as a byte string. For example:
+       ``b"OK"``, or ``b"Not Found"``.
 
     """
     def _validate(self):
