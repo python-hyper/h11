@@ -157,6 +157,13 @@ class CurioHTTPWrapper:
                 return
         # Wait and read for a bit to give them a chance to see that we closed
         # things, but eventually give up and just close the socket.
+        # XX FIXME: possibly we should set SO_LINGER to 0 here, so
+        # that in the case where the client has ignored our shutdown and
+        # declined to initiate the close themselves, we do a violent shutdown
+        # (RST) and avoid the TIME_WAIT?
+        # it looks like nginx never does this for keepalive timeouts, and only
+        # does it for regular timeouts (slow clients I guess?) if explicitly
+        # enabled ("Default: reset_timedout_connection off")
         async with curio.ignore_after(TIMEOUT):
             try:
                 while True:
