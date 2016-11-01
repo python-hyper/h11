@@ -245,6 +245,9 @@ class ChunkedReader(object):
             if self._bytes_in_chunk == 0:
                 self._reading_trailer = True
                 return self(buf)
+            chunk_start = True
+        else:
+            chunk_start = False
         assert self._bytes_in_chunk > 0
         data = buf.maybe_extract_at_most(self._bytes_in_chunk)
         if data is None:
@@ -252,7 +255,10 @@ class ChunkedReader(object):
         self._bytes_in_chunk -= len(data)
         if self._bytes_in_chunk == 0:
             self._bytes_to_discard = 2
-        return Data(data=data)
+            chunk_end = True
+        else:
+            chunk_end = False
+        return Data(data=data, chunk_start=chunk_start, chunk_end=chunk_end)
 
 
 class Http10Reader(object):
