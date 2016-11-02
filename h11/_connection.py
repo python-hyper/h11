@@ -6,7 +6,7 @@ from ._events import *
 # Import all state sentinels
 from ._state import *
 # Import the internal things we need
-from ._util import LocalProtocolError, RemoteProtocolError, Sentinel
+from ._util import LocalProtocolError, RemoteProtocolError, make_sentinel
 from ._state import ConnectionState, _SWITCH_UPGRADE, _SWITCH_CONNECT
 from ._headers import (
     get_comma_header, set_comma_header, has_expect_100_continue,
@@ -18,8 +18,8 @@ from ._writers import WRITERS
 # Everything in __all__ gets re-exported as part of the h11 public API.
 __all__ = ["Connection", "NEED_DATA", "PAUSED"]
 
-NEED_DATA = Sentinel("NEED_DATA")
-PAUSED = Sentinel("PAUSED")
+NEED_DATA = make_sentinel("NEED_DATA")
+PAUSED = make_sentinel("PAUSED")
 
 # If we ever have this much buffered without it making a complete parseable
 # event, we error out. The only time we really buffer is when reading the
@@ -418,7 +418,7 @@ class Connection(object):
                 "Can't receive data when peer state is ERROR")
         try:
             event = self._extract_next_receive_event()
-            if type(event) is not Sentinel:
+            if event not in [NEED_DATA, PAUSED]:
                 self._process_event(self.their_role, event)
                 self._receive_buffer.compress()
             if event is NEED_DATA:
