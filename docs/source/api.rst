@@ -990,3 +990,41 @@ easier for you to construct this header, it provides:
    .. ipython:: python
 
       h11.PRODUCT_ID
+
+
+Chunked Transfer Encoding Delimiters
+------------------------------------
+
+.. versionadded:: 0.7.0
+
+HTTP/1.1 allows for the use of Chunked Transfer Encoding to frame request and
+response bodies. This form of transfer encoding allows the implementation to
+provide its body data in the form of length-prefixed "chunks" of data.
+
+RFC 7230 is extremely clear that the breaking points between chunks of data are
+non-semantic: that is, users should not rely on them or assign any meaning to
+them. This is particularly important given that RFC 7230 also allows
+intermediaries such as proxies and caches to change the chunk boundaries as
+they see fit, or even to remove the chunked transfer encoding entirely.
+
+However, for some applications it is valuable or essential to see the chunk
+boundaries because the peer implementation has assigned meaning to them. While
+this is again the specification, if you do really need access to this
+information h11 makes it available to you in the form of the
+:data:`Data.chunk_start` and :data:`Data.chunk_end` properties of the
+:class:`Data` event.
+
+:data:`Data.chunk_start` is set to ``True`` for the first :class:`Data` event
+for a given chunk of data. :data:`Data.chunk_end` is set to ``True`` for the
+last :class:`Data` event that is emitted for a given chunk of data. h11
+guarantees that it will always emit at least one :class:`Data` event for each
+chunk of data received from the remote peer, but due to its internal buffering
+logic it may return more than one. It is possible for a single :class:`Data`
+event to have both :data:`Data.chunk_start` and :data:`Data.chunk_end` set to
+``True``, in which case it will be the only :class:`Data` event for that chunk
+of data.
+
+Again, it is *strongly encouraged* that you avoid relying on this information
+if at all possible. This functionality should be considered an escape hatch for
+when there is no alternative but to rely on the information, rather than a
+general source of data that is worth relying on.

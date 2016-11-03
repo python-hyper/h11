@@ -3,6 +3,14 @@ History of changes
 
 .. currentmodule:: h11
 
+dev
+---
+
+* Added :data:`Data.chunk_start` and :data:`Data.chunk_end` properties to the
+  :class:`Data` event. These provide the user information about where chunk
+  delimiters are in the data stream from the remote peer when chunked transfer
+  encoding is in use.
+
 v0.6.0 (2016-10-24)
 -------------------
 
