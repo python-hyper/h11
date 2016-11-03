@@ -17,12 +17,15 @@ def receive_and_get(conn, data):
     conn.receive_data(data)
     return get_all_events(conn)
 
-# Merges adjacent Data events, and converts payloads to bytestrings
+# Merges adjacent Data events, converts payloads to bytestrings, and removes
+# chunk boundaries.
 def normalize_data_events(in_events):
     out_events = []
     for event in in_events:
         if type(event) is Data:
             event.data = bytes(event.data)
+            event.chunk_start = False
+            event.chunk_end = False
         if out_events and type(out_events[-1]) is type(event) is Data:
             out_events[-1].data += event.data
         else:

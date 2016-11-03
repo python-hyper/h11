@@ -145,9 +145,11 @@ def test_chunked():
            Request(method="GET", target="/",
                    headers=[("Host", "example.com"),
                             ("Transfer-Encoding", "chunked")]))
-    data = p.send(CLIENT, Data(data=b"1234567890"))
+    data = p.send(CLIENT,
+                  Data(data=b"1234567890", chunk_start=True, chunk_end=True))
     assert data == b"a\r\n1234567890\r\n"
-    data = p.send(CLIENT, Data(data=b"abcde"))
+    data = p.send(CLIENT,
+                  Data(data=b"abcde", chunk_start=True, chunk_end=True))
     assert data == b"5\r\nabcde\r\n"
     data = p.send(CLIENT, EndOfMessage(headers=[("hello", "there")]))
     assert data == b"0\r\nhello: there\r\n\r\n"
@@ -155,8 +157,8 @@ def test_chunked():
     p.send(SERVER,
            Response(status_code=200,
                     headers=[("Transfer-Encoding", "chunked")]))
-    p.send(SERVER, Data(data=b"54321"))
-    p.send(SERVER, Data(data=b"12345"))
+    p.send(SERVER, Data(data=b"54321", chunk_start=True, chunk_end=True))
+    p.send(SERVER, Data(data=b"12345", chunk_start=True, chunk_end=True))
     p.send(SERVER, EndOfMessage())
 
     for conn in p.conns:
