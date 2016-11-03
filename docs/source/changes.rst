@@ -3,8 +3,13 @@ History of changes
 
 .. currentmodule:: h11
 
-dev
----
+vNEXT (????-??-??)
+-------------------
+
+* Made it so that sentinels are instances of themselves, to enable
+  certain dispatch tricks on the return value of
+  :func:`Connection.next_event` (see `issue #8
+  <https://github.com/njsmith/h11/issues/8>`).
 
 * Added :data:`Data.chunk_start` and :data:`Data.chunk_end` properties to the
   :class:`Data` event. These provide the user information about where chunk
