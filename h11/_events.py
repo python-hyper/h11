@@ -214,8 +214,23 @@ class Data(_EventBundle):
        which calling :func:`len` returns the number of bytes that will be
        written -- see :ref:`sendfile` for details.
 
+    .. attribute: chunk_start
+
+       A marker that indicates whether this data object is from the start of a
+       chunked transfer encoding chunk. This field is ignored when when a Data
+       event is provided to :meth:`Connection.send`: it is only valid on events
+       emitted from :meth:`Connection.next_event`.
+
+    .. attribute: chunk_end
+
+       A marker that indicates whether this data object is the last for a given
+       chunked transfer encoding chunk. This field is ignored when when a Data
+       event is provided to :meth:`Connection.send`: it is only valid on events
+       emitted from :meth:`Connection.next_event`.
+
     """
-    _fields = ["data"]
+    _fields = ["data", "chunk_start", "chunk_end"]
+    _defaults = {"chunk_start": False, "chunk_end": False}
 
 
 # XX FIXME: "A recipient MUST ignore (or consider as an error) any fields that
