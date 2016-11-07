@@ -352,6 +352,8 @@ All of these behave the same, and their behavior is modeled after
 :data:`None`: they're opaque singletons, their :meth:`__repr__` is
 their name, and you compare them with ``is``.
 
+.. _sentinel-type-trickiness:
+
 Finally, h11's constants have a quirky feature that can sometimes be
 useful: they are instances of themselves.
 
