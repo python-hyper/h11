@@ -1009,6 +1009,8 @@ easier for you to construct this header, it provides:
       h11.PRODUCT_ID
 
 
+.. _chunk-delimiters-are-bad:
+
 Chunked Transfer Encoding Delimiters
 ------------------------------------
 
@@ -1026,7 +1028,7 @@ they see fit, or even to remove the chunked transfer encoding entirely.
 
 However, for some applications it is valuable or essential to see the chunk
 boundaries because the peer implementation has assigned meaning to them. While
-this is again the specification, if you do really need access to this
+this is against the specification, if you do really need access to this
 information h11 makes it available to you in the form of the
 :data:`Data.chunk_start` and :data:`Data.chunk_end` properties of the
 :class:`Data` event.

@@ -218,15 +218,19 @@ class Data(_EventBundle):
 
        A marker that indicates whether this data object is from the start of a
        chunked transfer encoding chunk. This field is ignored when when a Data
-       event is provided to :meth:`Connection.send`: it is only valid on events
-       emitted from :meth:`Connection.next_event`.
+       event is provided to :meth:`Connection.send`: it is only valid on
+       events emitted from :meth:`Connection.next_event`. You probably
+       shouldn't use this attribute at all; see
+       :ref:`chunk-delimiters-are-bad` for details.
 
     .. attribute: chunk_end
 
-       A marker that indicates whether this data object is the last for a given
-       chunked transfer encoding chunk. This field is ignored when when a Data
-       event is provided to :meth:`Connection.send`: it is only valid on events
-       emitted from :meth:`Connection.next_event`.
+       A marker that indicates whether this data object is the last for a
+       given chunked transfer encoding chunk. This field is ignored when when
+       a Data event is provided to :meth:`Connection.send`: it is only valid
+       on events emitted from :meth:`Connection.next_event`. You probably
+       shouldn't use this attribute at all; see
+       :ref:`chunk-delimiters-are-bad` for details.
 
     """
     _fields = ["data", "chunk_start", "chunk_end"]
