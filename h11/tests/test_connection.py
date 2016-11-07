@@ -151,6 +151,8 @@ def test_chunked():
     data = p.send(CLIENT,
                   Data(data=b"abcde", chunk_start=True, chunk_end=True))
     assert data == b"5\r\nabcde\r\n"
+    data = p.send(CLIENT, Data(data=b""), expect=[])
+    assert data == b""
     data = p.send(CLIENT, EndOfMessage(headers=[("hello", "there")]))
     assert data == b"0\r\nhello: there\r\n\r\n"
 

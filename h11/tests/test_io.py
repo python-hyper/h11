@@ -334,6 +334,8 @@ def test_ChunkedWriter():
     assert dowrite(w, Data(data=b"aaa")) == b"3\r\naaa\r\n"
     assert dowrite(w, Data(data=b"a" * 20)) == b"14\r\n" + b"a" * 20 + b"\r\n"
 
+    assert dowrite(w, Data(data=b"")) == b""
+
     assert dowrite(w, EndOfMessage()) == b"0\r\n\r\n"
 
     assert (dowrite(w, EndOfMessage(headers=[("Etag", "asdf"), ("a", "b")]))

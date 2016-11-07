@@ -94,6 +94,10 @@ class ContentLengthWriter(BodyWriter):
 
 class ChunkedWriter(BodyWriter):
     def send_data(self, data, write):
+        # if we encoded 0-length data in the naive way, it would look like an
+        # end-of-message.
+        if not data:
+            return
         write(bytesmod(b"%x\r\n", (len(data),)))
         write(data)
         write(b"\r\n")
