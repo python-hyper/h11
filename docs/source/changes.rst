@@ -6,15 +6,28 @@ History of changes
 vNEXT (????-??-??)
 -------------------
 
+Backwards compatible changes:
+
 * Made it so that sentinels are instances of themselves, to enable
   certain dispatch tricks on the return value of
   :func:`Connection.next_event` (see `issue #8
-  <https://github.com/njsmith/h11/issues/8>`).
+  <https://github.com/njsmith/h11/issues/8>`__).
 
 * Added :data:`Data.chunk_start` and :data:`Data.chunk_end` properties to the
   :class:`Data` event. These provide the user information about where chunk
   delimiters are in the data stream from the remote peer when chunked transfer
-  encoding is in use.
+  encoding is in use. You :ref:`probably shouldn't use these
+  <chunk-delimiters-are-bad>`, but sometimes there's no alternative
+  (see `issue #19 <https://github.com/njsmith/h11/issues/19>`__).
+
+* Expose :data:`Response.reason` attribute, making it possible to read
+  or set the textual "reason phrase" on responses (`issue #13
+  <https://github.com/njsmith/h11/pull/13>`__).
+
+* Fix the error message given when a call to an event constructor is
+  missing a required keyword argument (`issue #14
+  <https://github.com/njsmith/h11/issues/14>`__).
+
 
 v0.6.0 (2016-10-24)
 -------------------
