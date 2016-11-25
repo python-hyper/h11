@@ -206,7 +206,7 @@ class Data(_EventBundle):
 
     Fields:
 
-    .. attribute: data
+    .. attribute:: data
 
        A :term:`bytes-like object` containing part of a message body. Or, if
        using the ``combine=False`` argument to :meth:`Connection.send`, then
@@ -214,7 +214,7 @@ class Data(_EventBundle):
        which calling :func:`len` returns the number of bytes that will be
        written -- see :ref:`sendfile` for details.
 
-    .. attribute: chunk_start
+    .. attribute:: chunk_start
 
        A marker that indicates whether this data object is from the start of a
        chunked transfer encoding chunk. This field is ignored when when a Data
@@ -223,7 +223,7 @@ class Data(_EventBundle):
        shouldn't use this attribute at all; see
        :ref:`chunk-delimiters-are-bad` for details.
 
-    .. attribute: chunk_end
+    .. attribute:: chunk_end
 
        A marker that indicates whether this data object is the last for a
        given chunked transfer encoding chunk. This field is ignored when when
@@ -247,7 +247,7 @@ class EndOfMessage(_EventBundle):
 
     Fields:
 
-    .. attribute: headers
+    .. attribute:: headers
 
        Default value: ``[]``
 
