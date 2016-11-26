@@ -3,7 +3,7 @@ History of changes
 
 .. currentmodule:: h11
 
-vNEXT (????-??-??)
+v0.7.0 (2016-11-25)
 -------------------
 
 New features (backwards compatible):
