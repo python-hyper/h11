@@ -30,13 +30,17 @@ else:
         return bstr % values
 
 def write_headers(headers, write):
+    # "Since the Host field-value is critical information for handling a
+    # request, a user agent SHOULD generate Host as the first header field
+    # following the request-line." - RFC 7230
     for name, value in headers:
-        write(bytesmod(b"%s: %s\r\n", (name, value)))
+        if name == b"host":
+            write(bytesmod(b"%s: %s\r\n", (name, value)))
+    for name, value in headers:
+        if name != b"host":
+            write(bytesmod(b"%s: %s\r\n", (name, value)))
     write(b"\r\n")
 
-# XX FIXME: "Since the Host field-value is critical information for
-# handling a request, a user agent SHOULD generate Host as the first
-# header field following the request-line." - RFC 7230
 def write_request(request, write):
     if request.http_version != b"1.1":
         raise LocalProtocolError("I only send HTTP/1.1")

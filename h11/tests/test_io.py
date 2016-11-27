@@ -368,3 +368,8 @@ def test_reject_garbage_in_header_line():
            b"HEAD /foo HTTP/1.1\r\n"
            b"Host: foo\x00bar\r\n\r\n",
            None)
+
+def test_host_comes_first():
+    tw(write_headers,
+       normalize_and_validate([("foo", "bar"), ("Host", "example.com")]),
+       b"host: example.com\r\nfoo: bar\r\n\r\n")
