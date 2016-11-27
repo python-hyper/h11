@@ -3,6 +3,15 @@ History of changes
 
 .. currentmodule:: h11
 
+vNEXT (????-??-??)
+------------------
+
+Bug fixes:
+
+* Error out if a request has multiple Host: headers.
+
+* Send the Host: header first, as recommended by RFC 7230.
+
 v0.7.0 (2016-11-25)
 -------------------
 
