@@ -881,3 +881,37 @@ def test_empty_response():
     c.receive_data(b"\r\n")
     with pytest.raises(RemoteProtocolError):
         c.next_event()
+
+# This used to give different headers for HEAD and GET.
+# The correct way to handle HEAD is to put whatever headers we *would* have
+# put if it were a GET -- even though we know that for HEAD, those headers
+# will be ignored.
+def test_HEAD_framing_headers():
+    def setup(method, http_version):
+        c = Connection(SERVER)
+        c.receive_data(method + b" / HTTP/" + http_version + b"\r\n"
+                       + b"Host: example.com\r\n\r\n")
+        assert type(c.next_event()) is Request
+        assert type(c.next_event()) is EndOfMessage
+        return c
+
+    for method in [b"GET", b"HEAD"]:
+        # No Content-Length, HTTP/1.1 peer, should use chunked
+        c = setup(method, b"1.1")
+        assert (c.send(Response(status_code=200, headers=[]))
+                == b"HTTP/1.1 200 \r\n"
+                   b"transfer-encoding: chunked\r\n\r\n")
+
+        # No Content-Length, HTTP/1.0 peer, frame with connection: close
+        c = setup(method, b"1.0")
+        assert (c.send(Response(status_code=200, headers=[]))
+                == b"HTTP/1.1 200 \r\n"
+                   b"connection: close\r\n\r\n")
+
+        # Content-Length + Transfer-Encoding, TE wins
+        c = setup(method, b"1.1")
+        assert (c.send(Response(status_code=200,
+                                headers=[("Content-Length", "100"),
+                                         ("Transfer-Encoding", "chunked")]))
+                == b"HTTP/1.1 200 \r\n"
+                   b"transfer-encoding: chunked\r\n\r\n")

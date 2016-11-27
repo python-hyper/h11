@@ -8,6 +8,10 @@ vNEXT (????-??-??)
 
 Bug fixes:
 
+* Make sure that when computing the framing headers for HEAD
+  responses, we produce the same results as we would for the
+  corresponding GET.
+
 * Error out if a request has multiple Host: headers.
 
 * Send the Host: header first, as recommended by RFC 7230.
