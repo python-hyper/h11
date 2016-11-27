@@ -70,6 +70,17 @@ def test_events():
     # we normalize header capitalization
     assert req.headers == [(b"a", b"b"), (b"host", b"example.com")]
 
+    # Multiple host is bad too
+    with pytest.raises(LocalProtocolError):
+        req = Request(method="GET", target="/",
+                      headers=[("Host", "a"), ("Host", "a")],
+                      http_version="1.1")
+    # Even for HTTP/1.0
+    with pytest.raises(LocalProtocolError):
+        req = Request(method="GET", target="/",
+                      headers=[("Host", "a"), ("Host", "a")],
+                      http_version="1.0")
+
     ir = InformationalResponse(status_code=100, headers=[("Host", "a")])
     assert ir.status_code == 100
     assert ir.headers == [(b"host", b"a")]

@@ -114,12 +114,19 @@ class Request(_EventBundle):
     _defaults = {"http_version": b"1.1"}
 
     def _validate(self):
-        if self.http_version == b"1.1":
-            for name, value in self.headers:
-                if name == b"host":
-                    break
-            else:
-                raise LocalProtocolError("Missing mandatory Host: header")
+        # "A server MUST respond with a 400 (Bad Request) status code to any
+        # HTTP/1.1 request message that lacks a Host header field and to any
+        # request message that contains more than one Host header field or a
+        # Host header field with an invalid field-value."
+        # -- https://tools.ietf.org/html/rfc7230#section-5.4
+        host_count = 0
+        for name, value in self.headers:
+            if name == b"host":
+                host_count += 1
+        if self.http_version == b"1.1" and host_count == 0:
+            raise LocalProtocolError("Missing mandatory Host: header")
+        if host_count > 1:
+            raise LocalProtocolError("Found multiple Host: headers")
 
 
 class _ResponseBase(_EventBundle):
