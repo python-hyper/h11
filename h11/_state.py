@@ -249,8 +249,8 @@ class ConnectionState(object):
             new_state = EVENT_TRIGGERED_TRANSITIONS[role][state][event_type]
         except KeyError:
             raise LocalProtocolError(
-                "can't handle event type {} for {} in state {}"
-                .format(event_type, role, self.states[role]))
+                "can't handle event type {} when role={} and state={}"
+                .format(event_type.__name__, role, self.states[role]))
         self.states[role] = new_state
 
     def _fire_state_triggered_transitions(self):
