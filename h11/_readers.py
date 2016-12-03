@@ -17,7 +17,7 @@
 # - or, for body readers, a dict of per-framing reader factories
 
 import re
-from ._util import LocalProtocolError, validate
+from ._util import LocalProtocolError, RemoteProtocolError, validate
 from ._state import *
 from ._events import *
 
@@ -177,16 +177,22 @@ def maybe_read_from_SEND_RESPONSE_server(buf):
 class ContentLengthReader:
     def __init__(self, length):
         self._length = length
+        self._remaining = length
 
     def __call__(self, buf):
-        if self._length == 0:
+        if self._remaining == 0:
             return EndOfMessage()
-        data = buf.maybe_extract_at_most(self._length)
+        data = buf.maybe_extract_at_most(self._remaining)
         if data is None:
             return None
-        self._length -= len(data)
+        self._remaining -= len(data)
         return Data(data=data)
 
+    def read_eof(self):
+        raise RemoteProtocolError(
+            "peer closed connection without sending complete message body "
+            "(received {} bytes, expected {})"
+            .format(self._length - self._remaining, self._length))
 
 HEXDIG = r"[0-9A-Fa-f]"
 # Actually
@@ -259,6 +265,11 @@ class ChunkedReader(object):
         else:
             chunk_end = False
         return Data(data=data, chunk_start=chunk_start, chunk_end=chunk_end)
+
+    def read_eof(self):
+        raise RemoteProtocolError(
+            "peer closed connection without sending complete message body "
+            "(incomplete chunked read)")
 
 
 class Http10Reader(object):

@@ -915,3 +915,31 @@ def test_HEAD_framing_headers():
                                          ("Transfer-Encoding", "chunked")]))
                 == b"HTTP/1.1 200 \r\n"
                    b"transfer-encoding: chunked\r\n\r\n")
+
+def test_special_exceptions_for_lost_connection_in_message_body():
+    c = Connection(SERVER)
+    c.receive_data(b"POST / HTTP/1.1\r\n"
+                   b"Host: example.com\r\n"
+                   b"Content-Length: 100\r\n\r\n")
+    assert type(c.next_event()) is Request
+    assert c.next_event() is NEED_DATA
+    c.receive_data(b"12345")
+    assert c.next_event() == Data(data=b"12345")
+    c.receive_data(b"")
+    with pytest.raises(RemoteProtocolError) as excinfo:
+        c.next_event()
+    assert "received 5 bytes" in str(excinfo.value)
+    assert "expected 100" in str(excinfo.value)
+
+    c = Connection(SERVER)
+    c.receive_data(b"POST / HTTP/1.1\r\n"
+                   b"Host: example.com\r\n"
+                   b"Transfer-Encoding: chunked\r\n\r\n")
+    assert type(c.next_event()) is Request
+    assert c.next_event() is NEED_DATA
+    c.receive_data(b"8\r\n012345")
+    assert c.next_event().data == b"012345"
+    c.receive_data(b"")
+    with pytest.raises(RemoteProtocolError) as excinfo:
+        c.next_event()
+    assert "incomplete chunked read" in str(excinfo.value)
