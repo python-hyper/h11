@@ -80,14 +80,20 @@ def normalize_and_validate(headers):
             validate(_content_length_re, value, "bad Content-Length")
             saw_content_length = True
         if name == b"transfer-encoding":
+            # "A server that receives a request message with a transfer coding
+            # it does not understand SHOULD respond with 501 (Not
+            # Implemented)."
+            # https://tools.ietf.org/html/rfc7230#section-3.3.1
             if saw_transfer_encoding:
-                raise LocalProtocolError("multiple Transfer-Encoding headers")
+                raise LocalProtocolError("multiple Transfer-Encoding headers",
+                                         error_status_hint=501)
             # "All transfer-coding names are case-insensitive"
             # -- https://tools.ietf.org/html/rfc7230#section-4
             value = value.lower()
             if value != b"chunked":
                 raise LocalProtocolError(
-                    "Only Transfer-Encoding: chunked is supported")
+                    "Only Transfer-Encoding: chunked is supported",
+                    error_status_hint=501)
             saw_transfer_encoding = True
         new_headers.append((name, value))
     return new_headers

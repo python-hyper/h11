@@ -33,13 +33,15 @@ def test_normalize_and_validate():
             == [(b"transfer-encoding", b"chunked")])
     assert (normalize_and_validate([("Transfer-Encoding", "cHuNkEd")])
             == [(b"transfer-encoding", b"chunked")])
-    with pytest.raises(LocalProtocolError):
+    with pytest.raises(LocalProtocolError) as excinfo:
         normalize_and_validate([("Transfer-Encoding", "gzip")])
-    with pytest.raises(LocalProtocolError):
+    assert excinfo.value.error_status_hint == 501  # Not Implemented
+    with pytest.raises(LocalProtocolError) as excinfo:
         normalize_and_validate([
             ("Transfer-Encoding", "chunked"),
             ("Transfer-Encoding", "gzip"),
         ])
+    assert excinfo.value.error_status_hint == 501  # Not Implemented
 
 def test_get_set_comma_header():
     headers = normalize_and_validate([
