@@ -6,6 +6,16 @@ History of changes
 vNEXT (????-??-??)
 ------------------
 
+Backwards **in**\compatible changes:
+
+* h11 now performs stricter validation on outgoing header names and
+  header values: illegal characters are now rejected (example: you
+  can't put a newline into an HTTP header), and header values with
+  leading/trailing whitespace are also rejected (previously h11 would
+  silently discard the whitespace). All these checks were already
+  performed on incoming headers; this just extends that to outgoing
+  headers.
+
 Bug fixes:
 
 * Make sure that when computing the framing headers for HEAD
@@ -15,6 +25,7 @@ Bug fixes:
 * Error out if a request has multiple Host: headers.
 
 * Send the Host: header first, as recommended by RFC 7230.
+
 
 v0.7.0 (2016-11-25)
 -------------------
