@@ -17,11 +17,14 @@ def test_normalize_and_validate():
 
     # no return or NUL characters in values
     with pytest.raises(LocalProtocolError):
-        normalize_and_validate([("foo", "bar\r\nbaz")])
+        normalize_and_validate([("foo", "bar\rbaz")])
     with pytest.raises(LocalProtocolError):
         normalize_and_validate([("foo", "bar\nbaz")])
     with pytest.raises(LocalProtocolError):
         normalize_and_validate([("foo", "bar\x00baz")])
+    # no leading/trailing whitespace
+    with pytest.raises(LocalProtocolError):
+        normalize_and_validate([("foo", "  bar\x00baz  ")])
 
     # content-length
     assert (normalize_and_validate([("Content-Length", "1")])
