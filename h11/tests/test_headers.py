@@ -12,8 +12,11 @@ def test_normalize_and_validate():
     with pytest.raises(LocalProtocolError):
         normalize_and_validate([(b" foo", "bar")])
 
-    # leading/trailing whitespace on values is stripped
-    assert normalize_and_validate([("foo", "   bar  ")]) == [(b"foo", b"bar")]
+    # no weird characters in names
+    with pytest.raises(LocalProtocolError):
+        normalize_and_validate([(b"foo bar", b"baz")])
+    with pytest.raises(LocalProtocolError):
+        normalize_and_validate([(b"foo\x00bar", b"baz")])
 
     # no return or NUL characters in values
     with pytest.raises(LocalProtocolError):
@@ -24,7 +27,7 @@ def test_normalize_and_validate():
         normalize_and_validate([("foo", "bar\x00baz")])
     # no leading/trailing whitespace
     with pytest.raises(LocalProtocolError):
-        normalize_and_validate([("foo", "  bar\x00baz  ")])
+        normalize_and_validate([("foo", "  barbaz  ")])
 
     # content-length
     assert (normalize_and_validate([("Content-Length", "1")])
@@ -58,7 +61,7 @@ def test_get_set_comma_header():
     headers = normalize_and_validate([
         ("Connection", "close"),
         ("whatever", "something"),
-        ("connectiON", "fOo,, , BAR "),
+        ("connectiON", "fOo,, , BAR"),
         ])
 
     assert get_comma_header(headers, "connECtion") == [
@@ -66,7 +69,10 @@ def test_get_set_comma_header():
     assert get_comma_header(headers, "connECtion", lowercase=False) == [
         b"close", b"fOo", b"BAR"]
 
-    set_comma_header(headers, "NewThing", [" a", "b"])
+    set_comma_header(headers, "NewThing", ["a", "b"])
+
+    with pytest.raises(LocalProtocolError):
+        set_comma_header(headers, "NewThing", ["  a", "b"])
 
     assert headers == [
         (b"connection", b"close"),

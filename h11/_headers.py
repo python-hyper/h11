@@ -1,6 +1,6 @@
 import re
 from ._util import LocalProtocolError, bytesify, validate
-from ._abnf import field_value
+from ._abnf import field_name, field_value
 
 # Facts
 # -----
@@ -57,6 +57,7 @@ from ._abnf import field_value
 # Maybe a dict-of-lists would be better?
 
 _content_length_re = re.compile(br"[0-9]+")
+_field_name_re = re.compile(field_name.encode("ascii"))
 _field_value_re = re.compile(field_value.encode("ascii"))
 
 def normalize_and_validate(headers):
@@ -65,20 +66,10 @@ def normalize_and_validate(headers):
     saw_transfer_encoding = False
     for name, value in headers:
         name = bytesify(name).lower()
-        value = bytesify(value).strip()
-        # Ensure header value doesn't contain any non-permitted characters
+        value = bytesify(value)
+        validate(_field_name_re, name, "Illegal header name {!r}".format(name))
         validate(_field_value_re, value,
-                 "Illegal header value {}".format(value))
-        # "No whitespace is allowed between the header field-name and colon.
-        # In the past, differences in the handling of such whitespace have led
-        # to security vulnerabilities in request routing and response
-        # handling.  A server MUST reject any received request message that
-        # contains whitespace between a header field-name and colon with a
-        # response code of 400 (Bad Request).  A proxy MUST remove any such
-        # whitespace from a response message before forwarding the message
-        # downstream." -- https://tools.ietf.org/html/rfc7230#section-3.2.4
-        if name.strip() != name:
-            raise LocalProtocolError("Illegal header name {}".format(name))
+                 "Illegal header value {!r}".format(value))
         if name == b"content-length":
             if saw_content_length:
                 raise LocalProtocolError("multiple Content-Length headers")
