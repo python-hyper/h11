@@ -1,5 +1,6 @@
 import re
 from ._util import LocalProtocolError, bytesify, validate
+from ._abnf import field_value
 
 # Facts
 # -----
@@ -56,7 +57,7 @@ from ._util import LocalProtocolError, bytesify, validate
 # Maybe a dict-of-lists would be better?
 
 _content_length_re = re.compile(br"[0-9]+")
-_header_value_re = re.compile(br"[\x21-\xff]+(?:[ \t]+[\x21-\xff]+)*|^$")
+_field_value_re = re.compile(field_value.encode("ascii"))
 
 def normalize_and_validate(headers):
     new_headers = []
@@ -66,7 +67,7 @@ def normalize_and_validate(headers):
         name = bytesify(name).lower()
         value = bytesify(value).strip()
         # Ensure header value doesn't contain any non-permitted characters
-        validate(_header_value_re, value,
+        validate(_field_value_re, value,
                  "Illegal header value {}".format(value))
         # "No whitespace is allowed between the header field-name and colon.
         # In the past, differences in the handling of such whitespace have led
