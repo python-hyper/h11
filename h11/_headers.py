@@ -56,6 +56,7 @@ from ._util import LocalProtocolError, bytesify, validate
 # Maybe a dict-of-lists would be better?
 
 _content_length_re = re.compile(br"[0-9]+")
+_header_value_re = re.compile(br"[\x21-\xff]+(?:[ \t]+[\x21-\xff]+)*|^$")
 
 def normalize_and_validate(headers):
     new_headers = []
@@ -64,6 +65,9 @@ def normalize_and_validate(headers):
     for name, value in headers:
         name = bytesify(name).lower()
         value = bytesify(value).strip()
+        # Ensure header value doesn't contain any non-permitted characters
+        validate(_header_value_re, value,
+                 "Illegal header value {}".format(value))
         # "No whitespace is allowed between the header field-name and colon.
         # In the past, differences in the handling of such whitespace have led
         # to security vulnerabilities in request routing and response

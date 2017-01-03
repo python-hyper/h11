@@ -15,6 +15,14 @@ def test_normalize_and_validate():
     # leading/trailing whitespace on values is stripped
     assert normalize_and_validate([("foo", "   bar  ")]) == [(b"foo", b"bar")]
 
+    # no return or NUL characters in values
+    with pytest.raises(LocalProtocolError):
+        normalize_and_validate([("foo", "bar\r\nbaz")])
+    with pytest.raises(LocalProtocolError):
+        normalize_and_validate([("foo", "bar\nbaz")])
+    with pytest.raises(LocalProtocolError):
+        normalize_and_validate([("foo", "bar\x00baz")])
+
     # content-length
     assert (normalize_and_validate([("Content-Length", "1")])
             == [(b"content-length", b"1")])
