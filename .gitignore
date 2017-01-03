@@ -8,6 +8,8 @@ docs/source/_static/special-states.svg
 docs/build/
 
 bench/results/
+bench/env/
+bench/h11/
 fuzz/results/
 
 # Byte-compiled / optimized / DLL files
