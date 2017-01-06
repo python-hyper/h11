@@ -44,7 +44,7 @@ whatever. But h11 makes it much easier to implement something like
 Vital statistics
 ----------------
 
-* Requirements: Python 2.7 or Python 3.3+, including PyPy
+* Requirements: Python 2.7 or Python 3.3+ (PyPy works great)
 
 * Install: ``pip install h11``
 
