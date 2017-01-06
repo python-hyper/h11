@@ -359,8 +359,8 @@ useful: they are instances of themselves.
 
 .. ipython:: python
 
-   type(NEED_DATA) is NEED_DATA
-   type(PAUSED) is PAUSED
+   type(h11.NEED_DATA) is h11.NEED_DATA
+   type(h11.PAUSED) is h11.PAUSED
 
 The main application of this is that when handling the return value
 from :meth:`Connection.next_event`, which is sometimes an instance of
