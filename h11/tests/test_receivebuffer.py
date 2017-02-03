@@ -1,5 +1,6 @@
 from .._receivebuffer import ReceiveBuffer
 
+
 def test_receivebuffer():
     b = ReceiveBuffer()
     assert not b
