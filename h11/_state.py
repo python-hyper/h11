@@ -199,6 +199,7 @@ STATE_TRIGGERED_TRANSITIONS = {
     (DONE, ERROR): {CLIENT: MUST_CLOSE},
 }
 
+
 class ConnectionState(object):
     def __init__(self):
         # Extra bits of state that don't quite fit into the state model.
