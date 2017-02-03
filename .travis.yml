@@ -4,6 +4,7 @@ python:
   - 3.3  # probably irrelevant but so far supporting it has been free
   - 3.4
   - 3.5
+  - 3.6
   # as of 2016-11-25, plain "pypy" is the ancient 2.5.0, and this is
   # the only other option:
   - pypy-5.3.1
