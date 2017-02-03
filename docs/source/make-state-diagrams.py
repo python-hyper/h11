@@ -1,13 +1,12 @@
 #!python
-
 import sys
-sys.path.append("../..")
-
 import os.path
 import subprocess
+sys.path.append("../..")
 
-from h11._events import *
-from h11._state import *
+from h11._events import Request, InformationalResponse, Response, Data, EndOfMessage
+from h11._state import DONE, IDLE, CLIENT, SERVER
+from h11._state import MIGHT_SWITCH_PROTOCOL, MUST_CLOSE
 from h11._state import (
     _SWITCH_UPGRADE, _SWITCH_CONNECT,
     EVENT_TRIGGERED_TRANSITIONS, STATE_TRIGGERED_TRANSITIONS,
@@ -24,14 +23,15 @@ digraph {
   edge  [fontname = "Lato"]
 """
 
+
 def finish(machine_name):
     return ("""
   labelloc="t"
   labeljust="l"
   label=<<FONT POINT-SIZE="20">h11 state machine: {}</FONT>>
 }}
-"""
-            .format(machine_name))
+""".format(machine_name))
+
 
 class Edges:
     def __init__(self):
@@ -53,6 +53,7 @@ class Edges:
     def write(self, f):
         self.edges.sort()
         f.write("".join(self.edges))
+
 
 def make_dot_special_state(out_path):
     with open(out_path, "w") as f:
@@ -92,6 +93,7 @@ def make_dot_special_state(out_path):
 
         f.write(finish("special states"))
 
+
 def make_dot(role, out_path):
     with open(out_path, "w") as f:
         f.write(HEADER)
@@ -118,15 +120,15 @@ def make_dot(role, out_path):
                 weight = 1
                 color = _EVENT_COLOR
                 italicize = False
-                if (event_type in CORE_EVENTS
-                    and source_state is not target_state):
+                if (event_type in CORE_EVENTS and
+                        source_state is not target_state):
                     weight = 10
                 # exception
                 if (event_type is Response and source_state is IDLE):
                     weight = 1
                 if isinstance(event_type, tuple):
                     # The weird special cases
-                    #color = _SPECIAL_COLOR
+                    # color = _SPECIAL_COLOR
                     if event_type == (Request, CLIENT):
                         name = "<i>client makes Request</i>"
                         weight = 10
@@ -173,6 +175,7 @@ def make_dot(role, out_path):
         # For some reason labelfontsize doesn't seem to do anything, but this
         # works
         f.write(finish(role))
+
 
 my_dir = os.path.dirname(__file__)
 out_dir = os.path.join(my_dir, "_static")
