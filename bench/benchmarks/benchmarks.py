@@ -3,6 +3,7 @@
 
 import h11
 
+
 # Basic ASV benchmark of core functionality
 def time_server_basic_get_with_realistic_headers():
     c = h11.Connection(h11.SERVER)
@@ -41,6 +42,7 @@ def time_server_basic_get_with_realistic_headers():
     c.send(h11.Data(data=b"x" * 1000))
     c.send(h11.EndOfMessage())
 
+
 # Useful for manual benchmarking, e.g. with vmprof or on PyPy
 def _run_basic_get_repeatedly():
     from timeit import default_timer
@@ -51,6 +53,7 @@ def _run_basic_get_repeatedly():
             time_server_basic_get_with_realistic_headers()
         finish = default_timer()
         print("{:.1f} requests/sec".format(REPEAT / (finish - start)))
+
 
 if __name__ == "__main__":
     _run_basic_get_repeatedly()
