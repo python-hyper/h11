@@ -3,6 +3,7 @@ import sys
 __all__ = ["ProtocolError", "LocalProtocolError", "RemoteProtocolError",
            "validate", "make_sentinel", "bytesify"]
 
+
 class ProtocolError(Exception):
     """Exception indicating a violation of the HTTP/1.1 protocol.
 
@@ -75,21 +76,25 @@ class LocalProtocolError(ProtocolError):
             # it inside an exec
             exec("raise RemoteProtocolError, self, sys.exc_info()[2]")
 
+
 class RemoteProtocolError(ProtocolError):
     pass
 
+
 # Equivalent to python 3.4's regex.fullmatch(data)
-def _fullmatch(regex, data): # version specific: Python < 3.4
+def _fullmatch(regex, data):  # version specific: Python < 3.4
     match = regex.match(data)
     if match and match.end() != len(data):
         match = None
     return match
+
 
 def validate(regex, data, msg="malformed data"):
     match = _fullmatch(regex, data)
     if not match:
         raise LocalProtocolError(msg)
     return match.groupdict()
+
 
 # Sentinel values
 #
@@ -103,10 +108,12 @@ class _SentinelBase(type):
     def __repr__(self):
         return self.__name__
 
+
 def make_sentinel(name):
     cls = _SentinelBase(name, (_SentinelBase,), {})
     cls.__class__ = cls
     return cls
+
 
 # Used for methods, request targets, HTTP versions, header names, and header
 # values. Accepts ascii-strings, or bytes/bytearray/memoryview/..., and always
