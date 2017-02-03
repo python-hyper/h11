@@ -21,6 +21,7 @@ except ImportError:  # version specific: Python 2
 
 import h11
 
+
 @contextmanager
 def socket_server(handler):
     httpd = socketserver.TCPServer(("127.0.0.1", 0), handler)
@@ -33,13 +34,16 @@ def socket_server(handler):
     finally:
         httpd.shutdown()
 
+
 test_file_path = os.path.join(os.path.dirname(__file__), "data/test-file")
 with open(test_file_path, "rb") as f:
     test_file_data = f.read()
 
+
 class SingleMindedRequestHandler(SimpleHTTPRequestHandler):
     def translate_path(self, path):
         return test_file_path
+
 
 def test_h11_as_client():
     with socket_server(SingleMindedRequestHandler) as httpd:
@@ -67,6 +71,7 @@ def test_h11_as_client():
                     break
             assert bytes(data) == test_file_data
 
+
 class H11RequestHandler(socketserver.BaseRequestHandler):
     def handle(self):
         with closing(self.request) as s:
@@ -89,11 +94,12 @@ class H11RequestHandler(socketserver.BaseRequestHandler):
                 "headers": {
                     name.decode("ascii"): value.decode("ascii")
                     for (name, value) in request.headers
-                    },
+                },
             })
             s.sendall(c.send(h11.Response(status_code=200, headers=[])))
             s.sendall(c.send(h11.Data(data=info.encode("ascii"))))
             s.sendall(c.send(h11.EndOfMessage()))
+
 
 def test_h11_as_server():
     with socket_server(H11RequestHandler) as httpd:
