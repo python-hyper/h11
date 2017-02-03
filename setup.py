@@ -6,8 +6,7 @@ exec(open("h11/_version.py").read())
 setup(
     name="h11",
     version=__version__,
-    description=
-        "A pure-Python, bring-your-own-I/O implementation of HTTP/1.1",
+    description="A pure-Python, bring-your-own-I/O implementation of HTTP/1.1",
     long_description=open("README.rst").read(),
     author="Nathaniel J. Smith",
     author_email="njs@pobox.com",
@@ -31,5 +30,5 @@ setup(
         "Programming Language :: Python :: 3.5",
         "Topic :: Internet :: WWW/HTTP",
         "Topic :: System :: Networking",
-        ],
+    ],
 )

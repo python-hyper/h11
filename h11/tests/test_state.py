@@ -5,6 +5,7 @@ from .._events import *
 from .._state import *
 from .._state import ConnectionState, _SWITCH_UPGRADE, _SWITCH_CONNECT
 
+
 def test_ConnectionState():
     cs = ConnectionState()
 
@@ -36,6 +37,7 @@ def test_ConnectionState():
     cs.process_event(SERVER, ConnectionClosed)
     assert cs.states == {CLIENT: MUST_CLOSE, SERVER: CLOSED}
 
+
 def test_ConnectionState_keep_alive():
     # keep_alive = False
     cs = ConnectionState()
@@ -48,6 +50,7 @@ def test_ConnectionState_keep_alive():
     cs.process_event(SERVER, EndOfMessage)
     assert cs.states == {CLIENT: MUST_CLOSE, SERVER: MUST_CLOSE}
 
+
 def test_ConnectionState_keep_alive_in_DONE():
     # Check that if keep_alive is disabled when the CLIENT is already in DONE,
     # then this is sufficient to immediately trigger the DONE -> MUST_CLOSE
@@ -58,6 +61,7 @@ def test_ConnectionState_keep_alive_in_DONE():
     assert cs.states[CLIENT] is DONE
     cs.process_keep_alive_disabled()
     assert cs.states[CLIENT] is MUST_CLOSE
+
 
 def test_ConnectionState_switch_denied():
     for switch_type in (_SWITCH_CONNECT, _SWITCH_UPGRADE):
@@ -91,11 +95,13 @@ def test_ConnectionState_switch_denied():
                 assert cs.states == {CLIENT: DONE, SERVER: SEND_BODY}
                 assert not cs.pending_switch_proposals
 
+
 _response_type_for_switch = {
     _SWITCH_UPGRADE: InformationalResponse,
     _SWITCH_CONNECT: Response,
     None: Response,
 }
+
 
 def test_ConnectionState_protocol_switch_accepted():
     for switch_event in [_SWITCH_UPGRADE, _SWITCH_CONNECT]:
@@ -120,6 +126,7 @@ def test_ConnectionState_protocol_switch_accepted():
         assert cs.states == {CLIENT: SWITCHED_PROTOCOL,
                              SERVER: SWITCHED_PROTOCOL}
 
+
 def test_ConnectionState_double_protocol_switch():
     # CONNECT + Upgrade is legal! Very silly, but legal. So we support
     # it. Because sometimes doing the silly thing is easier than not.
@@ -139,6 +146,7 @@ def test_ConnectionState_double_protocol_switch():
         else:
             assert cs.states == {CLIENT: SWITCHED_PROTOCOL,
                                  SERVER: SWITCHED_PROTOCOL}
+
 
 def test_ConnectionState_inconsistent_protocol_switch():
     for client_switches, server_switch in [
@@ -236,6 +244,7 @@ def test_ConnectionState_reuse():
 
     cs.start_next_cycle()
     assert cs.states == {CLIENT: IDLE, SERVER: IDLE}
+
 
 def test_server_request_is_illegal():
     # There used to be a bug in how we handled the Request special case that

@@ -33,6 +33,7 @@ PAUSED = make_sentinel("PAUSED")
 # - Apache: <8 KiB per line>
 DEFAULT_MAX_INCOMPLETE_EVENT_SIZE = 16 * 1024
 
+
 # RFC 7230's rules for connection lifecycles:
 # - If either side says they want to close the connection, then the connection
 #   must close.
@@ -52,6 +53,7 @@ def _keep_alive(event):
     if getattr(event, "http_version", b"1.1") < b"1.1":
         return False
     return True
+
 
 def _body_framing(request_method, event):
     # Called when we enter SEND_BODY to figure out framing information for
@@ -105,6 +107,7 @@ def _body_framing(request_method, event):
 # The main Connection class
 #
 ################################################################
+
 
 class Connection(object):
     """An object encapsulating the state of an HTTP connection.

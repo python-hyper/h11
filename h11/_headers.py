@@ -60,6 +60,7 @@ _content_length_re = re.compile(br"[0-9]+")
 _field_name_re = re.compile(field_name.encode("ascii"))
 _field_value_re = re.compile(field_value.encode("ascii"))
 
+
 def normalize_and_validate(headers):
     new_headers = []
     saw_content_length = False
@@ -93,6 +94,7 @@ def normalize_and_validate(headers):
             saw_transfer_encoding = True
         new_headers.append((name, value))
     return new_headers
+
 
 def get_comma_header(headers, name, lowercase=True):
     # Should only be used for headers whose value is a list of comma-separated
@@ -141,6 +143,7 @@ def get_comma_header(headers, name, lowercase=True):
                     out.append(found_split_value)
     return out
 
+
 def set_comma_header(headers, name, new_values):
     name = bytesify(name).lower()
     new_headers = []
@@ -150,6 +153,7 @@ def set_comma_header(headers, name, new_values):
     for new_value in new_values:
         new_headers.append((name, new_value))
     headers[:] = normalize_and_validate(new_headers)
+
 
 def has_expect_100_continue(request):
     # https://tools.ietf.org/html/rfc7231#section-5.1.1

@@ -90,6 +90,7 @@ TIMEOUT = 10
 # I/O adapter: h11 <-> curio
 ################################################################
 
+
 # The core of this could be factored out to be usable for curio-based clients
 # too, as well as servers. But as a simplified pedagogical example we don't
 # attempt this here.
@@ -103,7 +104,7 @@ class CurioHTTPWrapper:
         self.ident = " ".join([
             "h11-example-curio-server/{}".format(h11.__version__),
             h11.PRODUCT_ID,
-            ]).encode("ascii")
+        ]).encode("ascii")
         # A unique id for this connection, to include in debugging output
         # (useful for understanding what's going on if there are multiple
         # simultaneous clients).
@@ -190,6 +191,7 @@ class CurioHTTPWrapper:
 # Server main loop
 ################################################################
 
+
 # General theory:
 #
 # If everything goes well:
@@ -253,6 +255,7 @@ async def http_serve(sock, addr):
 # Actual response handlers
 ################################################################
 
+
 # Helper function
 async def send_simple_response(wrapper, status_code, content_type, body):
     wrapper.info("Sending", status_code,
@@ -264,6 +267,7 @@ async def send_simple_response(wrapper, status_code, content_type, body):
     await wrapper.send(res)
     await wrapper.send(h11.Data(data=body))
     await wrapper.send(h11.EndOfMessage())
+
 
 async def maybe_send_error_response(wrapper, exc):
     # If we can't send an error, oh well, nothing to be done
@@ -284,6 +288,7 @@ async def maybe_send_error_response(wrapper, exc):
                                    body)
     except Exception as exc:
         wrapper.info("error while sending error response:", exc)
+
 
 async def send_echo_response(wrapper, request):
     wrapper.info("Preparing echo response")

@@ -14,6 +14,7 @@ if sys.version_info[0] >= 3:
 else:
     in_file = sys.stdin
 
+
 def process_all(c):
     while True:
         event = c.next_event()
@@ -21,6 +22,7 @@ def process_all(c):
             break
         if type(event) is h11.ConnectionClosed:
             break
+
 
 afl.init()
 

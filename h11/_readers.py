@@ -29,6 +29,8 @@ header_field_re = re.compile(header_field.encode("ascii"))
 # Remember that this has to run in O(n) time -- so e.g. the bytearray cast is
 # critical.
 obs_fold_re = re.compile(br"[ \t]+")
+
+
 def _obsolete_line_fold(lines):
     it = iter(lines)
     last = None
@@ -49,12 +51,15 @@ def _obsolete_line_fold(lines):
     if last is not None:
         yield last
 
+
 def _decode_header_lines(lines):
     for line in _obsolete_line_fold(lines):
         matches = validate(header_field_re, line)
         yield (matches["field_name"], matches["field_value"])
 
+
 request_line_re = re.compile(request_line.encode("ascii"))
+
 
 def maybe_read_from_IDLE_client(buf):
     lines = buf.maybe_extract_lines()
@@ -65,7 +70,9 @@ def maybe_read_from_IDLE_client(buf):
     matches = validate(request_line_re, lines[0])
     return Request(headers=list(_decode_header_lines(lines[1:])), **matches)
 
+
 status_line_re = re.compile(status_line.encode("ascii"))
+
 
 def maybe_read_from_SEND_RESPONSE_server(buf):
     lines = buf.maybe_extract_lines()
@@ -101,6 +108,7 @@ class ContentLengthReader:
 
 
 chunk_header_re = re.compile(chunk_header.encode("ascii"))
+
 
 class ChunkedReader(object):
     def __init__(self):
@@ -170,10 +178,12 @@ class Http10Reader(object):
     def read_eof(self):
         return EndOfMessage()
 
+
 def expect_nothing(buf):
     if buf:
         raise LocalProtocolError("Got data when expecting EOF")
     return None
+
 
 READERS = {
     (CLIENT, IDLE): maybe_read_from_IDLE_client,

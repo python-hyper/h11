@@ -2,7 +2,9 @@ import pytest
 
 from .._util import LocalProtocolError
 from .. import _events
-from .._events import *
+from .._events import Request, Response, InformationalResponse
+from .._events import Data, ConnectionClosed, EndOfMessage
+
 
 def test_event_bundle():
     class T(_events._EventBundle):
@@ -48,6 +50,7 @@ def test_event_bundle():
     # _validate is called
     with pytest.raises(ValueError):
         T(a=0, b=0)
+
 
 def test_events():
     with pytest.raises(LocalProtocolError):
