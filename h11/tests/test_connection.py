@@ -1,14 +1,18 @@
 import pytest
 
+from .. import CLIENT, SERVER
+from .. import Request, Response, InformationalResponse
+from .. import Data, EndOfMessage, ConnectionClosed
+from .. import DONE, SEND_BODY, SEND_RESPONSE, MUST_CLOSE, CLOSED, ERROR
+from .. import MIGHT_SWITCH_PROTOCOL, SWITCHED_PROTOCOL
 from .._util import LocalProtocolError, RemoteProtocolError
-from .._events import *
-from .._state import *
 from .._connection import (
     _keep_alive, _body_framing,
     Connection, NEED_DATA, PAUSED
 )
 
 from .helpers import ConnectionPair, get_all_events, receive_and_get
+
 
 def test__keep_alive():
     assert _keep_alive(
@@ -54,8 +58,8 @@ def test__body_framing():
     # Special cases where the headers are ignored:
     for kwargs in [{}, {"cl": 100}, {"te": True}, {"cl": 100, "te": True}]:
         for meth, r in [(b"HEAD", resp(**kwargs)),
-                        (b"GET",  resp(status_code=204, **kwargs)),
-                        (b"GET",  resp(status_code=304, **kwargs))]:
+                        (b"GET", resp(status_code=204, **kwargs)),
+                        (b"GET", resp(status_code=304, **kwargs))]:
             assert _body_framing(meth, r) == ("content-length", (0,))
 
     # Transfer-encoding
@@ -138,6 +142,7 @@ def test_Connection_basics_and_content_length():
     for conn in p.conns:
         assert conn.states == {CLIENT: DONE, SERVER: DONE}
 
+
 def test_chunked():
     p = ConnectionPair()
 
@@ -165,6 +170,7 @@ def test_chunked():
 
     for conn in p.conns:
         assert conn.states == {CLIENT: DONE, SERVER: DONE}
+
 
 def test_chunk_boundaries():
     conn = Connection(our_role=SERVER)
@@ -214,6 +220,7 @@ def test_chunk_boundaries():
     conn.receive_data(b'0\r\n\r\n')
     assert conn.next_event() == EndOfMessage()
 
+
 def test_client_talking_to_http10_server():
     c = Connection(CLIENT)
     c.send(Request(method="GET", target="/",
@@ -228,6 +235,7 @@ def test_client_talking_to_http10_server():
     assert (receive_and_get(c, b"67890") == [Data(data=b"67890")])
     assert (receive_and_get(c, b"") == [EndOfMessage(), ConnectionClosed()])
     assert c.their_state is CLOSED
+
 
 def test_server_talking_to_http10_client():
     c = Connection(SERVER)
@@ -263,6 +271,7 @@ def test_server_talking_to_http10_client():
     assert c.their_state is MUST_CLOSE
     assert receive_and_get(c, b"") == [ConnectionClosed()]
 
+
 def test_automatic_transfer_encoding_in_response():
     # Check that in responses, the user can specify either Transfer-Encoding:
     # chunked or no framing at all, and in both cases we automatically select
@@ -295,6 +304,7 @@ def test_automatic_transfer_encoding_in_response():
         assert (c.send(Response(status_code=200, headers=user_headers))
                 == b"HTTP/1.1 200 \r\nconnection: close\r\n\r\n")
         assert c.send(Data(data=b"12345")) == b"12345"
+
 
 def test_automagic_connection_close_handling():
     p = ConnectionPair()
@@ -357,6 +367,7 @@ def test_100_continue():
     for conn in p.conns:
         assert not conn.client_is_waiting_for_100_continue
         assert not conn.they_are_waiting_for_100_continue
+
 
 def test_max_incomplete_event_size_countermeasure():
     # Infinitely long headers are definitely not okay
@@ -427,6 +438,7 @@ def test_max_incomplete_event_size_countermeasure():
     with pytest.raises(RemoteProtocolError):
         c.next_event()
 
+
 def test_reuse_simple():
     p = ConnectionPair()
     p.send(CLIENT,
@@ -446,6 +458,7 @@ def test_reuse_simple():
            [Response(status_code=404, headers=[]),
             EndOfMessage()])
 
+
 def test_pipelining():
     # Client doesn't support pipelining, so we have to do this by hand
     c = Connection(SERVER)
@@ -462,7 +475,7 @@ def test_pipelining():
                 headers=[("Host", "a.com"), ("Content-Length", "5")]),
         Data(data=b"12345"),
         EndOfMessage(),
-        ]
+    ]
     assert c.their_state is DONE
     assert c.our_state is SEND_RESPONSE
 
@@ -511,6 +524,7 @@ def test_pipelining():
     with pytest.raises(RuntimeError):
         c.receive_data(b"FDSA")
 
+
 def test_protocol_switch():
     for (req, deny, accept) in [
             (Request(method="CONNECT", target="example.com:443",
@@ -541,8 +555,7 @@ def test_protocol_switch():
              Response(status_code=404, headers=[]),
              # Accept Upgrade, not CONNECT
              InformationalResponse(status_code=101,
-                                   headers=[("Upgrade", "b")])),
-            ]:
+                                   headers=[("Upgrade", "b")]))]:
 
         def setup():
             p = ConnectionPair()
@@ -630,10 +643,8 @@ def test_protocol_switch():
 def test_close_simple():
     # Just immediately closing a new connection without anything having
     # happened yet.
-    for (who_shot_first, who_shot_second) in [
-            (CLIENT, SERVER),
-            (SERVER, CLIENT),
-            ]:
+    for (who_shot_first, who_shot_second) in [(CLIENT, SERVER),
+                                              (SERVER, CLIENT)]:
         def setup():
             p = ConnectionPair()
             p.send(who_shot_first, ConnectionClosed())
@@ -667,6 +678,7 @@ def test_close_simple():
         p.conn[who_shot_first].receive_data(b"GET")
         with pytest.raises(RemoteProtocolError):
             p.conn[who_shot_first].next_event()
+
 
 def test_close_different_states():
     req = [Request(method="GET", target="/foo", headers=[("Host", "a")]),
@@ -723,6 +735,7 @@ def test_close_different_states():
     with pytest.raises(RemoteProtocolError):
         p.conn[SERVER].next_event()
 
+
 # Receive several requests and then client shuts down their side of the
 # connection; we can respond to each
 def test_pipelined_close():
@@ -759,6 +772,7 @@ def test_pipelined_close():
     c.send(ConnectionClosed())
     assert c.states == {CLIENT: CLOSED, SERVER: CLOSED}
 
+
 def test_sendfile():
     class SendfilePlaceholder:
         def __len__(self):
@@ -791,6 +805,7 @@ def test_sendfile():
     c, data = setup(None, "1.0")
     assert data == [placeholder]
     assert c.our_state is SEND_BODY
+
 
 def test_errors():
     # After a receive error, you can't receive
@@ -847,11 +862,13 @@ def test_errors():
         with pytest.raises(LocalProtocolError):
             c.send(good)
 
+
 def test_idle_receive_nothing():
     # At one point this incorrectly raised an error
     for role in [CLIENT, SERVER]:
         c = Connection(role)
         assert c.next_event() is NEED_DATA
+
 
 def test_connection_drop():
     c = Connection(SERVER)
@@ -861,11 +878,13 @@ def test_connection_drop():
     with pytest.raises(RemoteProtocolError):
         c.next_event()
 
+
 def test_408_request_timeout():
     # Should be able to send this spontaneously as a server without seeing
     # anything from client
     p = ConnectionPair()
     p.send(SERVER, Response(status_code=408, headers=[]))
+
 
 # This used to raise IndexError
 def test_empty_request():
@@ -874,6 +893,7 @@ def test_empty_request():
     with pytest.raises(RemoteProtocolError):
         c.next_event()
 
+
 # This used to raise IndexError
 def test_empty_response():
     c = Connection(CLIENT)
@@ -881,6 +901,7 @@ def test_empty_response():
     c.receive_data(b"\r\n")
     with pytest.raises(RemoteProtocolError):
         c.next_event()
+
 
 # This used to give different headers for HEAD and GET.
 # The correct way to handle HEAD is to put whatever headers we *would* have
@@ -915,6 +936,7 @@ def test_HEAD_framing_headers():
                                          ("Transfer-Encoding", "chunked")]))
                 == b"HTTP/1.1 200 \r\n"
                    b"transfer-encoding: chunked\r\n\r\n")
+
 
 def test_special_exceptions_for_lost_connection_in_message_body():
     c = Connection(SERVER)
