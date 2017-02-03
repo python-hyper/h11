@@ -43,19 +43,23 @@ SIMPLE_CASES = [
      b"HTTP/1.1 101 Upgrade\r\n\r\n"),
 ]
 
+
 def dowrite(writer, obj):
     got_list = []
     writer(obj, got_list.append)
     return b"".join(got_list)
 
+
 def tw(writer, obj, expected):
     got = dowrite(writer, obj)
     assert got == expected
+
 
 def makebuf(data):
     buf = ReceiveBuffer()
     buf += data
     return buf
+
 
 def tr(reader, data, expected):
     # Simple: consume whole thing
@@ -76,13 +80,16 @@ def tr(reader, data, expected):
     assert reader(buf) == expected
     assert bytes(buf) == b"trailing"
 
+
 def test_writers_simple():
     for ((role, state), event, binary) in SIMPLE_CASES:
         tw(WRITERS[role, state], event, binary)
 
+
 def test_readers_simple():
     for ((role, state), event, binary) in SIMPLE_CASES:
         tr(READERS[role, state], binary, event)
+
 
 def test_writers_unusual():
     # Simple test of the write_headers utility routine
@@ -103,6 +110,7 @@ def test_writers_unusual():
            Response(status_code=200, headers=[("Connection", "close")],
                     http_version="1.0"),
            None)
+
 
 def test_readers_unusual():
     # Reading HTTP/1.0
@@ -210,9 +218,11 @@ def _run_reader_iter(reader, buf, do_eof):
         assert not buf
         yield reader.read_eof()
 
+
 def _run_reader(*args):
     events = list(_run_reader_iter(*args))
     return normalize_data_events(events)
+
 
 def t_body_reader(thunk, data, expected, do_eof=False):
     # Simple: consume whole thing
@@ -246,12 +256,14 @@ def test_ContentLengthReader():
                   b"0123456789",
                   [Data(data=b"0123456789"), EndOfMessage()])
 
+
 def test_Http10Reader():
     t_body_reader(Http10Reader, b"", [EndOfMessage()], do_eof=True)
     t_body_reader(Http10Reader, b"asdf",
                   [Data(data=b"asdf")], do_eof=False)
     t_body_reader(Http10Reader, b"asdf",
                   [Data(data=b"asdf"), EndOfMessage()], do_eof=True)
+
 
 def test_ChunkedReader():
     t_body_reader(ChunkedReader, b"0\r\n\r\n", [EndOfMessage()])
@@ -303,6 +315,7 @@ def test_ChunkedReader():
                   + b"0; random=\"junk\"; some=more; canbe=lonnnnngg\r\n\r\n",
                   [Data(data=b"xxxxx"), EndOfMessage()])
 
+
 def test_ContentLengthWriter():
     w = ContentLengthWriter(5)
     assert dowrite(w, Data(data=b"123")) == b"123"
@@ -329,6 +342,7 @@ def test_ContentLengthWriter():
     with pytest.raises(LocalProtocolError):
         dowrite(w, EndOfMessage(headers=[("Etag", "asdf")]))
 
+
 def test_ChunkedWriter():
     w = ChunkedWriter()
     assert dowrite(w, Data(data=b"aaa")) == b"3\r\naaa\r\n"
@@ -341,6 +355,7 @@ def test_ChunkedWriter():
     assert (dowrite(w, EndOfMessage(headers=[("Etag", "asdf"), ("a", "b")]))
             == b"0\r\netag: asdf\r\na: b\r\n\r\n")
 
+
 def test_Http10Writer():
     w = Http10Writer()
     assert dowrite(w, Data(data=b"1234")) == b"1234"
@@ -349,11 +364,13 @@ def test_Http10Writer():
     with pytest.raises(LocalProtocolError):
         dowrite(w, EndOfMessage(headers=[("Etag", "asdf")]))
 
+
 def test_reject_garbage_after_request_line():
     with pytest.raises(LocalProtocolError):
         tr(READERS[SERVER, SEND_RESPONSE],
            b"HTTP/1.0 200 OK\x00xxxx\r\n\r\n",
            None)
+
 
 def test_reject_garbage_after_response_line():
     with pytest.raises(LocalProtocolError):
@@ -362,12 +379,14 @@ def test_reject_garbage_after_response_line():
            b"Host: a\r\n\r\n",
            None)
 
+
 def test_reject_garbage_in_header_line():
     with pytest.raises(LocalProtocolError):
         tr(READERS[CLIENT, IDLE],
            b"HEAD /foo HTTP/1.1\r\n"
            b"Host: foo\x00bar\r\n\r\n",
            None)
+
 
 def test_host_comes_first():
     tw(write_headers,
