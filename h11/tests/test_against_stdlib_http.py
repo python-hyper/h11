@@ -89,7 +89,7 @@ class H11RequestHandler(socketserver.BaseRequestHandler):
                 "headers": {
                     name.decode("ascii"): value.decode("ascii")
                     for (name, value) in request.headers
-                    },
+                },
             })
             s.sendall(c.send(h11.Response(status_code=200, headers=[])))
             s.sendall(c.send(h11.Data(data=info.encode("ascii"))))

@@ -103,7 +103,7 @@ class CurioHTTPWrapper:
         self.ident = " ".join([
             "h11-example-curio-server/{}".format(h11.__version__),
             h11.PRODUCT_ID,
-            ]).encode("ascii")
+        ]).encode("ascii")
         # A unique id for this connection, to include in debugging output
         # (useful for understanding what's going on if there are multiple
         # simultaneous clients).

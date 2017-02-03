@@ -79,7 +79,7 @@ class RemoteProtocolError(ProtocolError):
     pass
 
 # Equivalent to python 3.4's regex.fullmatch(data)
-def _fullmatch(regex, data): # version specific: Python < 3.4
+def _fullmatch(regex, data):  # version specific: Python < 3.4
     match = regex.match(data)
     if match and match.end() != len(data):
         match = None

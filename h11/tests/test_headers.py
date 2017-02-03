@@ -62,7 +62,7 @@ def test_get_set_comma_header():
         ("Connection", "close"),
         ("whatever", "something"),
         ("connectiON", "fOo,, , BAR"),
-        ])
+    ])
 
     assert get_comma_header(headers, "connECtion") == [
         b"close", b"foo", b"bar"]

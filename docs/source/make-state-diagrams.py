@@ -30,8 +30,7 @@ def finish(machine_name):
   labeljust="l"
   label=<<FONT POINT-SIZE="20">h11 state machine: {}</FONT>>
 }}
-"""
-            .format(machine_name))
+""".format(machine_name))
 
 class Edges:
     def __init__(self):

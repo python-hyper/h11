@@ -462,7 +462,7 @@ def test_pipelining():
                 headers=[("Host", "a.com"), ("Content-Length", "5")]),
         Data(data=b"12345"),
         EndOfMessage(),
-        ]
+    ]
     assert c.their_state is DONE
     assert c.our_state is SEND_RESPONSE
 
