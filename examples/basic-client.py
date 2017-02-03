@@ -15,6 +15,7 @@ sock = ctx.wrap_socket(socket.create_connection(("httpbin.org", 443)),
 # Sending a request
 ################################################################
 
+
 def send(event):
     print("Sending event:")
     print(event)
@@ -23,6 +24,7 @@ def send(event):
     data = conn.send(event)
     # Send the resulting bytes on the wire
     sock.sendall(data)
+
 
 send(h11.Request(method="GET",
                  target="/get",
@@ -33,6 +35,7 @@ send(h11.EndOfMessage())
 ################################################################
 # Receiving the response
 ################################################################
+
 
 def next_event():
     while True:
@@ -46,6 +49,7 @@ def next_event():
             # ...and then loop around to try again.
             continue
         return event
+
 
 while True:
     event = next_event()
