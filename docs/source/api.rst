@@ -109,12 +109,12 @@ byte-strings, *name* is always lowercase, and *name* and *value* are
 both guaranteed not to have any leading or trailing whitespace. When
 constructing an event, we accept any iterable of pairs like this, and
 will automatically convert native strings containing ascii or
-:term:`bytes-like object`\s to byte-strings, convert names to
-lowercase, and strip whitespace from values:
+:term:`bytes-like object`\s to byte-strings and convert names to
+lowercase:
 
 .. ipython:: python
 
-   original_headers = [("HOST", bytearray(b"  example.com   "))]
+   original_headers = [("HOST", bytearray(b"Example.Com"))]
    req = h11.Request(method="GET", target="/", headers=original_headers)
    original_headers
    req.headers
@@ -123,8 +123,10 @@ If any names are detected with leading or trailing whitespace, then
 this is an error ("in the past, differences in the handling of such
 whitespace have led to security vulnerabilities" -- `RFC 7230
 <https://tools.ietf.org/html/rfc7230#section-3.2.4>`_). We also check
-for other protocol violations, e.g. ``Content-Length: hello`` is an
-error. We may add additional checks in the future.
+for certain other protocol violations, e.g. it's always illegal to
+have a newline inside a header value, and ``Content-Length: hello`` is
+an error because `Content-Length` should always be an integer. We may
+add additional checks in the future.
 
 .. _http_version-format:
 
