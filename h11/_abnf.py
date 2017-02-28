@@ -93,8 +93,12 @@ status_line = (
     r"{http_version}"
     r" "
     r"(?P<status_code>{status_code})"
-    r" "
-    r"(?P<reason>{reason_phrase})"
+    # However, there are apparently a few too many servers out there that just
+    # leave out the reason phrase:
+    #   https://github.com/scrapy/scrapy/issues/345#issuecomment-281756036
+    #   https://github.com/seanmonstar/httparse/issues/29
+    # so make it optional. ?: is a non-capturing group.
+    r"(?: (?P<reason>{reason_phrase}))?"
     .format(**globals()))
 
 HEXDIG = r"[0-9A-Fa-f]"
