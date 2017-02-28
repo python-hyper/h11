@@ -24,6 +24,7 @@ class _EventBundle(object):
     _defaults = {}
 
     def __init__(self, **kwargs):
+        _parsed = kwargs.pop("_parsed", False)
         allowed = set(self._fields)
         for kwarg in kwargs:
             if kwarg not in allowed:
@@ -42,15 +43,17 @@ class _EventBundle(object):
         # Special handling for some fields
 
         if "headers" in self.__dict__:
-            self.headers = _headers.normalize_and_validate(self.headers)
+            self.headers = _headers.normalize_and_validate(
+                self.headers, _parsed=_parsed)
 
-        for field in ["method", "target", "http_version", "reason"]:
-            if field in self.__dict__:
-                self.__dict__[field] = bytesify(self.__dict__[field])
+        if not _parsed:
+            for field in ["method", "target", "http_version", "reason"]:
+                if field in self.__dict__:
+                    self.__dict__[field] = bytesify(self.__dict__[field])
 
-        if "status_code" in self.__dict__:
-            if not isinstance(self.status_code, int):
-                raise LocalProtocolError("status code must be integer")
+            if "status_code" in self.__dict__:
+                if not isinstance(self.status_code, int):
+                    raise LocalProtocolError("status code must be integer")
 
         self._validate()
 
