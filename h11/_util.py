@@ -85,10 +85,10 @@ def _fullmatch(regex, data):  # version specific: Python < 3.4
         match = None
     return match
 
-def validate(regex, data, msg="malformed data"):
+def validate(regex, data, msg="malformed data", msgargs=()):
     match = _fullmatch(regex, data)
     if not match:
-        raise LocalProtocolError(msg)
+        raise LocalProtocolError(msg.format(*msgargs))
     return match.groupdict()
 
 # Sentinel values

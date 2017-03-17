@@ -67,9 +67,9 @@ def normalize_and_validate(headers):
     for name, value in headers:
         name = bytesify(name).lower()
         value = bytesify(value)
-        validate(_field_name_re, name, "Illegal header name {!r}".format(name))
+        validate(_field_name_re, name, "Illegal header name {!r}", name)
         validate(_field_value_re, value,
-                 "Illegal header value {!r}".format(value))
+                 "Illegal header value {!r}", value)
         if name == b"content-length":
             if saw_content_length:
                 raise LocalProtocolError("multiple Content-Length headers")
