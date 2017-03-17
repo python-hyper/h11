@@ -98,6 +98,8 @@ def get_comma_header(headers, name, lowercase=True):
     # Should only be used for headers whose value is a list of comma-separated
     # values. Use lowercase=True for case-insensitive ones.
     #
+    # The header name `name` is expected to be lower-case bytes.
+    #
     # Connection: meets these criteria (including cast insensitivity).
     #
     # Content-Length: technically is just a single value (1*DIGIT), but the
@@ -130,7 +132,6 @@ def get_comma_header(headers, name, lowercase=True):
     # lowercase=False.
     #
     out = []
-    name = bytesify(name).lower()
     for found_name, found_raw_value in headers:
         if found_name == name:
             if lowercase:
@@ -142,7 +143,7 @@ def get_comma_header(headers, name, lowercase=True):
     return out
 
 def set_comma_header(headers, name, new_values):
-    name = bytesify(name).lower()
+    # The header name `name` is expected to be lower-case bytes.
     new_headers = []
     for found_name, found_raw_value in headers:
         if found_name != name:
@@ -158,5 +159,5 @@ def has_expect_100_continue(request):
     if request.http_version < b"1.1":
         return False
     # Expect: 100-continue is case *sensitive*
-    expect = get_comma_header(request.headers, "Expect", lowercase=False)
+    expect = get_comma_header(request.headers, b"expect", lowercase=False)
     return (b"100-continue" in expect)
