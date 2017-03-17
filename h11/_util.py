@@ -1,4 +1,5 @@
 import sys
+import re
 
 __all__ = ["ProtocolError", "LocalProtocolError", "RemoteProtocolError",
            "validate", "make_sentinel", "bytesify"]
@@ -78,12 +79,14 @@ class LocalProtocolError(ProtocolError):
 class RemoteProtocolError(ProtocolError):
     pass
 
-# Equivalent to python 3.4's regex.fullmatch(data)
-def _fullmatch(regex, data):  # version specific: Python < 3.4
-    match = regex.match(data)
-    if match and match.end() != len(data):
-        match = None
-    return match
+try:
+    _fullmatch = type(re.compile('')).fullmatch
+except AttributeError:
+    def _fullmatch(regex, data):  # version specific: Python < 3.4
+        match = regex.match(data)
+        if match and match.end() != len(data):
+            match = None
+        return match
 
 def validate(regex, data, msg="malformed data", msgargs=()):
     match = _fullmatch(regex, data)
