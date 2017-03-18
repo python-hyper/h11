@@ -54,6 +54,10 @@ note that curl has been forced to handle non-RFC 3986-compliant (but WHATWG URL-
 https://news.ycombinator.com/item?id=11673058
 "I don't think cURL implements this percent encoding yet - instead, it sends out binary paths on UTF-8 locale and Linux likewise." -- https://news.ycombinator.com/item?id=11674778
 
+also:
+https://github.com/bagder/docs/blob/master/URL-interop.md
+"This document is an attempt to describe where and how RFC 3986 (86), RFC 3987 (87) and the WHATWG URL Specification (TWUS) differ. This might be useful input when trying to interop with URLs on the modern Internet."
+
 ** looking at the go http parser
 
 spaces in HTTP/1.1 request-lines are definitely verboten -- e.g. here's the go http server code for splitting a request line (parseRequestLine), which assumes the second space represents the end of the target:
