@@ -88,10 +88,12 @@ except AttributeError:
             match = None
         return match
 
-def validate(regex, data, msg="malformed data", msgargs=()):
+def validate(regex, data, msg="malformed data", *format_args):
     match = _fullmatch(regex, data)
     if not match:
-        raise LocalProtocolError(msg.format(*msgargs))
+        if format_args:
+            msg = msg.format(*format_args)
+        raise LocalProtocolError(msg)
     return match.groupdict()
 
 # Sentinel values

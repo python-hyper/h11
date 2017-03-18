@@ -13,14 +13,16 @@ def test_normalize_and_validate():
         normalize_and_validate([(b" foo", "bar")])
 
     # no weird characters in names
-    with pytest.raises(LocalProtocolError):
+    with pytest.raises(LocalProtocolError) as excinfo:
         normalize_and_validate([(b"foo bar", b"baz")])
+    assert "foo bar" in str(excinfo.value)
     with pytest.raises(LocalProtocolError):
         normalize_and_validate([(b"foo\x00bar", b"baz")])
 
     # no return or NUL characters in values
-    with pytest.raises(LocalProtocolError):
+    with pytest.raises(LocalProtocolError) as excinfo:
         normalize_and_validate([("foo", "bar\rbaz")])
+    assert "bar\\rbaz" in str(excinfo.value)
     with pytest.raises(LocalProtocolError):
         normalize_and_validate([("foo", "bar\nbaz")])
     with pytest.raises(LocalProtocolError):
