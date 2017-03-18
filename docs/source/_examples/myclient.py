@@ -5,7 +5,8 @@ class MyHttpClient:
     def __init__(self, host, port):
         self.sock = socket.create_connection((host, port))
         if port == 443:
-            self.sock = ssl.wrap_socket(self.sock)
+            ctx = ssl.create_default_context()
+            self.sock = ctx.wrap_socket(self.sock, server_hostname=host)
         self.conn = h11.Connection(our_role=h11.CLIENT)
 
     def send(self, *events):
