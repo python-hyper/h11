@@ -381,7 +381,7 @@ class Connection(object):
         on an iterator.
 
         Returns:
-            One of three things:
+            : One of three things:
 
             1) An event object -- see :ref:`events`.
 

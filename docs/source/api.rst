@@ -47,9 +47,9 @@ All events behave in essentially similar ways. Let's take
 :class:`Request` as an example. Like all events, this is a "final"
 class -- you cannot subclass it. And like all events, it has several
 fields. For :class:`Request`, there are four of them:
-:attr:`~Request.method`, :attr:`~Request.target``,
-:attr:`~Request.headers``, and
-:attr:`~Request.http_version``. :attr:`~Request.http_version``
+:attr:`~Request.method`, :attr:`~Request.target`,
+:attr:`~Request.headers`, and
+:attr:`~Request.http_version`. :attr:`~Request.http_version`
 defaults to ``b"1.1"``; the rest have no default, so to create a
 :class:`Request` you have to specify their values:
 
@@ -258,7 +258,7 @@ state.
   machine is in the state disabled.
 
 * There are also two purple arcs labeled
-  :meth:`~Connection.prepare_to_send`: these correspond to an explicit
+  :meth:`~Connection.start_next_cycle`: these correspond to an explicit
   method call documented below.
 
 Here's why we have all the stuff in those diagrams above, beyond
@@ -603,7 +603,7 @@ If keep-alive is disabled for whatever reason -- someone set
 unilaterally closed the connection -- then the state machines will
 skip past the :data:`DONE` state directly to the :data:`MUST_CLOSE` or
 :data:`CLOSED` states. In this case, trying to call
-:meth:`~Connection.prepare_to_use` will raise an error, and the only
+:meth:`~Connection.start_next_cycle` will raise an error, and the only
 thing you can legally do is to close this connection and make a new
 one.
 
