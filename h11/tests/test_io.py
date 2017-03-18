@@ -142,6 +142,13 @@ def test_readers_unusual():
        Response(status_code=200, headers=[("Foo", "")],
                 http_version="1.0", reason=b"OK"))
 
+    # Tolerate broken servers that leave off the response code
+    tr(READERS[SERVER, SEND_RESPONSE],
+       b"HTTP/1.0 200\r\n"
+       b"Foo: bar\r\n\r\n",
+       Response(status_code=200, headers=[("Foo", "bar")],
+                http_version="1.0", reason=b""))
+
     # obsolete line folding
     tr(READERS[CLIENT, IDLE],
        b"HEAD /foo HTTP/1.1\r\n"
