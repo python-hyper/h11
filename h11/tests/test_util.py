@@ -53,6 +53,21 @@ def test_validate():
     with pytest.raises(LocalProtocolError):
         validate(my_re, b"0.1\n")
 
+def test_validate_formatting():
+    my_re = re.compile(br"foo")
+
+    with pytest.raises(LocalProtocolError) as excinfo:
+        validate(my_re, b"", "oops")
+    assert "oops" in str(excinfo.value)
+
+    with pytest.raises(LocalProtocolError) as excinfo:
+        validate(my_re, b"", "oops {}")
+    assert "oops {}" in str(excinfo.value)
+
+    with pytest.raises(LocalProtocolError) as excinfo:
+        validate(my_re, b"", "oops {} xx", 10)
+    assert "oops 10 xx" in str(excinfo.value)
+
 def test_make_sentinel():
     S = make_sentinel("S")
     assert repr(S) == "S"

@@ -13,14 +13,16 @@ def test_normalize_and_validate():
         normalize_and_validate([(b" foo", "bar")])
 
     # no weird characters in names
-    with pytest.raises(LocalProtocolError):
+    with pytest.raises(LocalProtocolError) as excinfo:
         normalize_and_validate([(b"foo bar", b"baz")])
+    assert "foo bar" in str(excinfo.value)
     with pytest.raises(LocalProtocolError):
         normalize_and_validate([(b"foo\x00bar", b"baz")])
 
     # no return or NUL characters in values
-    with pytest.raises(LocalProtocolError):
+    with pytest.raises(LocalProtocolError) as excinfo:
         normalize_and_validate([("foo", "bar\rbaz")])
+    assert "bar\\rbaz" in str(excinfo.value)
     with pytest.raises(LocalProtocolError):
         normalize_and_validate([("foo", "bar\nbaz")])
     with pytest.raises(LocalProtocolError):
@@ -64,15 +66,15 @@ def test_get_set_comma_header():
         ("connectiON", "fOo,, , BAR"),
     ])
 
-    assert get_comma_header(headers, "connECtion") == [
+    assert get_comma_header(headers, b"connection") == [
         b"close", b"foo", b"bar"]
-    assert get_comma_header(headers, "connECtion", lowercase=False) == [
+    assert get_comma_header(headers, b"connection", lowercase=False) == [
         b"close", b"fOo", b"BAR"]
 
-    set_comma_header(headers, "NewThing", ["a", "b"])
+    set_comma_header(headers, b"newthing", ["a", "b"])
 
     with pytest.raises(LocalProtocolError):
-        set_comma_header(headers, "NewThing", ["  a", "b"])
+        set_comma_header(headers, b"newthing", ["  a", "b"])
 
     assert headers == [
         (b"connection", b"close"),
@@ -82,7 +84,7 @@ def test_get_set_comma_header():
         (b"newthing", b"b"),
     ]
 
-    set_comma_header(headers, "whatever", ["different thing"])
+    set_comma_header(headers, b"whatever", ["different thing"])
 
     assert headers == [
         (b"connection", b"close"),
