@@ -68,8 +68,6 @@ def test_get_set_comma_header():
 
     assert get_comma_header(headers, b"connection") == [
         b"close", b"foo", b"bar"]
-    assert get_comma_header(headers, b"connection", lowercase=False) == [
-        b"close", b"fOo", b"BAR"]
 
     set_comma_header(headers, b"newthing", ["a", "b"])
 
@@ -105,8 +103,8 @@ def test_has_100_continue():
         method="GET",
         target="/",
         headers=[("Host", "example.com")]))
-    # Case sensitive
-    assert not has_expect_100_continue(Request(
+    # Case insensitive
+    assert has_expect_100_continue(Request(
         method="GET",
         target="/",
         headers=[("Host", "example.com"), ("Expect", "100-Continue")]))
