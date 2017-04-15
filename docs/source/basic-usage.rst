@@ -40,6 +40,17 @@ https://httpbin.org/xml:
    # Let's see what we got!
    print(response_data)
 
+.. warning::
+
+   If you try to reproduce these examples interactively, then you'll
+   have the most luck if you paste them in all at once. Remember we're
+   talking to a remote server here – if you type them in one at a
+   time, and you're too slow, then the server might give up on waiting
+   for you and close the connection. One way to recognize that this
+   has happened is if ``response_data`` comes back as an empty string,
+   or later on when we're working with h11 this might cause errors
+   that mention ``ConnectionClosed``.
+
 So that's, uh, very convenient and readable. It's a little more
 understandable if we print the bytes as text:
 
@@ -147,6 +158,10 @@ bytes from the network, then we hand them to the connection (using
    conn.next_event()
    conn.next_event()
    conn.next_event()
+
+(Remember, if you're following along and get an error here mentioning
+``ConnectionClosed``, then try again, but going through the steps
+faster!)
 
 Here the server sent us three events: a :class:`Response` object,
 which is similar to the :class:`Request` object that we created
