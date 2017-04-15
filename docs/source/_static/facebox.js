@@ -88,15 +88,15 @@
   /* I don't know why absolute paths don't work. If you try to use facebox
    * outside of the examples folder these images won't show up.
    */
-      loadingImage : '../../_static/loading.gif',
-      closeImage   : '../../_static/closelabel.png',
+      loadingImage : '_static/loading.gif',
+      closeImage   : '_static/closelabel.png',
       imageTypes   : [ 'png', 'jpg', 'jpeg', 'gif' ],
       faceboxHtml  : '\
     <div id="facebox" style="display:none;"> \
       <div class="popup"> \
         <div class="content"> \
         </div> \
-        <a href="#" class="close"><img src="../../_static/closelabel.png" title="close" class="close_image" /></a> \
+        <a href="#" class="close"><img src="_static/closelabel.png" title="close" class="close_image" /></a> \
       </div> \
     </div>'
     },
