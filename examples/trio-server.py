@@ -327,9 +327,7 @@ async def tcp_server(host, port, serve_func):
             async with trio.open_nursery() as nursery:
                 nursery.spawn(tcp_serve, nursery, socket, serve_func)
         except KeyboardInterrupt:
-            print("Keyboard")
-            await connection_manager.shutdown_all()
-            print("Done")
+            print("KeyboardInterrupt - Shutting Down")
 
 ################################################################
 # Run the server
