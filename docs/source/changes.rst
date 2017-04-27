@@ -26,6 +26,10 @@ Bug fixes:
 
 * Send the Host: header first, as recommended by RFC 7230.
 
+* The Expect: header `is case-insensitive
+  <https://tools.ietf.org/html/rfc7231#section-5.1.1>`__, so use
+  case-insensitive matching when looking for 100-continue.
+
 
 v0.7.0 (2016-11-25)
 -------------------

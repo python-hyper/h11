@@ -94,9 +94,9 @@ def normalize_and_validate(headers):
         new_headers.append((name, value))
     return new_headers
 
-def get_comma_header(headers, name, lowercase=True):
-    # Should only be used for headers whose value is a list of comma-separated
-    # values. Use lowercase=True for case-insensitive ones.
+def get_comma_header(headers, name):
+    # Should only be used for headers whose value is a list of
+    # comma-separated, case-insensitive values.
     #
     # The header name `name` is expected to be lower-case bytes.
     #
@@ -128,14 +128,12 @@ def get_comma_header(headers, name, lowercase=True):
     # both of these will be treated the same anyway.
     #
     # Expect: the only legal value is the literal string
-    # "100-continue". Splitting on commas is harmless. But, must set
-    # lowercase=False.
+    # "100-continue". Splitting on commas is harmless. Case insensitive.
     #
     out = []
     for found_name, found_raw_value in headers:
         if found_name == name:
-            if lowercase:
-                found_raw_value = found_raw_value.lower()
+            found_raw_value = found_raw_value.lower()
             for found_split_value in found_raw_value.split(b","):
                 found_split_value = found_split_value.strip()
                 if found_split_value:
@@ -158,6 +156,5 @@ def has_expect_100_continue(request):
     # MUST ignore that expectation."
     if request.http_version < b"1.1":
         return False
-    # Expect: 100-continue is case *sensitive*
-    expect = get_comma_header(request.headers, b"expect", lowercase=False)
+    expect = get_comma_header(request.headers, b"expect")
     return (b"100-continue" in expect)
