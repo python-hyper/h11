@@ -313,10 +313,14 @@ async def send_echo_response(wrapper, request):
                                response_body_bytes)
 
 async def tcp_serve(nursery, listen_sock, serve_func):
+    async def serve_with_cleanup(sock):
+        with sock:
+            await serve_func(sock)
+
     while True:
         sock, _ = await listen_sock.accept()
         print("listener: got new connection, spawning server")
-        nursery.spawn(serve_func, sock)
+        nursery.spawn(serve_with_cleanup, sock)
 
 async def tcp_server(host, port, serve_func):
     with trio.socket.socket() as socket:
