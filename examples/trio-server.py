@@ -334,5 +334,4 @@ async def tcp_server(host, port, serve_func):
 ################################################################
 
 if __name__ == "__main__":
-    print("Listening on http://localhost:8080")
     trio.run(tcp_server, "127.0.0.1", 8080, http_serve)
