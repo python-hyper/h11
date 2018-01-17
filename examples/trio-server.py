@@ -77,7 +77,6 @@
 
 import json
 from itertools import count
-from socket import SHUT_WR
 from wsgiref.handlers import format_date_time
 
 import trio
@@ -96,8 +95,8 @@ TIMEOUT = 10
 class TrioHTTPWrapper:
     _next_id = count()
 
-    def __init__(self, sock):
-        self.sock = sock
+    def __init__(self, stream):
+        self.stream = stream
         self.conn = h11.Connection(h11.SERVER)
         # Our Server: header
         self.ident = " ".join([
@@ -115,7 +114,7 @@ class TrioHTTPWrapper:
         # appropriate when 'data' is None.
         assert type(event) is not h11.ConnectionClosed
         data = self.conn.send(event)
-        await self.sock.sendall(data)
+        await self.stream.send_all(data)
 
     async def _read_from_peer(self):
         if self.conn.they_are_waiting_for_100_continue:
@@ -125,7 +124,7 @@ class TrioHTTPWrapper:
                 headers=self.basic_headers())
             await self.send(go_ahead)
         try:
-            data = await self.sock.recv(MAX_RECV)
+            data = await self.stream.receive_some(MAX_RECV)
         except ConnectionError:
             # They've stopped listening. Not much we can do about it here.
             data = b""
@@ -149,8 +148,8 @@ class TrioHTTPWrapper:
         # and let it raise an exception if that violates the protocol.)
         #
         try:
-            self.sock.shutdown(SHUT_WR)
-        except OSError:
+            await self.stream.send_eof()
+        except trio.BrokenStreamError:
             # They're already gone, nothing to do
             return
         # Wait and read for a bit to give them a chance to see that we closed
@@ -166,11 +165,11 @@ class TrioHTTPWrapper:
             try:
                 while True:
                     # Attempt to read until EOF
-                    got = await self.sock.recv(MAX_RECV)
+                    got = await self.stream.receive_some(MAX_RECV)
                     if not got:
                         break
             finally:
-                self.sock.close()
+                await self.stream.aclose()
 
     def basic_headers(self):
         # HTTP requires these headers in all responses (client would do
@@ -213,14 +212,15 @@ class TrioHTTPWrapper:
 # goes wrong do our best to get back onto that path, and h11 will keep
 # track of how successful we were and raise new errors if things don't work
 # out.
-async def http_serve(sock):
-    wrapper = TrioHTTPWrapper(sock)
+async def http_serve(stream):
+    wrapper = TrioHTTPWrapper(stream)
+    wrapper.info("Got new connection")
     while True:
         assert wrapper.conn.states == {
             h11.CLIENT: h11.IDLE, h11.SERVER: h11.IDLE}
 
         try:
-            with trio.move_on_after(TIMEOUT):
+            with trio.fail_after(TIMEOUT):
                 wrapper.info("Server main loop waiting for request")
                 event = await wrapper.next_event()
                 wrapper.info("Server main loop got event:", event)
@@ -273,6 +273,8 @@ async def maybe_send_error_response(wrapper, exc):
     try:
         if isinstance(exc, h11.RemoteProtocolError):
             status_code = exc.error_status_hint
+        elif isinstance(exc, trio.TooSlowError):
+            status_code = 408  # Request Timeout
         else:
             status_code = 500
         body = str(exc).encode("utf-8")
@@ -312,30 +314,16 @@ async def send_echo_response(wrapper, request):
                                "application/json; charset=utf-8",
                                response_body_bytes)
 
-async def tcp_serve(nursery, listen_sock, serve_func):
-    async def serve_with_cleanup(sock):
-        with sock:
-            await serve_func(sock)
-
-    while True:
-        sock, _ = await listen_sock.accept()
-        print("listener: got new connection, spawning server")
-        nursery.spawn(serve_with_cleanup, sock)
-
-async def tcp_server(host, port, serve_func):
-    with trio.socket.socket() as socket:
-        socket.bind((host, port))
-        socket.listen()
-        print("listening on {}:{}".format(host, port))
-        try:
-            async with trio.open_nursery() as nursery:
-                nursery.spawn(tcp_serve, nursery, socket, serve_func)
-        except KeyboardInterrupt:
-            print("KeyboardInterrupt - Shutting Down")
+async def serve(port):
+    print("listening on http://localhost:{}".format(port))
+    try:
+        await trio.serve_tcp(http_serve, port)
+    except KeyboardInterrupt:
+        print("KeyboardInterrupt - shutting down")
 
 ################################################################
 # Run the server
 ################################################################
 
 if __name__ == "__main__":
-    trio.run(tcp_server, "127.0.0.1", 8080, http_serve)
+    trio.run(serve, 8080)
