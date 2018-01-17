@@ -22,7 +22,7 @@ API, and that could be anything you want: synchronous, threaded,
 asynchronous, or your own implementation of `RFC 6214
 <https://tools.ietf.org/html/rfc6214>`_ -- h11 won't judge you.
 (Compare this to the current state of the art, where every time a `new
-network API <https://curio.readthedocs.io/>`_ comes along then someone
+network API <https://trio.readthedocs.io/>`_ comes along then someone
 gets to start over reimplementing the entire HTTP protocol from
 scratch.) Cory Benfield made an `excellent blog post describing the
 benefits of this approach
@@ -73,8 +73,9 @@ FAQ
 *Whyyyyy?*
 
 I wanted to play with HTTP in `Curio
-<https://curio.readthedocs.io/en/latest/tutorial.html>`_, which has no
-HTTP library. So I thought, no big deal, Python has, like, a dozen
+<https://curio.readthedocs.io/en/latest/tutorial.html>`__ and `Trio
+<https://trio.readthedocs.io>`__, which at the time didn't have any
+HTTP libraries. So I thought, no big deal, Python has, like, a dozen
 different implementations of HTTP, surely I can find one that's
 reusable. I didn't find one, but I did find Cory's call-to-arms
 blog-post. So I figured, well, fine, if I have to implement HTTP from
