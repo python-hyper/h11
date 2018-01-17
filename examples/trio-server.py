@@ -1,5 +1,5 @@
-# A simple HTTP server implemented using h11 and Curio:
-#   http://curio.readthedocs.org/
+# A simple HTTP server implemented using h11 and Trio:
+#   http://trio.readthedocs.io/en/latest/index.html
 # (so requires python 3.5+).
 #
 # All requests get echoed back a JSON document containing information about
@@ -77,37 +77,36 @@
 
 import json
 from itertools import count
-from socket import SHUT_WR
 from wsgiref.handlers import format_date_time
 
-import curio
+import trio
 import h11
 
 MAX_RECV = 2 ** 16
 TIMEOUT = 10
 
 ################################################################
-# I/O adapter: h11 <-> curio
+# I/O adapter: h11 <-> trio
 ################################################################
 
-# The core of this could be factored out to be usable for curio-based clients
+# The core of this could be factored out to be usable for trio-based clients
 # too, as well as servers. But as a simplified pedagogical example we don't
 # attempt this here.
-class CurioHTTPWrapper:
+class TrioHTTPWrapper:
     _next_id = count()
 
-    def __init__(self, sock):
-        self.sock = sock
+    def __init__(self, stream):
+        self.stream = stream
         self.conn = h11.Connection(h11.SERVER)
         # Our Server: header
         self.ident = " ".join([
-            "h11-example-curio-server/{}".format(h11.__version__),
+            "h11-example-trio-server/{}".format(h11.__version__),
             h11.PRODUCT_ID,
         ]).encode("ascii")
         # A unique id for this connection, to include in debugging output
         # (useful for understanding what's going on if there are multiple
         # simultaneous clients).
-        self._obj_id = next(CurioHTTPWrapper._next_id)
+        self._obj_id = next(TrioHTTPWrapper._next_id)
 
     async def send(self, event):
         # The code below doesn't send ConnectionClosed, so we don't bother
@@ -115,7 +114,7 @@ class CurioHTTPWrapper:
         # appropriate when 'data' is None.
         assert type(event) is not h11.ConnectionClosed
         data = self.conn.send(event)
-        await self.sock.sendall(data)
+        await self.stream.send_all(data)
 
     async def _read_from_peer(self):
         if self.conn.they_are_waiting_for_100_continue:
@@ -125,7 +124,7 @@ class CurioHTTPWrapper:
                 headers=self.basic_headers())
             await self.send(go_ahead)
         try:
-            data = await self.sock.recv(MAX_RECV)
+            data = await self.stream.receive_some(MAX_RECV)
         except ConnectionError:
             # They've stopped listening. Not much we can do about it here.
             data = b""
@@ -148,13 +147,11 @@ class CurioHTTPWrapper:
         # implementing a client you might prefer to send ConnectionClosed()
         # and let it raise an exception if that violates the protocol.)
         #
-        # Curio bug: doesn't expose shutdown()
-        with self.sock.blocking() as real_sock:
-            try:
-                real_sock.shutdown(SHUT_WR)
-            except OSError:
-                # They're already gone, nothing to do
-                return
+        try:
+            await self.stream.send_eof()
+        except trio.BrokenStreamError:
+            # They're already gone, nothing to do
+            return
         # Wait and read for a bit to give them a chance to see that we closed
         # things, but eventually give up and just close the socket.
         # XX FIXME: possibly we should set SO_LINGER to 0 here, so
@@ -164,15 +161,15 @@ class CurioHTTPWrapper:
         # it looks like nginx never does this for keepalive timeouts, and only
         # does it for regular timeouts (slow clients I guess?) if explicitly
         # enabled ("Default: reset_timedout_connection off")
-        async with curio.ignore_after(TIMEOUT):
+        with trio.move_on_after(TIMEOUT):
             try:
                 while True:
                     # Attempt to read until EOF
-                    got = await self.sock.recv(MAX_RECV)
+                    got = await self.stream.receive_some(MAX_RECV)
                     if not got:
                         break
             finally:
-                await self.sock.close()
+                await self.stream.aclose()
 
     def basic_headers(self):
         # HTTP requires these headers in all responses (client would do
@@ -215,14 +212,15 @@ class CurioHTTPWrapper:
 # goes wrong do our best to get back onto that path, and h11 will keep
 # track of how successful we were and raise new errors if things don't work
 # out.
-async def http_serve(sock, addr):
-    wrapper = CurioHTTPWrapper(sock)
+async def http_serve(stream):
+    wrapper = TrioHTTPWrapper(stream)
+    wrapper.info("Got new connection")
     while True:
         assert wrapper.conn.states == {
             h11.CLIENT: h11.IDLE, h11.SERVER: h11.IDLE}
 
         try:
-            async with curio.timeout_after(TIMEOUT):
+            with trio.fail_after(TIMEOUT):
                 wrapper.info("Server main loop waiting for request")
                 event = await wrapper.next_event()
                 wrapper.info("Server main loop got event:", event)
@@ -275,6 +273,8 @@ async def maybe_send_error_response(wrapper, exc):
     try:
         if isinstance(exc, h11.RemoteProtocolError):
             status_code = exc.error_status_hint
+        elif isinstance(exc, trio.TooSlowError):
+            status_code = 408  # Request Timeout
         else:
             status_code = 500
         body = str(exc).encode("utf-8")
@@ -314,11 +314,16 @@ async def send_echo_response(wrapper, request):
                                "application/json; charset=utf-8",
                                response_body_bytes)
 
+async def serve(port):
+    print("listening on http://localhost:{}".format(port))
+    try:
+        await trio.serve_tcp(http_serve, port)
+    except KeyboardInterrupt:
+        print("KeyboardInterrupt - shutting down")
+
 ################################################################
 # Run the server
 ################################################################
 
 if __name__ == "__main__":
-    kernel = curio.Kernel()
-    print("Listening on http://localhost:8080")
-    kernel.run(curio.tcp_server("localhost", 8080, http_serve))
+    trio.run(serve, 8080)

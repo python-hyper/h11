@@ -15,8 +15,8 @@ Minimal client, using synchronous I/O
    :language: python
 
 
-Fairly complete server with error handling, using Curio for async I/O
----------------------------------------------------------------------
+Fairly complete server with error handling, using Trio for async I/O
+--------------------------------------------------------------------
 
-.. literalinclude:: ../../examples/curio-server.py
+.. literalinclude:: ../../examples/trio-server.py
    :language: python

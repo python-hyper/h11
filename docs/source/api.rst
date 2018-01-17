@@ -714,9 +714,9 @@ Putting all this together --
 
 If your I/O is organized around a "pull" strategy, where your code
 requests events as its ready to handle them (e.g. classic synchronous
-code, or asyncio's ``await loop.sock_recv(...)``, or `Curio
-<http://curio.readthedocs.org/>`_), then you'll probably want logic
-that looks something like:
+code, or asyncio's ``await loop.sock_recv(...)``, or `Trio's streams
+<http://https://trio.readthedocs.io/en/latest/reference-io.html#the-abstract-stream-api>`__),
+then you'll probably want logic that looks something like:
 
 .. code-block:: python
 

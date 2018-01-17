@@ -28,7 +28,7 @@ synchronous, threaded, asynchronous, or your own implementation of
 you.  This is h11's main feature compared to the current state of the
 art, where every HTTP library is tightly bound to a particular network
 framework, and every time a `new network API
-<https://curio.readthedocs.io/>`_ comes along then someone has to
+<https://trio.readthedocs.io/>`_ comes along then someone has to
 start over reimplementing the entire HTTP stack from scratch.  We
 highly recommend `Cory Benfield's excellent blog post about the
 advantages of this approach
