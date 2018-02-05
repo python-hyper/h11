@@ -980,7 +980,8 @@ Here's a sketch of what this might look like:
            # socket.sendfile added in Python 3.5
            sock.sendfile(data.file, data.offset, data.count)
        else:
-           sock.sendfile(data)
+           # data is a bytes-like object to be sent directly
+           sock.sendall(data)
 
    placeholder = FilePlaceholder(open("...", "rb"), 0, 200)
    for data in conn.send_with_data_passthrough(Data(data=placeholder)):
