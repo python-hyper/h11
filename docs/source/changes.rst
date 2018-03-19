@@ -30,6 +30,18 @@ Bug fixes:
   <https://tools.ietf.org/html/rfc7231#section-5.1.1>`__, so use
   case-insensitive matching when looking for 100-continue.
 
+Other changes:
+
+* Better error messages in several cases.
+
+* Provide correct ``error_status_hint`` in exception raised when
+  encountering an invalid ``Transfer-Encoding`` header.
+
+* For better compatibility with broken servers, h11 now tolerates
+  responses where the reason phrase is missing (not just empty).
+
+* Various optimizations and documentation improvements.
+
 
 v0.7.0 (2016-11-25)
 -------------------
