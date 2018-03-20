@@ -60,16 +60,20 @@ _content_length_re = re.compile(br"[0-9]+")
 _field_name_re = re.compile(field_name.encode("ascii"))
 _field_value_re = re.compile(field_value.encode("ascii"))
 
-def normalize_and_validate(headers):
+def normalize_and_validate(headers, _parsed=False):
     new_headers = []
     saw_content_length = False
     saw_transfer_encoding = False
     for name, value in headers:
-        name = bytesify(name).lower()
-        value = bytesify(value)
-        validate(_field_name_re, name, "Illegal header name {!r}", name)
-        validate(_field_value_re, value,
-                 "Illegal header value {!r}", value)
+        # For headers coming out of the parser, we can safely skip some steps,
+        # because it always returns bytes and has already run these regexes
+        # over the data:
+        if not _parsed:
+            name = bytesify(name)
+            value = bytesify(value)
+            validate(_field_name_re, name, "Illegal header name {!r}", name)
+            validate(_field_value_re, value, "Illegal header value {!r}", value)
+        name = name.lower()
         if name == b"content-length":
             if saw_content_length:
                 raise LocalProtocolError("multiple Content-Length headers")

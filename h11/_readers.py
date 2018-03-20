@@ -63,7 +63,9 @@ def maybe_read_from_IDLE_client(buf):
     if not lines:
         raise LocalProtocolError("no request line received")
     matches = validate(request_line_re, lines[0])
-    return Request(headers=list(_decode_header_lines(lines[1:])), **matches)
+    return Request(headers=list(_decode_header_lines(lines[1:])),
+                   _parsed=True,
+                   **matches)
 
 status_line_re = re.compile(status_line.encode("ascii"))
 
@@ -79,7 +81,9 @@ def maybe_read_from_SEND_RESPONSE_server(buf):
         matches["reason"] = b""
     status_code = matches["status_code"] = int(matches["status_code"])
     class_ = InformationalResponse if status_code < 200 else Response
-    return class_(headers=list(_decode_header_lines(lines[1:])), **matches)
+    return class_(headers=list(_decode_header_lines(lines[1:])),
+                  _parsed=True,
+                  **matches)
 
 
 class ContentLengthReader:
