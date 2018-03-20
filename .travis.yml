@@ -1,15 +1,16 @@
 language: python
 python:
+  # To see supported options, run:
+  #   s3cmd ls s3://travis-python-archives/binaries/ubuntu/16.04/x86_64/
+  # We put pypy first, b/c for tests they're the slowest
+  - pypy2.7-5.10.0
+  - pypy3.5-5.10.1
   - 2.7
   - 3.3  # probably irrelevant but so far supporting it has been free
   - 3.4
   - 3.5
   - 3.6
   - 3.7-dev
-  # To see supported options, run:
-  #   s3cmd ls s3://travis-python-archives/binaries/ubuntu/16.04/x86_64/
-  - pypy2.7-5.10.0
-  - pypy3.5-5.10.1
 sudo: false
 
 before_install:
