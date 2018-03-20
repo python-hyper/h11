@@ -13,7 +13,7 @@ setup(
     author_email="njs@pobox.com",
     license="MIT",
     packages=find_packages(),
-    url="https://github.com/njsmith/h11",
+    url="https://github.com/python-hyper/h11",
     # This means, just install *everything* you see under h11/, even if it
     # doesn't look like a source file, so long as it appears in MANIFEST.in:
     include_package_data=True,

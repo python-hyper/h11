@@ -356,7 +356,7 @@ Here's some ideas of things you might try:
 
 * Use h11 to write a simple HTTP server. (If you get stuck, `here's an
   example
-  <https://github.com/njsmith/h11/blob/master/examples/trio-server.py>`_.)
+  <https://github.com/python-hyper/h11/blob/master/examples/trio-server.py>`_.)
 
 And of course, you'll want to read the :ref:`API-documentation` for
 all the details.

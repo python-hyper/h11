@@ -6,7 +6,7 @@ Examples
    into separate pages for each example
 
 You can also find these in the `examples/ directory of a source
-checkout <https://github.com/njsmith/h11/tree/master/examples>`_.
+checkout <https://github.com/python-hyper/h11/tree/master/examples>`_.
 
 Minimal client, using synchronous I/O
 -------------------------------------

@@ -57,7 +57,7 @@ other hand, the following are all very welcome:
   make sure that we won't later accidentally break whatever you just
   fixed, and undo your hard work.
 
-* [Statement and branch coverage](https://codecov.io/gh/njsmith/h11)
+* [Statement and branch coverage](https://codecov.io/gh/python-hyper/h11)
   needs to remain at 100.0%. But don't stress too much about making
   this work up front -- if you post a pull request, then the codecov
   bot will automatically post a reply letting you know whether you've
@@ -90,7 +90,7 @@ other hand, the following are all very welcome:
   from all backgrounds.
 
 * Respect our
-  [code of conduct](https://github.com/njsmith/h11/blob/master/CODE_OF_CONDUCT.md>)
+  [code of conduct](https://github.com/python-hyper/h11/blob/master/CODE_OF_CONDUCT.md>)
   in all project spaces.
 
 
@@ -99,7 +99,7 @@ other hand, the following are all very welcome:
 You don't have to sign a license agreement or anything to contribute
 to h11 -- just make your changes and submit a pull request! (Though
 you should probably review the
-[MIT license we use](https://github.com/njsmith/h11/blob/master/LICENSE.txt)
+[MIT license we use](https://github.com/python-hyper/h11/blob/master/LICENSE.txt)
 and make sure you're happy licensing your contribution under those
 terms.)
 

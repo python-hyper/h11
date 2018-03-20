@@ -48,7 +48,7 @@ Vital statistics
 
 * Install: ``pip install h11``
 
-* Sources and bug tracker: https://github.com/njsmith/h11
+* Sources and bug tracker: https://github.com/python-hyper/h11
 
 * Docs: https://h11.readthedocs.io
 
@@ -56,7 +56,7 @@ Vital statistics
 
 * Code of conduct: Contributors are requested to follow our `code of
   conduct
-  <https://github.com/njsmith/h11/blob/master/CODE_OF_CONDUCT.md>`_ in
+  <https://github.com/python-hyper/h11/blob/master/CODE_OF_CONDUCT.md>`_ in
   all project spaces.
 
 

@@ -31,7 +31,7 @@ Right now we just have a simple test that throws garbage at the server
 how even this relatively simple thing can catch bugs, here's a `bug in
 gunicorn <https://github.com/benoitc/gunicorn/issues/1023>`_ that was
 found by this approach, and `here's a bug this found in h11
-<https://github.com/njsmith/h11/commit/83bb5f34dc2ae45dedb594af94f7ddc5bf09ebba>`_... though
+<https://github.com/python-hyper/h11/commit/83bb5f34dc2ae45dedb594af94f7ddc5bf09ebba>`_... though
 that one's so simple that even basic fuzz-testing would have found it
 without any of afl's cleverness.)
 

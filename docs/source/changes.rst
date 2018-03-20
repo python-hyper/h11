@@ -57,7 +57,7 @@ New features (backwards compatible):
 * Made it so that sentinels are :ref:`instances of themselves
   <sentinel-type-trickiness>`, to enable certain dispatch tricks on
   the return value of :func:`Connection.next_event` (see `issue #8
-  <https://github.com/njsmith/h11/issues/8>`__ for discussion).
+  <https://github.com/python-hyper/h11/issues/8>`__ for discussion).
 
 * Added :data:`Data.chunk_start` and :data:`Data.chunk_end` properties
   to the :class:`Data` event. These provide the user information
@@ -65,21 +65,21 @@ New features (backwards compatible):
   peer when chunked transfer encoding is in use. You :ref:`probably
   shouldn't use these <chunk-delimiters-are-bad>`, but sometimes
   there's no alternative (see `issue #19
-  <https://github.com/njsmith/h11/issues/19>`__ for discussion).
+  <https://github.com/python-hyper/h11/issues/19>`__ for discussion).
 
 * Expose :data:`Response.reason` attribute, making it possible to read
   or set the textual "reason phrase" on responses (`issue #13
-  <https://github.com/njsmith/h11/pull/13>`__).
+  <https://github.com/python-hyper/h11/pull/13>`__).
 
 Bug fixes:
 
 * Fix the error message given when a call to an event constructor is
   missing a required keyword argument (`issue #14
-  <https://github.com/njsmith/h11/issues/14>`__).
+  <https://github.com/python-hyper/h11/issues/14>`__).
 
 * Fixed encoding of empty :class:`Data` events (``Data(data=b"")``)
   when using chunked encoding (`issue #21
-  <https://github.com/njsmith/h11/issues/21>`__).
+  <https://github.com/python-hyper/h11/issues/21>`__).
 
 v0.6.0 (2016-10-24)
 -------------------
