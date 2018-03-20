@@ -3,8 +3,8 @@ History of changes
 
 .. currentmodule:: h11
 
-vNEXT (????-??-??)
-------------------
+v0.8.0 (2018-03-20)
+-------------------
 
 Backwards **in**\compatible changes:
 
