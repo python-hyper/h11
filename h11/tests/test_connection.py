@@ -847,6 +847,16 @@ def test_errors():
         with pytest.raises(LocalProtocolError):
             c.send(good)
 
+        # And check send_failed() too
+        c = conn(role)
+        c.send_failed()
+        assert c.our_state is ERROR
+        assert c.their_state is not ERROR
+        # This is idempotent
+        c.send_failed()
+        assert c.our_state is ERROR
+        assert c.their_state is not ERROR
+
 def test_idle_receive_nothing():
     # At one point this incorrectly raised an error
     for role in [CLIENT, SERVER]:

@@ -16,6 +16,12 @@ Backwards **in**\compatible changes:
   performed on incoming headers; this just extends that to outgoing
   headers.
 
+New features:
+
+* New method :meth:`Connection.send_failed`, to notify a
+  :class:`Connection` object when data returned from
+  :meth:`Connection.send` was *not* sent.
+
 Bug fixes:
 
 * Make sure that when computing the framing headers for HEAD

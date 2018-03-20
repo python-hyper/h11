@@ -383,6 +383,7 @@ The Connection object
    .. automethod:: next_event
    .. automethod:: send
    .. automethod:: send_with_data_passthrough
+   .. automethod:: send_failed
 
    .. automethod:: start_next_cycle
 
@@ -482,6 +483,34 @@ There are four cases where these exceptions might be raised:
   :meth:`~Connection.send` will also raise
   :exc:`LocalProtocolError`. The only thing you can reasonably due at
   this point is to close your socket and make a new connection.
+
+So that's how h11 tells you about errors that it detects. In some
+cases, it's also useful to be able to tell h11 about an error that you
+detected. In particular, the :class:`Connection` object assumes that
+after you call :meth:`Connection.send`, you actually send that data to
+the remote peer. But sometimes, for one reason or another, this
+doesn't actually happen.
+
+Here's a concrete example. Suppose you're using h11 to implement an
+HTTP client that keeps a pool of connections so it can re-use them
+when possible (see :ref:`keepalive-and-pipelining`). You take a
+connection from the pool, and start to do a large upload... but then
+for some reason this gets cancelled (maybe you have a GUI and a user
+clicked "cancel"). This can cause h11's model of this connection to
+diverge from reality: for example, h11 might think that you
+successfully sent the full request, because you passed an
+:class:`EndOfMessage` object to :meth:`Connection.send`, but in fact
+you didn't, because you never sent the resulting bytes. And then –
+here's the really tricky part! – if you're not careful, you might
+think that it's OK to put this connection back into the connection
+pool and re-use it, because h11 is telling you that a full
+request/response cycle was completed. But this is wrong; in fact you
+have to close this connection and open a new one.
+
+The solution is simple: call :meth:`Connection.send_failed`, and now
+h11 knows that your send failed. In this case,
+:attr:`Connection.our_state` immediately becomes :data:`ERROR`, just
+like if you had tried to do something that violated the protocol.
 
 
 .. _framing:

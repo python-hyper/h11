@@ -501,6 +501,16 @@ class Connection(object):
             self._process_error(self.our_role)
             raise
 
+    def send_failed(self):
+        """Notify the state machine that we failed to send the data it gave
+        us.
+
+        This causes :attr:`Connection.our_state` to immediately become
+        :data:`ERROR` -- see :ref:`error-handling` for discussion.
+
+        """
+        self._process_error(self.our_role)
+
     # When sending a Response, we take responsibility for a few things:
     #
     # - Sometimes you MUST set Connection: close. We take care of those
