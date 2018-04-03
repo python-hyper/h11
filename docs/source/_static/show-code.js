@@ -1,4 +1,10 @@
-// Stolen from statsmodels and fixed up
+// This code is Copyright 2012 Statsmodels Developers
+//
+// It is licensed under the GNU Public License version 3
+// (available at https://www.gnu.org/licenses/gpl.txt)
+//
+// It was originally taken from the Statsmodels projet
+// (https://github.com/statsmodels/statsmodels)
 
 function htmlescape(text){
     return (text.replace(/&/g, "&amp;")
