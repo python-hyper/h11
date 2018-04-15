@@ -3,6 +3,15 @@ History of changes
 
 .. currentmodule:: h11
 
+vNEXT (unreleased)
+------------------
+
+Bug fixes:
+
+* Always return headers as ``bytes`` objects (`#60
+  <https://github.com/python-hyper/h11/issues/60>`__)
+
+
 v0.8.0 (2018-03-20)
 -------------------
 

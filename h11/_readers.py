@@ -51,7 +51,11 @@ def _obsolete_line_fold(lines):
 
 def _decode_header_lines(lines):
     for line in _obsolete_line_fold(lines):
-        matches = validate(header_field_re, line)
+        # _obsolete_line_fold yields either bytearray or bytes objects. On
+        # Python 3, validate() takes either and returns matches as bytes. But
+        # on Python 2, validate can return matches as bytearrays, so we have
+        # to explicitly cast back.
+        matches = validate(header_field_re, bytes(line))
         yield (matches["field_name"], matches["field_value"])
 
 request_line_re = re.compile(request_line.encode("ascii"))

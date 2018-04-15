@@ -58,9 +58,18 @@ def makebuf(data):
     return buf
 
 def tr(reader, data, expected):
+    def check(got):
+        assert got == expected
+        # Headers should always be returned as bytes, not e.g. bytearray
+        # https://github.com/python-hyper/wsproto/pull/54#issuecomment-377709478
+        for name, value in getattr(got, "headers", []):
+            print(name, value)
+            assert type(name) is bytes
+            assert type(value) is bytes
+
     # Simple: consume whole thing
     buf = makebuf(data)
-    assert reader(buf) == expected
+    check(reader(buf))
     assert not buf
 
     # Incrementally growing buffer
@@ -68,12 +77,12 @@ def tr(reader, data, expected):
     for i in range(len(data)):
         assert reader(buf) is None
         buf += data[i:i + 1]
-    assert reader(buf) == expected
+    check(reader(buf))
 
-    # Extra
+    # Trailing data
     buf = makebuf(data)
     buf += b"trailing"
-    assert reader(buf) == expected
+    check(reader(buf))
     assert bytes(buf) == b"trailing"
 
 def test_writers_simple():
@@ -157,12 +166,15 @@ def test_readers_unusual():
        b" header\r\n"
        b"\tnonsense\r\n"
        b"    \t   \t\tI guess\r\n"
-       b"Connection: close\r\n\r\n",
+       b"Connection: close\r\n"
+       b"More-nonsense: in the\r\n"
+       b"    last header  \r\n\r\n",
        Request(method="HEAD", target="/foo",
                headers=[
                    ("Host", "example.com"),
                    ("Some", "multi-line header nonsense I guess"),
                    ("Connection", "close"),
+                   ("More-nonsense", "in the last header"),
                    ]))
 
     with pytest.raises(LocalProtocolError):
