@@ -3,12 +3,18 @@ History of changes
 
 .. currentmodule:: h11
 
-vNEXT (unreleased)
-------------------
+v0.8.1 (2018-04-14)
+-------------------
 
 Bug fixes:
 
 * Always return headers as ``bytes`` objects (`#60
+  <https://github.com/python-hyper/h11/issues/60>`__)
+
+Other changes:
+
+* Added proper license notices to the Javascript used in our
+  documentation (`#61
   <https://github.com/python-hyper/h11/issues/60>`__)
 
 
