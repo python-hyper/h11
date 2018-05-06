@@ -44,7 +44,14 @@ field_name = token
 # See: https://www.rfc-editor.org/errata_search.php?rfc=7230&eid=4189
 #
 # So our definition of field_content attempts to fix it up...
-vchar_or_obs_text = r"[\x21-\xff]"
+#
+# Also, we allow lots of control characters, because apparently people assume
+# that they're legal in practice (e.g., google analytics makes cookies with
+# \x01 in them!):
+#   https://github.com/python-hyper/h11/issues/57
+# We still don't allow NUL or whitespace, because those are often treated as
+# meta-characters and letting them through can lead to nasty issues like SSRF.
+vchar_or_obs_text = r"[^\x00\s]"
 field_vchar = vchar_or_obs_text
 field_content = r"{field_vchar}+(?:[ \t]+{field_vchar}+)*".format(**globals())
 

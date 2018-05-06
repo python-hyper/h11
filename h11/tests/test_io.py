@@ -388,6 +388,19 @@ def test_reject_garbage_in_header_line():
            b"Host: foo\x00bar\r\n\r\n",
            None)
 
+# https://github.com/python-hyper/h11/issues/57
+def test_allow_some_garbage_in_cookies():
+    tr(READERS[CLIENT, IDLE],
+       b"HEAD /foo HTTP/1.1\r\n"
+       b"Host: foo\r\n"
+       b"Set-Cookie: ___utmvafIumyLc=kUd\x01UpAt; path=/; Max-Age=900\r\n"
+       b"\r\n",
+       Request(method="HEAD", target="/foo",
+               headers=[
+                   ("Host", "foo"),
+                   ("Set-Cookie", "___utmvafIumyLc=kUd\x01UpAt; path=/; Max-Age=900"),
+               ]))
+
 def test_host_comes_first():
     tw(write_headers,
        normalize_and_validate([("foo", "bar"), ("Host", "example.com")]),
