@@ -10,6 +10,11 @@ Bug fixes:
 
 * Always return headers as ``bytes`` objects (`#60
   <https://github.com/python-hyper/h11/issues/60>`__)
+* Allow a broader range of characters in header values. This violates
+  the RFC, but is apparently required for compatibility with
+  real-world code, like Google Analytics cookies (`#57
+  <https://github.com/python-hyper/h11/issues/57>`__, `#58
+  <https://github.com/python-hyper/h11/issues/58>`__)
 
 Other changes:
 

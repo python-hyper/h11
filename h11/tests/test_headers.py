@@ -18,6 +18,12 @@ def test_normalize_and_validate():
     assert "foo bar" in str(excinfo.value)
     with pytest.raises(LocalProtocolError):
         normalize_and_validate([(b"foo\x00bar", b"baz")])
+    # Not even 8-bit characters:
+    with pytest.raises(LocalProtocolError):
+        normalize_and_validate([(b"foo\xffbar", b"baz")])
+    # And not even the control characters we allow in values:
+    with pytest.raises(LocalProtocolError):
+        normalize_and_validate([(b"foo\x01bar", b"baz")])
 
     # no return or NUL characters in values
     with pytest.raises(LocalProtocolError) as excinfo:
@@ -29,7 +35,13 @@ def test_normalize_and_validate():
         normalize_and_validate([("foo", "bar\x00baz")])
     # no leading/trailing whitespace
     with pytest.raises(LocalProtocolError):
-        normalize_and_validate([("foo", "  barbaz  ")])
+        normalize_and_validate([("foo", "barbaz  ")])
+    with pytest.raises(LocalProtocolError):
+        normalize_and_validate([("foo", "  barbaz")])
+    with pytest.raises(LocalProtocolError):
+        normalize_and_validate([("foo", "barbaz\t")])
+    with pytest.raises(LocalProtocolError):
+        normalize_and_validate([("foo", "\tbarbaz")])
 
     # content-length
     assert (normalize_and_validate([("Content-Length", "1")])

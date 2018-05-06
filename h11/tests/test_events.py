@@ -82,10 +82,17 @@ def test_events():
                       http_version="1.0")
 
     # Header values are validated
-    with pytest.raises(LocalProtocolError):
-        req = Request(method="GET", target="/",
-                      headers=[("Host", "a"), ("Foo", "  asd\x00")],
-                      http_version="1.0")
+    for bad_char in "\x00\r\n\f\v":
+        with pytest.raises(LocalProtocolError):
+            req = Request(method="GET", target="/",
+                          headers=[("Host", "a"), ("Foo", "asd" + bad_char)],
+                          http_version="1.0")
+
+    # But for compatibility we allow non-whitespace control characters, even
+    # though they're forbidden by the spec.
+    Request(method="GET", target="/",
+            headers=[("Host", "a"), ("Foo", "asd\x01\x02\x7f")],
+            http_version="1.0")
 
     ir = InformationalResponse(status_code=100, headers=[("Host", "a")])
     assert ir.status_code == 100
