@@ -5,8 +5,10 @@
 #
 # Don't subclass these. Stuff will break.
 
+import re
 from . import _headers
-from ._util import bytesify, LocalProtocolError
+from ._abnf import request_target
+from ._util import bytesify, LocalProtocolError, validate
 
 # Everything in __all__ gets re-exported as part of the h11 public API.
 __all__ = [
@@ -18,6 +20,7 @@ __all__ = [
     "ConnectionClosed",
 ]
 
+request_target_re = re.compile(request_target.encode("ascii"))
 
 class _EventBundle(object):
     _fields = []
@@ -130,6 +133,8 @@ class Request(_EventBundle):
             raise LocalProtocolError("Missing mandatory Host: header")
         if host_count > 1:
             raise LocalProtocolError("Found multiple Host: headers")
+
+        validate(request_target_re, self.target, "Illegal target characters")
 
 
 class _ResponseBase(_EventBundle):

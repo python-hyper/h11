@@ -388,6 +388,14 @@ def test_reject_garbage_in_header_line():
            b"Host: foo\x00bar\r\n\r\n",
            None)
 
+def test_reject_non_vchar_in_path():
+    for bad_char in b"\x00\x20\x7f\xee":
+        message = bytearray(b"HEAD /")
+        message.append(bad_char)
+        message.extend(b" HTTP/1.1\r\nHost: foobar\r\n\r\n")
+        with pytest.raises(LocalProtocolError):
+            tr(READERS[CLIENT, IDLE], message, None)
+
 # https://github.com/python-hyper/h11/issues/57
 def test_allow_some_garbage_in_cookies():
     tr(READERS[CLIENT, IDLE],
