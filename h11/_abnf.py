@@ -51,6 +51,7 @@ field_name = token
 #   https://github.com/python-hyper/h11/issues/57
 # We still don't allow NUL or whitespace, because those are often treated as
 # meta-characters and letting them through can lead to nasty issues like SSRF.
+vchar = r"[\x21-\x7e]"
 vchar_or_obs_text = r"[^\x00\s]"
 field_vchar = vchar_or_obs_text
 field_content = r"{field_vchar}+(?:[ \t]+{field_vchar}+)*".format(**globals())
@@ -77,9 +78,9 @@ header_field = (
 #
 # request-target is complicated (see RFC 7230 sec 5.3) -- could be path, full
 # URL, host+port (for connect), or even "*", but in any case we are guaranteed
-# that it contains no spaces (see sec 3.1.1).
+# that it contists of the visible printing characters.
 method = token
-request_target = r"[^ ]+"
+request_target = r"{vchar}+".format(**globals())
 http_version = r"HTTP/(?P<http_version>[0-9]\.[0-9])"
 request_line = (
     r"(?P<method>{method})"

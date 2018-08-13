@@ -94,6 +94,15 @@ def test_events():
             headers=[("Host", "a"), ("Foo", "asd\x01\x02\x7f")],
             http_version="1.0")
 
+    # Request target is validated
+    for bad_char in b"\x00\x20\x7f\xee":
+        target = bytearray(b"/")
+        target.append(bad_char)
+        with pytest.raises(LocalProtocolError):
+            Request(method="GET", target=target,
+                    headers=[("Host", "a")],
+                    http_version="1.1")
+
     ir = InformationalResponse(status_code=100, headers=[("Host", "a")])
     assert ir.status_code == 100
     assert ir.headers == [(b"host", b"a")]
