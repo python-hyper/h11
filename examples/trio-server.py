@@ -168,6 +168,8 @@ class TrioHTTPWrapper:
                     got = await self.stream.receive_some(MAX_RECV)
                     if not got:
                         break
+            except trio.BrokenStreamError:
+                pass
             finally:
                 await self.stream.aclose()
 
