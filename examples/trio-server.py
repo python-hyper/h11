@@ -115,7 +115,7 @@ class TrioHTTPWrapper:
         # The code below doesn't send ConnectionClosed, so we don't bother
         # handling it here either -- it would require that we do something
         # appropriate when 'data' is None.
-        assert type(event) is not h11.ConnectionClosed
+        assert not isinstance(event, h11.ConnectionClosed)
         data = self.conn.send(event)
         await self.stream.send_all(data)
 
@@ -231,7 +231,7 @@ async def http_serve(stream, *, request_handler=None, debug=False):
                 wrapper.info("Server main loop waiting for request")
                 event = await wrapper.next_event()
                 wrapper.info("Server main loop got event:", event)
-                if type(event) is h11.Request:
+                if isinstance(event, h11.Request):
                     await request_handler(wrapper, event)
         except Exception as exc:
             wrapper.info("Error during response handler:", exc)
@@ -296,9 +296,9 @@ async def maybe_send_error_response(wrapper, exc):
 async def receive_body(wrapper):
     while True:
         event = await wrapper.next_event()
-        if type(event) is h11.EndOfMessage:
+        if isinstance(event, h11.EndOfMessage):
             break
-        assert type(event) is h11.Data
+        assert isinstance(event, h11.Data)
         await yield_(event.data.decode("ascii"))
 
 async def send_echo_response(wrapper, request):
