@@ -77,6 +77,8 @@
 
 import json
 from itertools import count
+from functools import partial
+from async_generator import async_generator, yield_
 from wsgiref.handlers import format_date_time
 
 import trio
@@ -95,8 +97,9 @@ TIMEOUT = 10
 class TrioHTTPWrapper:
     _next_id = count()
 
-    def __init__(self, stream):
+    def __init__(self, stream, debug):
         self.stream = stream
+        self.debug = debug
         self.conn = h11.Connection(h11.SERVER)
         # Our Server: header
         self.ident = " ".join([
@@ -112,7 +115,7 @@ class TrioHTTPWrapper:
         # The code below doesn't send ConnectionClosed, so we don't bother
         # handling it here either -- it would require that we do something
         # appropriate when 'data' is None.
-        assert type(event) is not h11.ConnectionClosed
+        assert not isinstance(event, h11.ConnectionClosed)
         data = self.conn.send(event)
         await self.stream.send_all(data)
 
@@ -149,7 +152,7 @@ class TrioHTTPWrapper:
         #
         try:
             await self.stream.send_eof()
-        except trio.BrokenStreamError:
+        except trio.BrokenResourceError:
             # They're already gone, nothing to do
             return
         # Wait and read for a bit to give them a chance to see that we closed
@@ -168,7 +171,7 @@ class TrioHTTPWrapper:
                     got = await self.stream.receive_some(MAX_RECV)
                     if not got:
                         break
-            except trio.BrokenStreamError:
+            except trio.BrokenResourceError:
                 pass
             finally:
                 await self.stream.aclose()
@@ -183,7 +186,8 @@ class TrioHTTPWrapper:
 
     def info(self, *args):
         # Little debugging method
-        print("{}:".format(self._obj_id), *args)
+        if self.debug:
+            print("{}:".format(self._obj_id), *args)
 
 ################################################################
 # Server main loop
@@ -214,8 +218,9 @@ class TrioHTTPWrapper:
 # goes wrong do our best to get back onto that path, and h11 will keep
 # track of how successful we were and raise new errors if things don't work
 # out.
-async def http_serve(stream):
-    wrapper = TrioHTTPWrapper(stream)
+async def http_serve(stream, *, request_handler=None, debug=False):
+    assert request_handler is not None, "request handler required"
+    wrapper = TrioHTTPWrapper(stream, debug=debug)
     wrapper.info("Got new connection")
     while True:
         assert wrapper.conn.states == {
@@ -226,8 +231,8 @@ async def http_serve(stream):
                 wrapper.info("Server main loop waiting for request")
                 event = await wrapper.next_event()
                 wrapper.info("Server main loop got event:", event)
-                if type(event) is h11.Request:
-                    await send_echo_response(wrapper, event)
+                if isinstance(event, h11.Request):
+                    await request_handler(wrapper, event)
         except Exception as exc:
             wrapper.info("Error during response handler:", exc)
             await maybe_send_error_response(wrapper, exc)
@@ -287,6 +292,15 @@ async def maybe_send_error_response(wrapper, exc):
     except Exception as exc:
         wrapper.info("error while sending error response:", exc)
 
+@async_generator
+async def receive_body(wrapper):
+    while True:
+        event = await wrapper.next_event()
+        if isinstance(event, h11.EndOfMessage):
+            break
+        assert isinstance(event, h11.Data)
+        await yield_(event.data.decode("ascii"))
+
 async def send_echo_response(wrapper, request):
     wrapper.info("Preparing echo response")
     if request.method not in {b"GET", b"POST"}:
@@ -300,12 +314,8 @@ async def send_echo_response(wrapper, request):
                     for (name, value) in request.headers],
         "body": "",
     }
-    while True:
-        event = await wrapper.next_event()
-        if type(event) is h11.EndOfMessage:
-            break
-        assert type(event) is h11.Data
-        response_json["body"] += event.data.decode("ascii")
+    async for part in receive_body(wrapper):
+        response_json["body"] += part
     response_body_unicode = json.dumps(response_json,
                                        sort_keys=True,
                                        indent=4,
@@ -316,10 +326,10 @@ async def send_echo_response(wrapper, request):
                                "application/json; charset=utf-8",
                                response_body_bytes)
 
-async def serve(port):
+async def serve(port, **kwargs):
     print("listening on http://localhost:{}".format(port))
     try:
-        await trio.serve_tcp(http_serve, port)
+        await trio.serve_tcp(partial(http_serve, **kwargs), port)
     except KeyboardInterrupt:
         print("KeyboardInterrupt - shutting down")
 
@@ -328,4 +338,6 @@ async def serve(port):
 ################################################################
 
 if __name__ == "__main__":
-    trio.run(serve, 8080)
+    trio.run(
+        partial(serve, request_handler=send_echo_response, debug=True),
+        8080)
