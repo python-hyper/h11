@@ -131,6 +131,7 @@ SEND_BODY = make_sentinel("SEND_BODY")
 DONE = make_sentinel("DONE")
 MUST_CLOSE = make_sentinel("MUST_CLOSE")
 CLOSED = make_sentinel("CLOSED")
+ERROR = make_sentinel("ERROR")
 
 # Switch types
 MIGHT_SWITCH_PROTOCOL = make_sentinel("MIGHT_SWITCH_PROTOCOL")
