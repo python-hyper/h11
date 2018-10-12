@@ -114,6 +114,7 @@
 from ._events import *
 from ._util import LocalProtocolError, make_sentinel
 
+# Everything in __all__ gets re-exported as part of the h11 public API.
 __all__ = [
   "CLIENT", "SERVER", "IDLE", "SEND_RESPONSE",
   "SEND_BODY", "DONE", "MUST_CLOSE",
