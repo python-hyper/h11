@@ -116,23 +116,24 @@ from ._util import LocalProtocolError, make_sentinel
 
 __all__ = [
   "CLIENT", "SERVER", "IDLE", "SEND_RESPONSE",
-  "SEND_BODY_DONE", "MUST_CLOSE", "CLOSED",
-  "MIGHT_SWITCH_PROTOCOL", "SWITCHED_PROTOCOL",
-  "ERROR"
+  "SEND_BODY", "DONE", "MUST_CLOSE",
+  "CLOSED", "MIGHT_SWITCH_PROTOCOL",
+  "SWITCHED_PROTOCOL", "ERROR"
 ]
 
 CLIENT = make_sentinel("CLIENT")
-SERVER = make_sentinel("CLIENT")
+SERVER = make_sentinel("SERVER")
 
 # States
 IDLE = make_sentinel("IDLE")
 SEND_RESPONSE = make_sentinel("SEND_RESPONSE")
-SEND_BODY_DONE = make_sentinel("SEND_BODY_DONE")
+SEND_BODY = make_sentinel("SEND_BODY")
+DONE = make_sentinel("DONE")
 MUST_CLOSE = make_sentinel("MUST_CLOSE")
 CLOSED = make_sentinel("CLOSED")
 
 # Switch types
-MIGHT_SWITCH_PROTOCOL = make_sentinel("CLIENT")
+MIGHT_SWITCH_PROTOCOL = make_sentinel("MIGHT_SWITCH_PROTOCOL")
 SWITCHED_PROTOCOL = make_sentinel("SWITCHED_PROTOCOL")
 
 _SWITCH_UPGRADE = make_sentinel("_SWITCH_UPGRADE")
