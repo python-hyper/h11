@@ -229,7 +229,7 @@ async def http_serve(stream):
                 if type(event) is h11.Request:
                     await send_echo_response(wrapper, event)
         except Exception as exc:
-            wrapper.info("Error during response handler:", exc)
+            wrapper.info("Error during response handler: {!r}".format(exc))
             await maybe_send_error_response(wrapper, exc)
 
         if wrapper.conn.our_state is h11.MUST_CLOSE:
