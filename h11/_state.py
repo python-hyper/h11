@@ -115,19 +115,31 @@ from ._events import *
 from ._util import LocalProtocolError, make_sentinel
 
 # Everything in __all__ gets re-exported as part of the h11 public API.
-__all__ = []
+__all__ = [
+  "CLIENT", "SERVER", "IDLE", "SEND_RESPONSE",
+  "SEND_BODY", "DONE", "MUST_CLOSE",
+  "CLOSED", "MIGHT_SWITCH_PROTOCOL",
+  "SWITCHED_PROTOCOL", "ERROR"
+]
 
-# Be careful of trailing whitespace here:
-sentinels = ("CLIENT SERVER "
-             # States
-             "IDLE SEND_RESPONSE SEND_BODY DONE MUST_CLOSE CLOSED "
-             "MIGHT_SWITCH_PROTOCOL SWITCHED_PROTOCOL ERROR "
-             # Switch types
-             "_SWITCH_UPGRADE _SWITCH_CONNECT").split()
-for token in sentinels:
-    globals()[token] = make_sentinel(token)
+CLIENT = make_sentinel("CLIENT")
+SERVER = make_sentinel("SERVER")
 
-__all__ += [s for s in sentinels if not s.startswith("_")]
+# States
+IDLE = make_sentinel("IDLE")
+SEND_RESPONSE = make_sentinel("SEND_RESPONSE")
+SEND_BODY = make_sentinel("SEND_BODY")
+DONE = make_sentinel("DONE")
+MUST_CLOSE = make_sentinel("MUST_CLOSE")
+CLOSED = make_sentinel("CLOSED")
+ERROR = make_sentinel("ERROR")
+
+# Switch types
+MIGHT_SWITCH_PROTOCOL = make_sentinel("MIGHT_SWITCH_PROTOCOL")
+SWITCHED_PROTOCOL = make_sentinel("SWITCHED_PROTOCOL")
+
+_SWITCH_UPGRADE = make_sentinel("_SWITCH_UPGRADE")
+_SWITCH_CONNECT = make_sentinel("_SWITCH_CONNECT")
 
 EVENT_TRIGGERED_TRANSITIONS = {
     CLIENT: {
