@@ -149,7 +149,7 @@ class TrioHTTPWrapper:
         #
         try:
             await self.stream.send_eof()
-        except trio.BrokenStreamError:
+        except trio.BrokenResourceError:
             # They're already gone, nothing to do
             return
         # Wait and read for a bit to give them a chance to see that we closed
@@ -168,7 +168,7 @@ class TrioHTTPWrapper:
                     got = await self.stream.receive_some(MAX_RECV)
                     if not got:
                         break
-            except trio.BrokenStreamError:
+            except trio.BrokenResourceError:
                 pass
             finally:
                 await self.stream.aclose()
