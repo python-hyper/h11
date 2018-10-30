@@ -149,7 +149,7 @@ class TrioHTTPWrapper:
         #
         try:
             await self.stream.send_eof()
-        except trio.BrokenStreamError:
+        except trio.BrokenResourceError:
             # They're already gone, nothing to do
             return
         # Wait and read for a bit to give them a chance to see that we closed
@@ -168,7 +168,7 @@ class TrioHTTPWrapper:
                     got = await self.stream.receive_some(MAX_RECV)
                     if not got:
                         break
-            except trio.BrokenStreamError:
+            except trio.BrokenResourceError:
                 pass
             finally:
                 await self.stream.aclose()
@@ -229,7 +229,7 @@ async def http_serve(stream):
                 if type(event) is h11.Request:
                     await send_echo_response(wrapper, event)
         except Exception as exc:
-            wrapper.info("Error during response handler:", exc)
+            wrapper.info("Error during response handler: {!r}".format(exc))
             await maybe_send_error_response(wrapper, exc)
 
         if wrapper.conn.our_state is h11.MUST_CLOSE:
