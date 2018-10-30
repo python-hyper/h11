@@ -134,3 +134,16 @@ def test_events():
 
     cc = ConnectionClosed()
     assert repr(cc) == "ConnectionClosed()"
+
+
+def test_intenum_status_code():
+    # https://github.com/python-hyper/h11/issues/72
+    try:
+        from http import HTTPStatus
+    except ImportError:
+        pytest.skip("Only affects Python 3")
+
+    r = Response(status_code=HTTPStatus.OK, headers=[], http_version="1.0")
+    assert r.status_code == HTTPStatus.OK
+    assert type(r.status_code) is not type(HTTPStatus.OK)
+    assert type(r.status_code) is int

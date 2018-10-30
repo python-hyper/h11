@@ -57,6 +57,10 @@ class _EventBundle(object):
             if "status_code" in self.__dict__:
                 if not isinstance(self.status_code, int):
                     raise LocalProtocolError("status code must be integer")
+                # Because IntEnum objects are instances of int, but aren't
+                # duck-compatible (sigh), see gh-72.
+                self.status_code = int(self.status_code)
+
 
         self._validate()
 
