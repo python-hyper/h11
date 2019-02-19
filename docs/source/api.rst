@@ -652,7 +652,7 @@ response.
 
 As a server, h11 provides the minimal support for pipelining required
 to comply with the HTTP/1.1 standard: if the client sends multiple
-pipelined requests, then we the first request until we reach the
+pipelined requests, then we handle the first request until we reach the
 :data:`DONE` state, and then :meth:`~Connection.next_event` will
 pause and refuse to parse any more events until the response is
 completed and :meth:`~Connection.start_next_cycle` is called. See the

@@ -45,7 +45,8 @@ def time_server_basic_get_with_realistic_headers():
 def _run_basic_get_repeatedly():
     from timeit import default_timer
     REPEAT = 10000
-    while True:
+    #while True:
+    for _ in range(7):
         start = default_timer()
         for _ in range(REPEAT):
             time_server_basic_get_with_realistic_headers()
