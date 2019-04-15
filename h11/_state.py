@@ -307,7 +307,10 @@ class ConnectionState(object):
 
     def start_next_cycle(self):
         if self.states != {CLIENT: DONE, SERVER: DONE}:
-            raise LocalProtocolError("not in a reusable state")
+            raise LocalProtocolError(
+                "not in a reusable state."
+                " self.states[CLIENT]={} self.states[SERVER]={}"
+                .format(self.states[CLIENT], self.states[SERVER]))
         # Can't reach DONE/DONE with any of these active, but still, let's be
         # sure.
         assert self.keep_alive
