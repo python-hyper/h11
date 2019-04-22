@@ -3,6 +3,34 @@ History of changes
 
 .. currentmodule:: h11
 
+v0.9.0 (2019-05-15)
+-------------------
+
+Bug fixes:
+
+* Allow a broader range of characters in header values. This violates
+  the RFC, but is apparently required for compatibility with
+  real-world code, like Google Analytics cookies (`#57
+  <https://github.com/python-hyper/h11/issues/57>`__, `#58
+  <https://github.com/python-hyper/h11/issues/58>`__).
+* Validate incoming and outgoing request paths for invalid
+  characters. This prevents a variety of potential security issues
+  that have affected other HTTP clients. (`#69
+  <https://github.com/python-hyper/h11/pull/69>`__).
+* Force status codes to be integers, thereby allowing stdlib
+  HTTPStatus IntEnums to be used when constructing responses (`#72
+  <https://github.com/python-hyper/h11/issues/72>`__).
+
+Other changes:
+
+* Make all sentinel values inspectable by IDEs, and split
+  ``SEND_BODY_DONE`` into ``SEND_BODY``, and ``DONE`` (`#75
+  <https://github.com/python-hyper/h11/pull/75>`__).
+* Drop support for Python 3.3.
+* LocalProtocolError raised in start_next_cycle now shows states for
+  more informative errors (`#80
+  <https://github.com/python-hyper/h11/issues/80>`__).
+
 v0.8.1 (2018-04-14)
 -------------------
 
@@ -10,11 +38,6 @@ Bug fixes:
 
 * Always return headers as ``bytes`` objects (`#60
   <https://github.com/python-hyper/h11/issues/60>`__)
-* Allow a broader range of characters in header values. This violates
-  the RFC, but is apparently required for compatibility with
-  real-world code, like Google Analytics cookies (`#57
-  <https://github.com/python-hyper/h11/issues/57>`__, `#58
-  <https://github.com/python-hyper/h11/issues/58>`__)
 
 Other changes:
 
