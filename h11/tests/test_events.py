@@ -1,8 +1,9 @@
 import pytest
 
-from .._util import LocalProtocolError
 from .. import _events
 from .._events import *
+from .._util import LocalProtocolError
+
 
 def test_event_bundle():
     class T(_events._EventBundle):
@@ -19,7 +20,7 @@ def test_event_bundle():
     assert t == T(a=1, b=0)
     assert not (t == T(a=2, b=0))
     assert not (t != T(a=1, b=0))
-    assert (t != T(a=2, b=0))
+    assert t != T(a=2, b=0)
     with pytest.raises(TypeError):
         hash(t)
 
@@ -43,20 +44,21 @@ def test_event_bundle():
     with pytest.raises(TypeError) as exc:
         T(b=0)
     # make sure we error on the right missing kwarg
-    assert 'kwarg a' in str(exc)
+    assert "kwarg a" in str(exc)
 
     # _validate is called
     with pytest.raises(ValueError):
         T(a=0, b=0)
 
+
 def test_events():
     with pytest.raises(LocalProtocolError):
         # Missing Host:
-        req = Request(method="GET", target="/", headers=[("a", "b")],
-                      http_version="1.1")
+        req = Request(
+            method="GET", target="/", headers=[("a", "b")], http_version="1.1"
+        )
     # But this is okay (HTTP/1.0)
-    req = Request(method="GET", target="/", headers=[("a", "b")],
-                  http_version="1.0")
+    req = Request(method="GET", target="/", headers=[("a", "b")], http_version="1.0")
     # fields are normalized
     assert req.method == b"GET"
     assert req.target == b"/"
@@ -64,44 +66,59 @@ def test_events():
     assert req.http_version == b"1.0"
 
     # This is also okay -- has a Host (with weird capitalization, which is ok)
-    req = Request(method="GET", target="/",
-                  headers=[("a", "b"), ("hOSt", "example.com")],
-                  http_version="1.1")
+    req = Request(
+        method="GET",
+        target="/",
+        headers=[("a", "b"), ("hOSt", "example.com")],
+        http_version="1.1",
+    )
     # we normalize header capitalization
     assert req.headers == [(b"a", b"b"), (b"host", b"example.com")]
 
     # Multiple host is bad too
     with pytest.raises(LocalProtocolError):
-        req = Request(method="GET", target="/",
-                      headers=[("Host", "a"), ("Host", "a")],
-                      http_version="1.1")
+        req = Request(
+            method="GET",
+            target="/",
+            headers=[("Host", "a"), ("Host", "a")],
+            http_version="1.1",
+        )
     # Even for HTTP/1.0
     with pytest.raises(LocalProtocolError):
-        req = Request(method="GET", target="/",
-                      headers=[("Host", "a"), ("Host", "a")],
-                      http_version="1.0")
+        req = Request(
+            method="GET",
+            target="/",
+            headers=[("Host", "a"), ("Host", "a")],
+            http_version="1.0",
+        )
 
     # Header values are validated
     for bad_char in "\x00\r\n\f\v":
         with pytest.raises(LocalProtocolError):
-            req = Request(method="GET", target="/",
-                          headers=[("Host", "a"), ("Foo", "asd" + bad_char)],
-                          http_version="1.0")
+            req = Request(
+                method="GET",
+                target="/",
+                headers=[("Host", "a"), ("Foo", "asd" + bad_char)],
+                http_version="1.0",
+            )
 
     # But for compatibility we allow non-whitespace control characters, even
     # though they're forbidden by the spec.
-    Request(method="GET", target="/",
-            headers=[("Host", "a"), ("Foo", "asd\x01\x02\x7f")],
-            http_version="1.0")
+    Request(
+        method="GET",
+        target="/",
+        headers=[("Host", "a"), ("Foo", "asd\x01\x02\x7f")],
+        http_version="1.0",
+    )
 
     # Request target is validated
     for bad_char in b"\x00\x20\x7f\xee":
         target = bytearray(b"/")
         target.append(bad_char)
         with pytest.raises(LocalProtocolError):
-            Request(method="GET", target=target,
-                    headers=[("Host", "a")],
-                    http_version="1.1")
+            Request(
+                method="GET", target=target, headers=[("Host", "a")], http_version="1.1"
+            )
 
     ir = InformationalResponse(status_code=100, headers=[("Host", "a")])
     assert ir.status_code == 100
@@ -123,8 +140,7 @@ def test_events():
         Response(status_code="100", headers=[], http_version="1.0")
 
     with pytest.raises(LocalProtocolError):
-        InformationalResponse(status_code=b"100",
-                              headers=[], http_version="1.0")
+        InformationalResponse(status_code=b"100", headers=[], http_version="1.0")
 
     d = Data(data=b"asdf")
     assert d.data == b"asdf"

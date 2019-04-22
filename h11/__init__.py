@@ -6,13 +6,14 @@
 # semantics to check that what you're asking to write to the wire is sensible,
 # but at least it gets you out of dealing with the wire itself.
 
+from ._connection import *
+from ._events import *
+from ._state import *
+from ._util import LocalProtocolError, ProtocolError, RemoteProtocolError
 from ._version import __version__
+
 PRODUCT_ID = "python-h11/" + __version__
 
-from ._util import ProtocolError, LocalProtocolError, RemoteProtocolError
-from ._events import *
-from ._connection import *
-from ._state import *
 
 __all__ = ["ProtocolError", "LocalProtocolError", "RemoteProtocolError"]
 __all__ += _events.__all__

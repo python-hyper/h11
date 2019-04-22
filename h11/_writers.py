@@ -9,14 +9,15 @@
 
 import sys
 
-from ._util import LocalProtocolError
 from ._events import Data, EndOfMessage
-from ._state import CLIENT, SERVER, IDLE, SEND_RESPONSE, SEND_BODY
+from ._state import CLIENT, IDLE, SEND_BODY, SEND_RESPONSE, SERVER
+from ._util import LocalProtocolError
 
 __all__ = ["WRITERS"]
 
 # Equivalent of bstr % values, that works on python 3.x for x < 5
 if (3, 0) <= sys.version_info < (3, 5):
+
     def bytesmod(bstr, values):
         decoded_values = []
         for value in values:
@@ -25,9 +26,13 @@ if (3, 0) <= sys.version_info < (3, 5):
             else:
                 decoded_values.append(value)
         return (bstr.decode("ascii") % tuple(decoded_values)).encode("ascii")
+
+
 else:
+
     def bytesmod(bstr, values):
         return bstr % values
+
 
 def write_headers(headers, write):
     # "Since the Host field-value is critical information for handling a
@@ -41,11 +46,13 @@ def write_headers(headers, write):
             write(bytesmod(b"%s: %s\r\n", (name, value)))
     write(b"\r\n")
 
+
 def write_request(request, write):
     if request.http_version != b"1.1":
         raise LocalProtocolError("I only send HTTP/1.1")
     write(bytesmod(b"%s %s HTTP/1.1\r\n", (request.method, request.target)))
     write_headers(request.headers, write)
+
 
 # Shared between InformationalResponse and Response
 def write_any_response(response, write):
@@ -63,6 +70,7 @@ def write_any_response(response, write):
     write(bytesmod(b"HTTP/1.1 %s %s\r\n", (status_bytes, response.reason)))
     write_headers(response.headers, write)
 
+
 class BodyWriter(object):
     def __call__(self, event, write):
         if type(event) is Data:
@@ -71,6 +79,7 @@ class BodyWriter(object):
             self.send_eom(event.headers, write)
         else:  # pragma: no cover
             assert False
+
 
 #
 # These are all careful not to do anything to 'data' except call len(data) and
@@ -85,16 +94,15 @@ class ContentLengthWriter(BodyWriter):
     def send_data(self, data, write):
         self._length -= len(data)
         if self._length < 0:
-            raise LocalProtocolError(
-                "Too much data for declared Content-Length")
+            raise LocalProtocolError("Too much data for declared Content-Length")
         write(data)
 
     def send_eom(self, headers, write):
         if self._length != 0:
-            raise LocalProtocolError(
-                "Too little data for declared Content-Length")
+            raise LocalProtocolError("Too little data for declared Content-Length")
         if headers:
             raise LocalProtocolError("Content-Length and trailers don't mix")
+
 
 class ChunkedWriter(BodyWriter):
     def send_data(self, data, write):
@@ -110,16 +118,17 @@ class ChunkedWriter(BodyWriter):
         write(b"0\r\n")
         write_headers(headers, write)
 
+
 class Http10Writer(BodyWriter):
     def send_data(self, data, write):
         write(data)
 
     def send_eom(self, headers, write):
         if headers:
-            raise LocalProtocolError(
-                "can't send trailers to HTTP/1.0 client")
+            raise LocalProtocolError("can't send trailers to HTTP/1.0 client")
         # no need to close the socket ourselves, that will be taken care of by
         # Connection: close machinery
+
 
 WRITERS = {
     (CLIENT, IDLE): write_request,

@@ -1,8 +1,15 @@
-import sys
 import re
+import sys
 
-__all__ = ["ProtocolError", "LocalProtocolError", "RemoteProtocolError",
-           "validate", "make_sentinel", "bytesify"]
+__all__ = [
+    "ProtocolError",
+    "LocalProtocolError",
+    "RemoteProtocolError",
+    "validate",
+    "make_sentinel",
+    "bytesify",
+]
+
 
 class ProtocolError(Exception):
     """Exception indicating a violation of the HTTP/1.1 protocol.
@@ -32,6 +39,7 @@ class ProtocolError(Exception):
        violations.
 
     """
+
     def __init__(self, msg, error_status_hint=400):
         if type(self) is ProtocolError:
             raise TypeError("tried to directly instantiate ProtocolError")
@@ -76,17 +84,21 @@ class LocalProtocolError(ProtocolError):
             # it inside an exec
             exec("raise RemoteProtocolError, self, sys.exc_info()[2]")
 
+
 class RemoteProtocolError(ProtocolError):
     pass
 
+
 try:
-    _fullmatch = type(re.compile('')).fullmatch
+    _fullmatch = type(re.compile("")).fullmatch
 except AttributeError:
+
     def _fullmatch(regex, data):  # version specific: Python < 3.4
         match = regex.match(data)
         if match and match.end() != len(data):
             match = None
         return match
+
 
 def validate(regex, data, msg="malformed data", *format_args):
     match = _fullmatch(regex, data)
@@ -95,6 +107,7 @@ def validate(regex, data, msg="malformed data", *format_args):
             msg = msg.format(*format_args)
         raise LocalProtocolError(msg)
     return match.groupdict()
+
 
 # Sentinel values
 #
@@ -108,10 +121,12 @@ class _SentinelBase(type):
     def __repr__(self):
         return self.__name__
 
+
 def make_sentinel(name):
     cls = _SentinelBase(name, (_SentinelBase,), {})
     cls.__class__ = cls
     return cls
+
 
 # Used for methods, request targets, HTTP versions, header names, and header
 # values. Accepts ascii-strings, or bytes/bytearray/memoryview/..., and always

@@ -17,10 +17,11 @@
 # - or, for body readers, a dict of per-framing reader factories
 
 import re
-from ._util import LocalProtocolError, RemoteProtocolError, validate
-from ._state import *
+
+from ._abnf import chunk_header, header_field, request_line, status_line
 from ._events import *
-from ._abnf import header_field, request_line, status_line, chunk_header
+from ._state import *
+from ._util import LocalProtocolError, RemoteProtocolError, validate
 
 __all__ = ["READERS"]
 
@@ -29,6 +30,8 @@ header_field_re = re.compile(header_field.encode("ascii"))
 # Remember that this has to run in O(n) time -- so e.g. the bytearray cast is
 # critical.
 obs_fold_re = re.compile(br"[ \t]+")
+
+
 def _obsolete_line_fold(lines):
     it = iter(lines)
     last = None
@@ -36,18 +39,18 @@ def _obsolete_line_fold(lines):
         match = obs_fold_re.match(line)
         if match:
             if last is None:
-                raise LocalProtocolError(
-                    "continuation line at start of headers")
+                raise LocalProtocolError("continuation line at start of headers")
             if not isinstance(last, bytearray):
                 last = bytearray(last)
             last += b" "
-            last += line[match.end():]
+            last += line[match.end() :]
         else:
             if last is not None:
                 yield last
             last = line
     if last is not None:
         yield last
+
 
 def _decode_header_lines(lines):
     for line in _obsolete_line_fold(lines):
@@ -58,7 +61,9 @@ def _decode_header_lines(lines):
         matches = validate(header_field_re, bytes(line))
         yield (matches["field_name"], matches["field_value"])
 
+
 request_line_re = re.compile(request_line.encode("ascii"))
+
 
 def maybe_read_from_IDLE_client(buf):
     lines = buf.maybe_extract_lines()
@@ -67,11 +72,13 @@ def maybe_read_from_IDLE_client(buf):
     if not lines:
         raise LocalProtocolError("no request line received")
     matches = validate(request_line_re, lines[0])
-    return Request(headers=list(_decode_header_lines(lines[1:])),
-                   _parsed=True,
-                   **matches)
+    return Request(
+        headers=list(_decode_header_lines(lines[1:])), _parsed=True, **matches
+    )
+
 
 status_line_re = re.compile(status_line.encode("ascii"))
+
 
 def maybe_read_from_SEND_RESPONSE_server(buf):
     lines = buf.maybe_extract_lines()
@@ -85,9 +92,9 @@ def maybe_read_from_SEND_RESPONSE_server(buf):
         matches["reason"] = b""
     status_code = matches["status_code"] = int(matches["status_code"])
     class_ = InformationalResponse if status_code < 200 else Response
-    return class_(headers=list(_decode_header_lines(lines[1:])),
-                  _parsed=True,
-                  **matches)
+    return class_(
+        headers=list(_decode_header_lines(lines[1:])), _parsed=True, **matches
+    )
 
 
 class ContentLengthReader:
@@ -107,11 +114,14 @@ class ContentLengthReader:
     def read_eof(self):
         raise RemoteProtocolError(
             "peer closed connection without sending complete message body "
-            "(received {} bytes, expected {})"
-            .format(self._length - self._remaining, self._length))
+            "(received {} bytes, expected {})".format(
+                self._length - self._remaining, self._length
+            )
+        )
 
 
 chunk_header_re = re.compile(chunk_header.encode("ascii"))
+
 
 class ChunkedReader(object):
     def __init__(self):
@@ -168,7 +178,8 @@ class ChunkedReader(object):
     def read_eof(self):
         raise RemoteProtocolError(
             "peer closed connection without sending complete message body "
-            "(incomplete chunked read)")
+            "(incomplete chunked read)"
+        )
 
 
 class Http10Reader(object):
@@ -181,23 +192,23 @@ class Http10Reader(object):
     def read_eof(self):
         return EndOfMessage()
 
+
 def expect_nothing(buf):
     if buf:
         raise LocalProtocolError("Got data when expecting EOF")
     return None
 
+
 READERS = {
     (CLIENT, IDLE): maybe_read_from_IDLE_client,
     (SERVER, IDLE): maybe_read_from_SEND_RESPONSE_server,
     (SERVER, SEND_RESPONSE): maybe_read_from_SEND_RESPONSE_server,
-
     (CLIENT, DONE): expect_nothing,
     (CLIENT, MUST_CLOSE): expect_nothing,
     (CLIENT, CLOSED): expect_nothing,
     (SERVER, DONE): expect_nothing,
     (SERVER, MUST_CLOSE): expect_nothing,
     (SERVER, CLOSED): expect_nothing,
-
     SEND_BODY: {
         "chunked": ChunkedReader,
         "content-length": ContentLengthReader,

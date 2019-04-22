@@ -42,15 +42,15 @@ other hand, the following are all very welcome:
 
 * Code should work across all currently supported Python releases.
 
-* Code should follow
-  [PEP 8](https://www.python.org/dev/peps/pep-0008/) style. We aren't
-  blind sticklers for this though (in fact,
-  [not being a blind stickler for PEP 8](https://www.python.org/dev/peps/pep-0008/#a-foolish-consistency-is-the-hobgoblin-of-little-minds)
-  is one of the requirements in PEP 8!). If you run
-  [pycodestyle](https://github.com/PyCQA/pycodestyle) over the code
-  base then it complains about lots of things, but these are generally
-  places where "fixing the problem" would make the code less
-  readable. Still, though, when in doubt: PEP 8.
+* Code must be formatted using
+  [black](https://github.com/python/black) and
+  [isort](https://github.com/timothycrosley/isort) as configured in
+  the project. With those projects installed the commands,
+
+      black h11/
+      isort --dont-skip __init__.py --apply --settings-path setup.cfg --recursive h11
+
+  will format your code for you.
 
 * If you change the code, then you have to also add or fix at least
   one test. (See below for how to run the test suite.) This helps us

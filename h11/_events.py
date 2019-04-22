@@ -6,6 +6,7 @@
 # Don't subclass these. Stuff will break.
 
 import re
+
 from . import _headers
 from ._abnf import request_target
 from ._util import bytesify, LocalProtocolError, validate
@@ -22,6 +23,7 @@ __all__ = [
 
 request_target_re = re.compile(request_target.encode("ascii"))
 
+
 class _EventBundle(object):
     _fields = []
     _defaults = {}
@@ -32,14 +34,18 @@ class _EventBundle(object):
         for kwarg in kwargs:
             if kwarg not in allowed:
                 raise TypeError(
-                    "unrecognized kwarg {} for {}"
-                    .format(kwarg, self.__class__.__name__))
+                    "unrecognized kwarg {} for {}".format(
+                        kwarg, self.__class__.__name__
+                    )
+                )
         required = allowed.difference(self._defaults)
         for field in required:
             if field not in kwargs:
                 raise TypeError(
-                    "missing required kwarg {} for {}"
-                    .format(field, self.__class__.__name__))
+                    "missing required kwarg {} for {}".format(
+                        field, self.__class__.__name__
+                    )
+                )
         self.__dict__.update(self._defaults)
         self.__dict__.update(kwargs)
 
@@ -47,7 +53,8 @@ class _EventBundle(object):
 
         if "headers" in self.__dict__:
             self.headers = _headers.normalize_and_validate(
-                self.headers, _parsed=_parsed)
+                self.headers, _parsed=_parsed
+            )
 
         if not _parsed:
             for field in ["method", "target", "http_version", "reason"]:
@@ -61,7 +68,6 @@ class _EventBundle(object):
                 # duck-compatible (sigh), see gh-72.
                 self.status_code = int(self.status_code)
 
-
         self._validate()
 
     def _validate(self):
@@ -69,15 +75,15 @@ class _EventBundle(object):
 
     def __repr__(self):
         name = self.__class__.__name__
-        kwarg_strs = ["{}={}".format(field, self.__dict__[field])
-                      for field in self._fields]
+        kwarg_strs = [
+            "{}={}".format(field, self.__dict__[field]) for field in self._fields
+        ]
         kwarg_str = ", ".join(kwarg_strs)
         return "{}({})".format(name, kwarg_str)
 
     # Useful for tests
     def __eq__(self, other):
-        return (self.__class__ == other.__class__
-                and self.__dict__ == other.__dict__)
+        return self.__class__ == other.__class__ and self.__dict__ == other.__dict__
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -143,8 +149,7 @@ class Request(_EventBundle):
 
 class _ResponseBase(_EventBundle):
     _fields = ["status_code", "headers", "http_version", "reason"]
-    _defaults = {"http_version": b"1.1",
-                 "reason": b""}
+    _defaults = {"http_version": b"1.1", "reason": b""}
 
 
 class InformationalResponse(_ResponseBase):
@@ -181,8 +186,8 @@ class InformationalResponse(_ResponseBase):
         if not (100 <= self.status_code < 200):
             raise LocalProtocolError(
                 "InformationalResponse status_code should be in range "
-                "[100, 200), not {}"
-                .format(self.status_code))
+                "[100, 200), not {}".format(self.status_code)
+            )
 
 
 class Response(_ResponseBase):
@@ -213,11 +218,14 @@ class Response(_ResponseBase):
        ``b"OK"``, or ``b"Not Found"``.
 
     """
+
     def _validate(self):
         if not (200 <= self.status_code < 600):
             raise LocalProtocolError(
-                "Response status_code should be in range [200, 600), not {}"
-                .format(self.status_code))
+                "Response status_code should be in range [200, 600), not {}".format(
+                    self.status_code
+                )
+            )
 
 
 class Data(_EventBundle):
@@ -252,6 +260,7 @@ class Data(_EventBundle):
        :ref:`chunk-delimiters-are-bad` for details.
 
     """
+
     _fields = ["data", "chunk_start", "chunk_end"]
     _defaults = {"chunk_start": False, "chunk_end": False}
 
@@ -277,6 +286,7 @@ class EndOfMessage(_EventBundle):
        Must be empty unless ``Transfer-Encoding: chunked`` is in use.
 
     """
+
     _fields = ["headers"]
     _defaults = {"headers": []}
 
@@ -291,4 +301,5 @@ class ConnectionClosed(_EventBundle):
 
     No fields.
     """
+
     pass

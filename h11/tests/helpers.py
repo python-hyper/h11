@@ -1,6 +1,7 @@
+from .._connection import *
 from .._events import *
 from .._state import *
-from .._connection import *
+
 
 def get_all_events(conn):
     got_events = []
@@ -13,9 +14,11 @@ def get_all_events(conn):
             break
     return got_events
 
+
 def receive_and_get(conn, data):
     conn.receive_data(data)
     return get_all_events(conn)
+
 
 # Merges adjacent Data events, converts payloads to bytestrings, and removes
 # chunk boundaries.
@@ -31,6 +34,7 @@ def normalize_data_events(in_events):
         else:
             out_events.append(event)
     return out_events
+
 
 # Given that we want to write tests that push some events through a Connection
 # and check that its state updates appropriately... we might as make a habit

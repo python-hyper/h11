@@ -116,10 +116,17 @@ from ._util import LocalProtocolError, make_sentinel
 
 # Everything in __all__ gets re-exported as part of the h11 public API.
 __all__ = [
-  "CLIENT", "SERVER", "IDLE", "SEND_RESPONSE",
-  "SEND_BODY", "DONE", "MUST_CLOSE",
-  "CLOSED", "MIGHT_SWITCH_PROTOCOL",
-  "SWITCHED_PROTOCOL", "ERROR"
+    "CLIENT",
+    "SERVER",
+    "IDLE",
+    "SEND_RESPONSE",
+    "SEND_BODY",
+    "DONE",
+    "MUST_CLOSE",
+    "CLOSED",
+    "MIGHT_SWITCH_PROTOCOL",
+    "SWITCHED_PROTOCOL",
+    "ERROR",
 ]
 
 CLIENT = make_sentinel("CLIENT")
@@ -143,28 +150,15 @@ _SWITCH_CONNECT = make_sentinel("_SWITCH_CONNECT")
 
 EVENT_TRIGGERED_TRANSITIONS = {
     CLIENT: {
-        IDLE: {
-            Request: SEND_BODY,
-            ConnectionClosed: CLOSED,
-        },
-        SEND_BODY: {
-            Data: SEND_BODY,
-            EndOfMessage: DONE,
-        },
-        DONE: {
-            ConnectionClosed: CLOSED,
-        },
-        MUST_CLOSE: {
-            ConnectionClosed: CLOSED,
-        },
-        CLOSED: {
-            ConnectionClosed: CLOSED,
-        },
+        IDLE: {Request: SEND_BODY, ConnectionClosed: CLOSED},
+        SEND_BODY: {Data: SEND_BODY, EndOfMessage: DONE},
+        DONE: {ConnectionClosed: CLOSED},
+        MUST_CLOSE: {ConnectionClosed: CLOSED},
+        CLOSED: {ConnectionClosed: CLOSED},
         MIGHT_SWITCH_PROTOCOL: {},
         SWITCHED_PROTOCOL: {},
         ERROR: {},
     },
-
     SERVER: {
         IDLE: {
             ConnectionClosed: CLOSED,
@@ -178,19 +172,10 @@ EVENT_TRIGGERED_TRANSITIONS = {
             (InformationalResponse, _SWITCH_UPGRADE): SWITCHED_PROTOCOL,
             (Response, _SWITCH_CONNECT): SWITCHED_PROTOCOL,
         },
-        SEND_BODY: {
-            Data: SEND_BODY,
-            EndOfMessage: DONE,
-        },
-        DONE: {
-            ConnectionClosed: CLOSED,
-        },
-        MUST_CLOSE: {
-            ConnectionClosed: CLOSED,
-        },
-        CLOSED: {
-            ConnectionClosed: CLOSED,
-        },
+        SEND_BODY: {Data: SEND_BODY, EndOfMessage: DONE},
+        DONE: {ConnectionClosed: CLOSED},
+        MUST_CLOSE: {ConnectionClosed: CLOSED},
+        CLOSED: {ConnectionClosed: CLOSED},
         SWITCHED_PROTOCOL: {},
         ERROR: {},
     },
@@ -210,6 +195,7 @@ STATE_TRIGGERED_TRANSITIONS = {
     (IDLE, CLOSED): {CLIENT: MUST_CLOSE},
     (DONE, ERROR): {CLIENT: MUST_CLOSE},
 }
+
 
 class ConnectionState(object):
     def __init__(self):
@@ -242,8 +228,10 @@ class ConnectionState(object):
             assert role is SERVER
             if server_switch_event not in self.pending_switch_proposals:
                 raise LocalProtocolError(
-                    "Received server {} event without a pending proposal"
-                    .format(server_switch_event))
+                    "Received server {} event without a pending proposal".format(
+                        server_switch_event
+                    )
+                )
             event_type = (event_type, server_switch_event)
         if server_switch_event is None and event_type is Response:
             self.pending_switch_proposals = set()
@@ -261,8 +249,10 @@ class ConnectionState(object):
             new_state = EVENT_TRIGGERED_TRANSITIONS[role][state][event_type]
         except KeyError:
             raise LocalProtocolError(
-                "can't handle event type {} when role={} and state={}"
-                .format(event_type.__name__, role, self.states[role]))
+                "can't handle event type {} when role={} and state={}".format(
+                    event_type.__name__, role, self.states[role]
+                )
+            )
         self.states[role] = new_state
 
     def _fire_state_triggered_transitions(self):

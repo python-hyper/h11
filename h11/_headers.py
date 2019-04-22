@@ -1,6 +1,7 @@
 import re
-from ._util import LocalProtocolError, bytesify, validate
+
 from ._abnf import field_name, field_value
+from ._util import bytesify, LocalProtocolError, validate
 
 # Facts
 # -----
@@ -60,6 +61,7 @@ _content_length_re = re.compile(br"[0-9]+")
 _field_name_re = re.compile(field_name.encode("ascii"))
 _field_value_re = re.compile(field_value.encode("ascii"))
 
+
 def normalize_and_validate(headers, _parsed=False):
     new_headers = []
     saw_content_length = False
@@ -85,18 +87,21 @@ def normalize_and_validate(headers, _parsed=False):
             # Implemented)."
             # https://tools.ietf.org/html/rfc7230#section-3.3.1
             if saw_transfer_encoding:
-                raise LocalProtocolError("multiple Transfer-Encoding headers",
-                                         error_status_hint=501)
+                raise LocalProtocolError(
+                    "multiple Transfer-Encoding headers", error_status_hint=501
+                )
             # "All transfer-coding names are case-insensitive"
             # -- https://tools.ietf.org/html/rfc7230#section-4
             value = value.lower()
             if value != b"chunked":
                 raise LocalProtocolError(
                     "Only Transfer-Encoding: chunked is supported",
-                    error_status_hint=501)
+                    error_status_hint=501,
+                )
             saw_transfer_encoding = True
         new_headers.append((name, value))
     return new_headers
+
 
 def get_comma_header(headers, name):
     # Should only be used for headers whose value is a list of
@@ -144,6 +149,7 @@ def get_comma_header(headers, name):
                     out.append(found_split_value)
     return out
 
+
 def set_comma_header(headers, name, new_values):
     # The header name `name` is expected to be lower-case bytes.
     new_headers = []
@@ -154,6 +160,7 @@ def set_comma_header(headers, name, new_values):
         new_headers.append((name, new_value))
     headers[:] = normalize_and_validate(new_headers)
 
+
 def has_expect_100_continue(request):
     # https://tools.ietf.org/html/rfc7231#section-5.1.1
     # "A server that receives a 100-continue expectation in an HTTP/1.0 request
@@ -161,4 +168,4 @@ def has_expect_100_continue(request):
     if request.http_version < b"1.1":
         return False
     expect = get_comma_header(request.headers, b"expect")
-    return (b"100-continue" in expect)
+    return b"100-continue" in expect

@@ -2,6 +2,7 @@ import pytest
 
 from .._headers import *
 
+
 def test_normalize_and_validate():
     assert normalize_and_validate([("foo", "bar")]) == [(b"foo", b"bar")]
     assert normalize_and_validate([(b"foo", b"bar")]) == [(b"foo", b"bar")]
@@ -44,42 +45,43 @@ def test_normalize_and_validate():
         normalize_and_validate([("foo", "\tbarbaz")])
 
     # content-length
-    assert (normalize_and_validate([("Content-Length", "1")])
-            == [(b"content-length", b"1")])
+    assert normalize_and_validate([("Content-Length", "1")]) == [
+        (b"content-length", b"1")
+    ]
     with pytest.raises(LocalProtocolError):
         normalize_and_validate([("Content-Length", "asdf")])
     with pytest.raises(LocalProtocolError):
         normalize_and_validate([("Content-Length", "1x")])
     with pytest.raises(LocalProtocolError):
-        normalize_and_validate([
-            ("Content-Length", "1"),
-            ("Content-Length", "2"),
-        ])
+        normalize_and_validate([("Content-Length", "1"), ("Content-Length", "2")])
 
     # transfer-encoding
-    assert (normalize_and_validate([("Transfer-Encoding", "chunked")])
-            == [(b"transfer-encoding", b"chunked")])
-    assert (normalize_and_validate([("Transfer-Encoding", "cHuNkEd")])
-            == [(b"transfer-encoding", b"chunked")])
+    assert normalize_and_validate([("Transfer-Encoding", "chunked")]) == [
+        (b"transfer-encoding", b"chunked")
+    ]
+    assert normalize_and_validate([("Transfer-Encoding", "cHuNkEd")]) == [
+        (b"transfer-encoding", b"chunked")
+    ]
     with pytest.raises(LocalProtocolError) as excinfo:
         normalize_and_validate([("Transfer-Encoding", "gzip")])
     assert excinfo.value.error_status_hint == 501  # Not Implemented
     with pytest.raises(LocalProtocolError) as excinfo:
-        normalize_and_validate([
-            ("Transfer-Encoding", "chunked"),
-            ("Transfer-Encoding", "gzip"),
-        ])
+        normalize_and_validate(
+            [("Transfer-Encoding", "chunked"), ("Transfer-Encoding", "gzip")]
+        )
     assert excinfo.value.error_status_hint == 501  # Not Implemented
 
-def test_get_set_comma_header():
-    headers = normalize_and_validate([
-        ("Connection", "close"),
-        ("whatever", "something"),
-        ("connectiON", "fOo,, , BAR"),
-    ])
 
-    assert get_comma_header(headers, b"connection") == [
-        b"close", b"foo", b"bar"]
+def test_get_set_comma_header():
+    headers = normalize_and_validate(
+        [
+            ("Connection", "close"),
+            ("whatever", "something"),
+            ("connectiON", "fOo,, , BAR"),
+        ]
+    )
+
+    assert get_comma_header(headers, b"connection") == [b"close", b"foo", b"bar"]
 
     set_comma_header(headers, b"newthing", ["a", "b"])
 
@@ -104,25 +106,34 @@ def test_get_set_comma_header():
         (b"whatever", b"different thing"),
     ]
 
+
 def test_has_100_continue():
     from .._events import Request
 
-    assert has_expect_100_continue(Request(
-        method="GET",
-        target="/",
-        headers=[("Host", "example.com"), ("Expect", "100-continue")]))
-    assert not has_expect_100_continue(Request(
-        method="GET",
-        target="/",
-        headers=[("Host", "example.com")]))
+    assert has_expect_100_continue(
+        Request(
+            method="GET",
+            target="/",
+            headers=[("Host", "example.com"), ("Expect", "100-continue")],
+        )
+    )
+    assert not has_expect_100_continue(
+        Request(method="GET", target="/", headers=[("Host", "example.com")])
+    )
     # Case insensitive
-    assert has_expect_100_continue(Request(
-        method="GET",
-        target="/",
-        headers=[("Host", "example.com"), ("Expect", "100-Continue")]))
+    assert has_expect_100_continue(
+        Request(
+            method="GET",
+            target="/",
+            headers=[("Host", "example.com"), ("Expect", "100-Continue")],
+        )
+    )
     # Doesn't work in HTTP/1.0
-    assert not has_expect_100_continue(Request(
-        method="GET",
-        target="/",
-        headers=[("Host", "example.com"), ("Expect", "100-continue")],
-        http_version="1.0"))
+    assert not has_expect_100_continue(
+        Request(
+            method="GET",
+            target="/",
+            headers=[("Host", "example.com"), ("Expect", "100-continue")],
+            http_version="1.0",
+        )
+    )

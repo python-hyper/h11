@@ -66,8 +66,8 @@ header_field = (
     r":"
     r"{OWS}"
     r"(?P<field_value>{field_value})"
-    r"{OWS}"
-    .format(**globals()))
+    r"{OWS}".format(**globals())
+)
 
 # https://svn.tools.ietf.org/svn/wg/httpbis/specs/rfc7230.html#request.line
 #
@@ -87,8 +87,8 @@ request_line = (
     r" "
     r"(?P<target>{request_target})"
     r" "
-    r"{http_version}"
-    .format(**globals()))
+    r"{http_version}".format(**globals())
+)
 
 # https://svn.tools.ietf.org/svn/wg/httpbis/specs/rfc7230.html#status.line
 #
@@ -106,8 +106,8 @@ status_line = (
     #   https://github.com/scrapy/scrapy/issues/345#issuecomment-281756036
     #   https://github.com/seanmonstar/httparse/issues/29
     # so make it optional. ?: is a non-capturing group.
-    r"(?: (?P<reason>{reason_phrase}))?"
-    .format(**globals()))
+    r"(?: (?P<reason>{reason_phrase}))?".format(**globals())
+)
 
 HEXDIG = r"[0-9A-Fa-f]"
 # Actually
@@ -125,5 +125,5 @@ chunk_ext = r";.*"
 chunk_header = (
     r"(?P<chunk_size>{chunk_size})"
     r"(?P<chunk_ext>{chunk_ext})?"
-    r"\r\n"
-    .format(**globals()))
+    r"\r\n".format(**globals())
+)

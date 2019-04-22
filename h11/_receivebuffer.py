@@ -51,7 +51,7 @@ class ReceiveBuffer(object):
 
     # for @property unprocessed_data
     def __bytes__(self):
-        return bytes(self._data[self._start:])
+        return bytes(self._data[self._start :])
 
     if sys.version_info[0] < 3:  # version specific: Python 2
         __str__ = __bytes__
@@ -64,7 +64,7 @@ class ReceiveBuffer(object):
         # Heuristic: only compress if it lets us reduce size by a factor
         # of 2
         if self._start > len(self._data) // 2:
-            del self._data[:self._start]
+            del self._data[: self._start]
             self._looked_at -= self._start
             self._start -= self._start
 
@@ -73,7 +73,7 @@ class ReceiveBuffer(object):
         return self
 
     def maybe_extract_at_most(self, count):
-        out = self._data[self._start:self._start + count]
+        out = self._data[self._start : self._start + count]
         if not out:
             return None
         self._start += len(out)
@@ -92,14 +92,14 @@ class ReceiveBuffer(object):
             self._looked_for = needle
             return None
         new_start = offset + len(needle)
-        out = self._data[self._start:new_start]
+        out = self._data[self._start : new_start]
         self._start = new_start
         return out
 
     # HTTP/1.1 has a number of constructs where you keep reading lines until
     # you see a blank one. This does that, and then returns the lines.
     def maybe_extract_lines(self):
-        if self._data[self._start:self._start + 2] == b"\r\n":
+        if self._data[self._start : self._start + 2] == b"\r\n":
             self._start += 2
             return []
         else:

@@ -6,9 +6,11 @@ import pytest
 
 from .._util import *
 
+
 def test_ProtocolError():
     with pytest.raises(TypeError):
         ProtocolError("abstract base class")
+
 
 def test_LocalProtocolError():
     try:
@@ -39,6 +41,7 @@ def test_LocalProtocolError():
         new_traceback = "".join(traceback.format_tb(sys.exc_info()[2]))
         assert new_traceback.endswith(orig_traceback)
 
+
 def test_validate():
     my_re = re.compile(br"(?P<group1>[0-9]+)\.(?P<group2>[0-9]+)")
     with pytest.raises(LocalProtocolError):
@@ -52,6 +55,7 @@ def test_validate():
         validate(my_re, b"0.1xx")
     with pytest.raises(LocalProtocolError):
         validate(my_re, b"0.1\n")
+
 
 def test_validate_formatting():
     my_re = re.compile(br"foo")
@@ -68,6 +72,7 @@ def test_validate_formatting():
         validate(my_re, b"", "oops {} xx", 10)
     assert "oops 10 xx" in str(excinfo.value)
 
+
 def test_make_sentinel():
     S = make_sentinel("S")
     assert repr(S) == "S"
@@ -80,6 +85,7 @@ def test_make_sentinel():
     assert S != S2
     assert S not in {S2}
     assert type(S) is not type(S2)
+
 
 def test_bytesify():
     assert bytesify(b"123") == b"123"

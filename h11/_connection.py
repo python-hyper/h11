@@ -1,18 +1,17 @@
 # This contains the main Connection class. Everything in h11 revolves around
 # this.
 
-# Import all event types
-from ._events import *
-# Import all state sentinels
-from ._state import *
-# Import the internal things we need
-from ._util import LocalProtocolError, RemoteProtocolError, make_sentinel
-from ._state import ConnectionState, _SWITCH_UPGRADE, _SWITCH_CONNECT
-from ._headers import (
-    get_comma_header, set_comma_header, has_expect_100_continue,
-)
-from ._receivebuffer import ReceiveBuffer
+from ._events import *  # Import all event types
+from ._headers import get_comma_header, has_expect_100_continue, set_comma_header
 from ._readers import READERS
+from ._receivebuffer import ReceiveBuffer
+from ._state import *  # Import all state sentinels
+from ._state import _SWITCH_CONNECT, _SWITCH_UPGRADE, ConnectionState
+from ._util import (  # Import the internal things we need
+    LocalProtocolError,
+    make_sentinel,
+    RemoteProtocolError,
+)
 from ._writers import WRITERS
 
 # Everything in __all__ gets re-exported as part of the h11 public API.
@@ -53,6 +52,7 @@ def _keep_alive(event):
         return False
     return True
 
+
 def _body_framing(request_method, event):
     # Called when we enter SEND_BODY to figure out framing information for
     # this body.
@@ -73,10 +73,11 @@ def _body_framing(request_method, event):
     # Step 1: some responses always have an empty body, regardless of what the
     # headers say.
     if type(event) is Response:
-        if (event.status_code in (204, 304)
+        if (
+            event.status_code in (204, 304)
             or request_method == b"HEAD"
-            or (request_method == b"CONNECT"
-                and 200 <= event.status_code < 300)):
+            or (request_method == b"CONNECT" and 200 <= event.status_code < 300)
+        ):
             return ("content-length", (0,))
         # Section 3.3.3 also lists another case -- responses with status_code
         # < 200. For us these are InformationalResponses, not Responses, so
@@ -100,11 +101,13 @@ def _body_framing(request_method, event):
     else:
         return ("http/1.0", ())
 
+
 ################################################################
 #
 # The main Connection class
 #
 ################################################################
+
 
 class Connection(object):
     """An object encapsulating the state of an HTTP connection.
@@ -121,14 +124,14 @@ class Connection(object):
             :exc:`RemoteProtocolError`.
 
     """
-    def __init__(self,
-                 our_role,
-                 max_incomplete_event_size=DEFAULT_MAX_INCOMPLETE_EVENT_SIZE):
+
+    def __init__(
+        self, our_role, max_incomplete_event_size=DEFAULT_MAX_INCOMPLETE_EVENT_SIZE
+    ):
         self._max_incomplete_event_size = max_incomplete_event_size
         # State and role tracking
         if our_role not in (CLIENT, SERVER):
-            raise ValueError(
-                "expected CLIENT or SERVER, not {!r}".format(our_role))
+            raise ValueError("expected CLIENT or SERVER, not {!r}".format(our_role))
         self.our_role = our_role
         if our_role is CLIENT:
             self.their_role = SERVER
@@ -185,8 +188,7 @@ class Connection(object):
 
     @property
     def they_are_waiting_for_100_continue(self):
-        return (self.their_role is CLIENT
-                and self.client_is_waiting_for_100_continue)
+        return self.their_role is CLIENT and self.client_is_waiting_for_100_continue
 
     def start_next_cycle(self):
         """Attempt to reset our connection state for a new request/response
@@ -217,8 +219,10 @@ class Connection(object):
         if type(event) is InformationalResponse and event.status_code == 101:
             return _SWITCH_UPGRADE
         if type(event) is Response:
-            if (_SWITCH_CONNECT in self._cstate.pending_switch_proposals
-                and 200 <= event.status_code < 300):
+            if (
+                _SWITCH_CONNECT in self._cstate.pending_switch_proposals
+                and 200 <= event.status_code < 300
+            ):
                 return _SWITCH_CONNECT
         return None
 
@@ -244,8 +248,11 @@ class Connection(object):
             self._request_method = event.method
 
         # self.their_http_version
-        if (role is self.their_role
-            and type(event) in (Request, Response, InformationalResponse)):
+        if role is self.their_role and type(event) in (
+            Request,
+            Response,
+            InformationalResponse,
+        ):
             self.their_http_version = event.http_version
 
         # Keep alive handling
@@ -341,8 +348,7 @@ class Connection(object):
         """
         if data:
             if self._receive_buffer_closed:
-                raise RuntimeError(
-                    "received close, then received more data?")
+                raise RuntimeError("received close, then received more data?")
             self._receive_buffer += data
         else:
             self._receive_buffer_closed = True
@@ -414,8 +420,7 @@ class Connection(object):
         """
 
         if self.their_state is ERROR:
-            raise RemoteProtocolError(
-                "Can't receive data when peer state is ERROR")
+            raise RemoteProtocolError("Can't receive data when peer state is ERROR")
         try:
             event = self._extract_next_receive_event()
             if event not in [NEED_DATA, PAUSED]:
@@ -425,13 +430,13 @@ class Connection(object):
                 if len(self._receive_buffer) > self._max_incomplete_event_size:
                     # 431 is "Request header fields too large" which is pretty
                     # much the only situation where we can get here
-                    raise RemoteProtocolError("Receive buffer too long",
-                                              error_status_hint=431)
+                    raise RemoteProtocolError(
+                        "Receive buffer too long", error_status_hint=431
+                    )
                 if self._receive_buffer_closed:
                     # We're still trying to complete some event, but that's
                     # never going to happen because no more data is coming
-                    raise RemoteProtocolError(
-                        "peer unexpectedly closed connection")
+                    raise RemoteProtocolError("peer unexpectedly closed connection")
             return event
         except BaseException as exc:
             self._process_error(self.their_role)
@@ -476,8 +481,7 @@ class Connection(object):
 
         """
         if self.our_state is ERROR:
-            raise LocalProtocolError(
-                "Can't send data when our state is ERROR")
+            raise LocalProtocolError("Can't send data when our state is ERROR")
         try:
             if type(event) is Response:
                 self._clean_up_response_headers_for_sending(event)
@@ -557,8 +561,7 @@ class Connection(object):
             # to fix it instead of erroring out, so we'll accord the user the
             # same respect).
             set_comma_header(headers, b"content-length", [])
-            if (self.their_http_version is None
-                or self.their_http_version < b"1.1"):
+            if self.their_http_version is None or self.their_http_version < b"1.1":
                 # Either we never got a valid request and are sending back an
                 # error (their_http_version is None), so we assume the worst;
                 # or else we did get a valid HTTP/1.0 request, so we know that
