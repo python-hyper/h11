@@ -111,6 +111,17 @@ how to get started:
 * [How to contribute to an Open Source Project on GitHub](https://egghead.io/series/how-to-contribute-to-an-open-source-project-on-github)
 
 
+### Release notes
+
+We use towncrier to manage our release notes. Basically, every pull
+request that has a user visible effect should add a short file to the
+newsfragments/ directory describing the change, with a name like
+<ISSUE NUMBER>.<TYPE>.rst. See newsfragments/README.rst for
+details. This way we can keep a good list of changes as we go, which
+makes the release manager happy, which means we get more frequent
+releases, which means your change gets into users’ hands faster.
+
+
 ## After you submit a PR
 
 We'll try to review it promptly and give feedback -- but if you

@@ -3,6 +3,8 @@ History of changes
 
 .. currentmodule:: h11
 
+.. towncrier release notes start
+
 v0.9.0 (2019-05-15)
 -------------------
 
