@@ -44,7 +44,7 @@ def test_event_bundle():
     with pytest.raises(TypeError) as exc:
         T(b=0)
     # make sure we error on the right missing kwarg
-    assert "kwarg a" in str(exc)
+    assert "kwarg a" in str(exc.value)
 
     # _validate is called
     with pytest.raises(ValueError):
