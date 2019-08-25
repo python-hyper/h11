@@ -308,7 +308,7 @@ class Connection(object):
         return (bytes(self._receive_buffer), self._receive_buffer_closed)
 
     def receive_data(self, data):
-        """Add data to our internal recieve buffer.
+        """Add data to our internal receive buffer.
 
         This does not actually do any processing on the data, just stores
         it. To trigger processing, you have to call :meth:`next_event`.
