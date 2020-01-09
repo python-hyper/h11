@@ -2,17 +2,17 @@
 # either successfully parse it, or else throw a RemoteProtocolError, never any
 # other error.
 
-import sys
 import os
+import sys
 
 import afl
-
 import h11
 
 if sys.version_info[0] >= 3:
     in_file = sys.stdin.detach()
 else:
     in_file = sys.stdin
+
 
 def process_all(c):
     while True:
@@ -21,6 +21,7 @@ def process_all(c):
             break
         if type(event) is h11.ConnectionClosed:
             break
+
 
 afl.init()
 
@@ -40,7 +41,7 @@ except h11.RemoteProtocolError:
 server2 = h11.Connection(h11.SERVER)
 try:
     for i in range(len(data)):
-        server2.receive_data(data[i:i + 1])
+        server2.receive_data(data[i : i + 1])
         process_all(server2)
     server2.receive_data(b"")
     process_all(server2)
