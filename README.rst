@@ -112,7 +112,7 @@ library.
 It has a test suite with 100.0% coverage for both statements and
 branches.
 
-Currently it supports Python 3 (testing on 3.4-3.7), Python 2.7, and PyPy.
+Currently it supports Python 3 (testing on 3.5-3.8), Python 2.7, and PyPy.
 (Originally it had a Cython wrapper for `http-parser
 <https://github.com/nodejs/http-parser>`_ and a beautiful nested state
 machine implemented with ``yield from`` to postprocess the output. But
