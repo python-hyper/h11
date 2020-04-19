@@ -238,8 +238,8 @@ And then we can send requests:
    client = MyHttpClient("httpbin.org", 443)
 
    client.send(h11.Request(method="GET", target="/xml",
-                           headers=[("Host", "httpbin.org")]),
-               h11.EndOfMessage())
+                           headers=[("Host", "httpbin.org")]))
+   client.send(h11.EndOfMessage())
 
 And read back the events:
 
@@ -321,8 +321,8 @@ allowing us to send another :class:`Request`:
    client.conn.our_state, client.conn.their_state
 
    client.send(h11.Request(method="GET", target="/get",
-                           headers=[("Host", "httpbin.org")]),
-               h11.EndOfMessage())
+                           headers=[("Host", "httpbin.org")]))
+   client.send(h11.EndOfMessage())
    client.next_event()
 
 
@@ -339,9 +339,9 @@ Here's some ideas of things you might try:
 
      client.send(h11.Request(method="POST", target="/post",
                              headers=[("Host", "httpbin.org"),
-                                      ("Content-Length", "10")]),
-                 h11.Data(data=b"1234567890"),
-                 h11.EndOfMessage())
+                                      ("Content-Length", "10")]))
+     client.send(h11.Data(data=b"1234567890"))
+     client.send(h11.EndOfMessage())
 
 * Experiment with what happens if you try to violate the HTTP protocol
   by sending a :class:`Response` as a client, or sending two
