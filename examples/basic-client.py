@@ -1,5 +1,6 @@
 import socket
 import ssl
+
 import h11
 
 ################################################################
@@ -8,12 +9,14 @@ import h11
 
 conn = h11.Connection(our_role=h11.CLIENT)
 ctx = ssl.create_default_context()
-sock = ctx.wrap_socket(socket.create_connection(("httpbin.org", 443)),
-                       server_hostname="httpbin.org")
+sock = ctx.wrap_socket(
+    socket.create_connection(("httpbin.org", 443)), server_hostname="httpbin.org"
+)
 
 ################################################################
 # Sending a request
 ################################################################
+
 
 def send(event):
     print("Sending event:")
@@ -24,15 +27,20 @@ def send(event):
     # Send the resulting bytes on the wire
     sock.sendall(data)
 
-send(h11.Request(method="GET",
-                 target="/get",
-                 headers=[("Host", "httpbin.org"),
-                          ("Connection", "close")]))
+
+send(
+    h11.Request(
+        method="GET",
+        target="/get",
+        headers=[("Host", "httpbin.org"), ("Connection", "close")],
+    )
+)
 send(h11.EndOfMessage())
 
 ################################################################
 # Receiving the response
 ################################################################
+
 
 def next_event():
     while True:
@@ -46,6 +54,7 @@ def next_event():
             # ...and then loop around to try again.
             continue
         return event
+
 
 while True:
     event = next_event()

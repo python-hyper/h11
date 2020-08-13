@@ -79,8 +79,8 @@ import json
 from itertools import count
 from wsgiref.handlers import format_date_time
 
-import trio
 import h11
+import trio
 
 MAX_RECV = 2 ** 16
 TIMEOUT = 10
@@ -99,10 +99,9 @@ class TrioHTTPWrapper:
         self.stream = stream
         self.conn = h11.Connection(h11.SERVER)
         # Our Server: header
-        self.ident = " ".join([
-            "h11-example-trio-server/{}".format(h11.__version__),
-            h11.PRODUCT_ID,
-        ]).encode("ascii")
+        self.ident = " ".join(
+            ["h11-example-trio-server/{}".format(h11.__version__), h11.PRODUCT_ID]
+        ).encode("ascii")
         # A unique id for this connection, to include in debugging output
         # (useful for understanding what's going on if there are multiple
         # simultaneous clients).
@@ -120,8 +119,8 @@ class TrioHTTPWrapper:
         if self.conn.they_are_waiting_for_100_continue:
             self.info("Sending 100 Continue")
             go_ahead = h11.InformationalResponse(
-                status_code=100,
-                headers=self.basic_headers())
+                status_code=100, headers=self.basic_headers()
+            )
             await self.send(go_ahead)
         try:
             data = await self.stream.receive_some(MAX_RECV)
@@ -185,6 +184,7 @@ class TrioHTTPWrapper:
         # Little debugging method
         print("{}:".format(self._obj_id), *args)
 
+
 ################################################################
 # Server main loop
 ################################################################
@@ -218,8 +218,7 @@ async def http_serve(stream):
     wrapper = TrioHTTPWrapper(stream)
     wrapper.info("Got new connection")
     while True:
-        assert wrapper.conn.states == {
-            h11.CLIENT: h11.IDLE, h11.SERVER: h11.IDLE}
+        assert wrapper.conn.states == {h11.CLIENT: h11.IDLE, h11.SERVER: h11.IDLE}
 
         try:
             with trio.fail_after(TIMEOUT):
@@ -244,10 +243,11 @@ async def http_serve(stream):
                 states = wrapper.conn.states
                 wrapper.info("unexpected state", states, "-- bailing out")
                 await maybe_send_error_response(
-                    wrapper,
-                    RuntimeError("unexpected state {}".format(states)))
+                    wrapper, RuntimeError("unexpected state {}".format(states))
+                )
                 await wrapper.shutdown_and_clean_up()
                 return
+
 
 ################################################################
 # Actual response handlers
@@ -255,8 +255,7 @@ async def http_serve(stream):
 
 # Helper function
 async def send_simple_response(wrapper, status_code, content_type, body):
-    wrapper.info("Sending", status_code,
-                 "response with", len(body), "bytes")
+    wrapper.info("Sending", status_code, "response with", len(body), "bytes")
     headers = wrapper.basic_headers()
     headers.append(("Content-Type", content_type))
     headers.append(("Content-Length", str(len(body))))
@@ -265,12 +264,12 @@ async def send_simple_response(wrapper, status_code, content_type, body):
     await wrapper.send(h11.Data(data=body))
     await wrapper.send(h11.EndOfMessage())
 
+
 async def maybe_send_error_response(wrapper, exc):
     # If we can't send an error, oh well, nothing to be done
     wrapper.info("trying to send error response...")
     if wrapper.conn.our_state not in {h11.IDLE, h11.SEND_RESPONSE}:
-        wrapper.info("...but I can't, because our state is",
-                     wrapper.conn.our_state)
+        wrapper.info("...but I can't, because our state is", wrapper.conn.our_state)
         return
     try:
         if isinstance(exc, h11.RemoteProtocolError):
@@ -280,12 +279,12 @@ async def maybe_send_error_response(wrapper, exc):
         else:
             status_code = 500
         body = str(exc).encode("utf-8")
-        await send_simple_response(wrapper,
-                                   status_code,
-                                   "text/plain; charset=utf-8",
-                                   body)
+        await send_simple_response(
+            wrapper, status_code, "text/plain; charset=utf-8", body
+        )
     except Exception as exc:
         wrapper.info("error while sending error response:", exc)
+
 
 async def send_echo_response(wrapper, request):
     wrapper.info("Preparing echo response")
@@ -296,8 +295,10 @@ async def send_echo_response(wrapper, request):
     response_json = {
         "method": request.method.decode("ascii"),
         "target": request.target.decode("ascii"),
-        "headers": [(name.decode("ascii"), value.decode("ascii"))
-                    for (name, value) in request.headers],
+        "headers": [
+            (name.decode("ascii"), value.decode("ascii"))
+            for (name, value) in request.headers
+        ],
         "body": "",
     }
     while True:
@@ -306,15 +307,14 @@ async def send_echo_response(wrapper, request):
             break
         assert type(event) is h11.Data
         response_json["body"] += event.data.decode("ascii")
-    response_body_unicode = json.dumps(response_json,
-                                       sort_keys=True,
-                                       indent=4,
-                                       separators=(",", ": "))
+    response_body_unicode = json.dumps(
+        response_json, sort_keys=True, indent=4, separators=(",", ": ")
+    )
     response_body_bytes = response_body_unicode.encode("utf-8")
-    await send_simple_response(wrapper,
-                               200,
-                               "application/json; charset=utf-8",
-                               response_body_bytes)
+    await send_simple_response(
+        wrapper, 200, "application/json; charset=utf-8", response_body_bytes
+    )
+
 
 async def serve(port):
     print("listening on http://localhost:{}".format(port))
@@ -322,6 +322,7 @@ async def serve(port):
         await trio.serve_tcp(http_serve, port)
     except KeyboardInterrupt:
         print("KeyboardInterrupt - shutting down")
+
 
 ################################################################
 # Run the server
