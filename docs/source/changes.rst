@@ -5,6 +5,16 @@ History of changes
 
 .. towncrier release notes start
 
+v0.10.0 (2020-08-14)
+--------------------
+
+Other changes:
+
+* Drop support for Python 3.4.
+* Support Python 3.8.
+* Make error messages returned by match failures less ambiguous (`#98
+  <https://github.com/python-hyper/h11/issues/98>`__).
+
 v0.9.0 (2019-05-15)
 -------------------
 
