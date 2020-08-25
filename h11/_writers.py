@@ -38,10 +38,12 @@ def write_headers(headers, write):
     # "Since the Host field-value is critical information for handling a
     # request, a user agent SHOULD generate Host as the first header field
     # following the request-line." - RFC 7230
-    for name, value in headers:
+    raw_headers = headers.raw()
+
+    for name, _, value in raw_headers:
         if name == b"host":
             write(bytesmod(b"%s: %s\r\n", (name, value)))
-    for name, value in headers:
+    for name, _, value in raw_headers:
         if name != b"host":
             write(bytesmod(b"%s: %s\r\n", (name, value)))
     write(b"\r\n")

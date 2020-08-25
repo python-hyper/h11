@@ -121,7 +121,7 @@ def test_writers_unusual():
         normalize_and_validate([("foo", "bar"), ("baz", "quux")]),
         b"foo: bar\r\nbaz: quux\r\n\r\n",
     )
-    tw(write_headers, [], b"\r\n")
+    tw(write_headers, normalize_and_validate([]), b"\r\n")
 
     # We understand HTTP/1.0, but we don't speak it
     with pytest.raises(LocalProtocolError):

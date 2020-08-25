@@ -68,18 +68,21 @@ class Headers(Sequence):
         self._items = items
 
     def __getitem__(self, item):
-        _, value = self._data[item]
+        _, _, value = self._data[item]
         return value
 
     def __len__(self):
         return len(self._items)
 
     def __iter__(self):
-        for name, value in self._items:
+        for name, _, value in self._items:
             yield name, value
 
     def __eq__(self, other):
         return list(self) == other
+
+    def raw(self):
+        return list(self._items)
 
 
 def normalize_and_validate(headers, _parsed=False):
@@ -95,6 +98,7 @@ def normalize_and_validate(headers, _parsed=False):
             value = bytesify(value)
             validate(_field_name_re, name, "Illegal header name {!r}", name)
             validate(_field_value_re, value, "Illegal header value {!r}", value)
+        raw_name = name
         name = name.lower()
         if name == b"content-length":
             if saw_content_length:
@@ -119,15 +123,13 @@ def normalize_and_validate(headers, _parsed=False):
                     error_status_hint=501,
                 )
             saw_transfer_encoding = True
-        new_headers.append((name, value))
+        new_headers.append((name, raw_name, value))
     return Headers(new_headers)
 
 
 def get_comma_header(headers, name):
     # Should only be used for headers whose value is a list of
     # comma-separated, case-insensitive values.
-    #
-    # The header name `name` is expected to be lower-case bytes.
     #
     # Connection: meets these criteria (including cast insensitivity).
     #
@@ -159,6 +161,7 @@ def get_comma_header(headers, name):
     # Expect: the only legal value is the literal string
     # "100-continue". Splitting on commas is harmless. Case insensitive.
     #
+    name = name.lower()
     out = []
     for found_name, found_raw_value in headers:
         if found_name == name:
@@ -171,13 +174,15 @@ def get_comma_header(headers, name):
 
 
 def set_comma_header(headers, name, new_values):
-    # The header name `name` is expected to be lower-case bytes.
+    raw_name = name
+    name = name.lower()
+
     new_headers = []
-    for found_name, found_raw_value in headers:
+    for found_name, found_raw_name, found_raw_value in headers.raw():
         if found_name != name:
-            new_headers.append((found_name, found_raw_value))
+            new_headers.append((found_raw_name, found_raw_value))
     for new_value in new_values:
-        new_headers.append((name, new_value))
+        new_headers.append((raw_name, new_value))
     return normalize_and_validate(new_headers)
 
 
