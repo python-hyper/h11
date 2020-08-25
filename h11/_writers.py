@@ -40,12 +40,12 @@ def write_headers(headers, write):
     # following the request-line." - RFC 7230
     raw_headers = headers.raw()
 
-    for name, _, value in raw_headers:
+    for name, raw_name, value in raw_headers:
         if name == b"host":
-            write(bytesmod(b"%s: %s\r\n", (name, value)))
-    for name, _, value in raw_headers:
+            write(bytesmod(b"%s: %s\r\n", (raw_name, value)))
+    for name, raw_name, value in raw_headers:
         if name != b"host":
-            write(bytesmod(b"%s: %s\r\n", (name, value)))
+            write(bytesmod(b"%s: %s\r\n", (raw_name, value)))
     write(b"\r\n")
 
 

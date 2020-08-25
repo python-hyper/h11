@@ -31,12 +31,12 @@ SIMPLE_CASES = [
             target="/a",
             headers=[("Host", "foo"), ("Connection", "close")],
         ),
-        b"GET /a HTTP/1.1\r\nhost: foo\r\nconnection: close\r\n\r\n",
+        b"GET /a HTTP/1.1\r\nHost: foo\r\nConnection: close\r\n\r\n",
     ),
     (
         (SERVER, SEND_RESPONSE),
         Response(status_code=200, headers=[("Connection", "close")], reason=b"OK"),
-        b"HTTP/1.1 200 OK\r\nconnection: close\r\n\r\n",
+        b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n",
     ),
     (
         (SERVER, SEND_RESPONSE),
@@ -48,7 +48,7 @@ SIMPLE_CASES = [
         InformationalResponse(
             status_code=101, headers=[("Upgrade", "websocket")], reason=b"Upgrade"
         ),
-        b"HTTP/1.1 101 Upgrade\r\nupgrade: websocket\r\n\r\n",
+        b"HTTP/1.1 101 Upgrade\r\nUpgrade: websocket\r\n\r\n",
     ),
     (
         (SERVER, SEND_RESPONSE),
@@ -435,7 +435,7 @@ def test_ChunkedWriter():
 
     assert (
         dowrite(w, EndOfMessage(headers=[("Etag", "asdf"), ("a", "b")]))
-        == b"0\r\netag: asdf\r\na: b\r\n\r\n"
+        == b"0\r\nEtag: asdf\r\na: b\r\n\r\n"
     )
 
 
@@ -503,5 +503,5 @@ def test_host_comes_first():
     tw(
         write_headers,
         normalize_and_validate([("foo", "bar"), ("Host", "example.com")]),
-        b"host: example.com\r\nfoo: bar\r\n\r\n",
+        b"Host: example.com\r\nfoo: bar\r\n\r\n",
     )
