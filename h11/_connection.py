@@ -45,7 +45,7 @@ DEFAULT_MAX_INCOMPLETE_EVENT_SIZE = 16 * 1024
 # - If someone says Connection: close, we will close
 # - If someone uses HTTP/1.0, we will close.
 def _keep_alive(event):
-    connection = get_comma_header(event.headers, b"connection")
+    connection = get_comma_header(event.headers, b"Connection")
     if b"close" in connection:
         return False
     if getattr(event, "http_version", b"1.1") < b"1.1":
@@ -85,13 +85,13 @@ def _body_framing(request_method, event):
         assert event.status_code >= 200
 
     # Step 2: check for Transfer-Encoding (T-E beats C-L):
-    transfer_encodings = get_comma_header(event.headers, b"transfer-encoding")
+    transfer_encodings = get_comma_header(event.headers, b"Transfer-Encoding")
     if transfer_encodings:
         assert transfer_encodings == [b"chunked"]
         return ("chunked", ())
 
     # Step 3: check for Content-Length
-    content_lengths = get_comma_header(event.headers, b"content-length")
+    content_lengths = get_comma_header(event.headers, b"Content-Length")
     if content_lengths:
         return ("content-length", (int(content_lengths[0]),))
 
@@ -234,7 +234,7 @@ class Connection(object):
         if role is CLIENT and type(event) is Request:
             if event.method == b"CONNECT":
                 self._cstate.process_client_switch_proposal(_SWITCH_CONNECT)
-            if get_comma_header(event.headers, b"upgrade"):
+            if get_comma_header(event.headers, b"Upgrade"):
                 self._cstate.process_client_switch_proposal(_SWITCH_UPGRADE)
         server_switch_event = None
         if role is SERVER:
@@ -560,13 +560,13 @@ class Connection(object):
             # but the HTTP spec says that if our peer does this then we have
             # to fix it instead of erroring out, so we'll accord the user the
             # same respect).
-            headers = set_comma_header(headers, b"content-length", [])
+            headers = set_comma_header(headers, b"Content-Length", [])
             if self.their_http_version is None or self.their_http_version < b"1.1":
                 # Either we never got a valid request and are sending back an
                 # error (their_http_version is None), so we assume the worst;
                 # or else we did get a valid HTTP/1.0 request, so we know that
                 # they don't understand chunked encoding.
-                headers = set_comma_header(headers, b"transfer-encoding", [])
+                headers = set_comma_header(headers, b"Transfer-Encoding", [])
                 # This is actually redundant ATM, since currently we
                 # unconditionally disable keep-alive when talking to HTTP/1.0
                 # peers. But let's be defensive just in case we add
@@ -574,13 +574,13 @@ class Connection(object):
                 if self._request_method != b"HEAD":
                     need_close = True
             else:
-                headers = set_comma_header(headers, b"transfer-encoding", ["chunked"])
+                headers = set_comma_header(headers, b"Transfer-Encoding", ["chunked"])
 
         if not self._cstate.keep_alive or need_close:
             # Make sure Connection: close is set
-            connection = set(get_comma_header(headers, b"connection"))
+            connection = set(get_comma_header(headers, b"Connection"))
             connection.discard(b"keep-alive")
             connection.add(b"close")
-            headers = set_comma_header(headers, b"connection", sorted(connection))
+            headers = set_comma_header(headers, b"Connection", sorted(connection))
 
         response.headers = headers
