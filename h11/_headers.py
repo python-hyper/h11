@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 import re
 
 from ._abnf import field_name, field_value
@@ -62,6 +63,25 @@ _field_name_re = re.compile(field_name.encode("ascii"))
 _field_value_re = re.compile(field_value.encode("ascii"))
 
 
+class Headers(Sequence):
+    def __init__(self, items):
+        self._items = items
+
+    def __getitem__(self, item):
+        _, value = self._data[item]
+        return value
+
+    def __len__(self):
+        return len(self._items)
+
+    def __iter__(self):
+        for name, value in self._items:
+            yield name, value
+
+    def __eq__(self, other):
+        return list(self) == other
+
+
 def normalize_and_validate(headers, _parsed=False):
     new_headers = []
     saw_content_length = False
@@ -100,7 +120,7 @@ def normalize_and_validate(headers, _parsed=False):
                 )
             saw_transfer_encoding = True
         new_headers.append((name, value))
-    return new_headers
+    return Headers(new_headers)
 
 
 def get_comma_header(headers, name):
@@ -158,7 +178,7 @@ def set_comma_header(headers, name, new_values):
             new_headers.append((found_name, found_raw_value))
     for new_value in new_values:
         new_headers.append((name, new_value))
-    headers[:] = normalize_and_validate(new_headers)
+    return normalize_and_validate(new_headers)
 
 
 def has_expect_100_continue(request):
