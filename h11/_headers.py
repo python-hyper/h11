@@ -73,7 +73,7 @@ class Headers(Sequence):
         self._items = items
 
     def __getitem__(self, item):
-        _, _, value = self._data[item]
+        _, _, value = self._items[item]
         return value
 
     def __len__(self):
