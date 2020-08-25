@@ -1,4 +1,9 @@
-from collections.abc import Sequence
+try:
+    from collections.abc import Sequence
+except ImportError:
+    # Python 2.7 support
+    from collections import Sequence
+
 import re
 
 from ._abnf import field_name, field_value
