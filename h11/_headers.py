@@ -62,6 +62,23 @@ _field_name_re = re.compile(field_name.encode("ascii"))
 _field_value_re = re.compile(field_value.encode("ascii"))
 
 
+class Headers:
+    __slots__ = ['raw_items']
+
+    def __init__(self, raw_items):
+        self.raw_items = raw_items
+
+    def __iter__(self):
+        for _, name, value in self.raw_items:
+            yield name, value
+
+    def __bool__(self):
+        return bool(self.raw_items)
+
+    def __eq__(self, other):
+        return list(self) == list(other)
+
+
 def normalize_and_validate(headers, _parsed=False):
     new_headers = []
     saw_content_length = False
@@ -75,6 +92,7 @@ def normalize_and_validate(headers, _parsed=False):
             value = bytesify(value)
             validate(_field_name_re, name, "Illegal header name {!r}", name)
             validate(_field_value_re, value, "Illegal header value {!r}", value)
+        raw_name = name
         name = name.lower()
         if name == b"content-length":
             if saw_content_length:
@@ -99,8 +117,8 @@ def normalize_and_validate(headers, _parsed=False):
                     error_status_hint=501,
                 )
             saw_transfer_encoding = True
-        new_headers.append((name, value))
-    return new_headers
+        new_headers.append((raw_name, name, value))
+    return Headers(new_headers)
 
 
 def get_comma_header(headers, name):
@@ -140,7 +158,7 @@ def get_comma_header(headers, name):
     # "100-continue". Splitting on commas is harmless. Case insensitive.
     #
     out = []
-    for found_name, found_raw_value in headers:
+    for _, found_name, found_raw_value in headers.raw_items:
         if found_name == name:
             found_raw_value = found_raw_value.lower()
             for found_split_value in found_raw_value.split(b","):
@@ -153,12 +171,12 @@ def get_comma_header(headers, name):
 def set_comma_header(headers, name, new_values):
     # The header name `name` is expected to be lower-case bytes.
     new_headers = []
-    for found_name, found_raw_value in headers:
+    for found_raw_name, found_name, found_raw_value in headers.raw_items:
         if found_name != name:
-            new_headers.append((found_name, found_raw_value))
+            new_headers.append((found_raw_name, found_raw_value))
     for new_value in new_values:
         new_headers.append((name, new_value))
-    headers[:] = normalize_and_validate(new_headers)
+    return normalize_and_validate(new_headers)
 
 
 def has_expect_100_continue(request):
