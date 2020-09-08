@@ -96,7 +96,7 @@ def test_Connection_basics_and_content_length():
         ),
     )
     assert data == (
-        b"GET / HTTP/1.1\r\n" b"host: example.com\r\n" b"content-length: 10\r\n\r\n"
+        b"GET / HTTP/1.1\r\n" b"Host: example.com\r\n" b"Content-Length: 10\r\n\r\n"
     )
 
     for conn in p.conns:
@@ -113,7 +113,7 @@ def test_Connection_basics_and_content_length():
     assert data == b"HTTP/1.1 100 \r\n\r\n"
 
     data = p.send(SERVER, Response(status_code=200, headers=[("Content-Length", "11")]))
-    assert data == b"HTTP/1.1 200 \r\ncontent-length: 11\r\n\r\n"
+    assert data == b"HTTP/1.1 200 \r\nContent-Length: 11\r\n\r\n"
 
     for conn in p.conns:
         assert conn.states == {CLIENT: SEND_BODY, SERVER: SEND_BODY}
@@ -243,7 +243,7 @@ def test_server_talking_to_http10_client():
     # We automatically Connection: close back at them
     assert (
         c.send(Response(status_code=200, headers=[]))
-        == b"HTTP/1.1 200 \r\nconnection: close\r\n\r\n"
+        == b"HTTP/1.1 200 \r\nConnection: close\r\n\r\n"
     )
 
     assert c.send(Data(data=b"12345")) == b"12345"
@@ -303,7 +303,7 @@ def test_automatic_transfer_encoding_in_response():
         receive_and_get(c, b"GET / HTTP/1.0\r\n\r\n")
         assert (
             c.send(Response(status_code=200, headers=user_headers))
-            == b"HTTP/1.1 200 \r\nconnection: close\r\n\r\n"
+            == b"HTTP/1.1 200 \r\nConnection: close\r\n\r\n"
         )
         assert c.send(Data(data=b"12345")) == b"12345"
 
@@ -876,7 +876,7 @@ def test_errors():
         if role is SERVER:
             assert (
                 c.send(Response(status_code=400, headers=[]))
-                == b"HTTP/1.1 400 \r\nconnection: close\r\n\r\n"
+                == b"HTTP/1.1 400 \r\nConnection: close\r\n\r\n"
             )
 
     # After an error sending, you can no longer send
@@ -988,14 +988,14 @@ def test_HEAD_framing_headers():
         c = setup(method, b"1.1")
         assert (
             c.send(Response(status_code=200, headers=[])) == b"HTTP/1.1 200 \r\n"
-            b"transfer-encoding: chunked\r\n\r\n"
+            b"Transfer-Encoding: chunked\r\n\r\n"
         )
 
         # No Content-Length, HTTP/1.0 peer, frame with connection: close
         c = setup(method, b"1.0")
         assert (
             c.send(Response(status_code=200, headers=[])) == b"HTTP/1.1 200 \r\n"
-            b"connection: close\r\n\r\n"
+            b"Connection: close\r\n\r\n"
         )
 
         # Content-Length + Transfer-Encoding, TE wins
@@ -1011,7 +1011,7 @@ def test_HEAD_framing_headers():
                 )
             )
             == b"HTTP/1.1 200 \r\n"
-            b"transfer-encoding: chunked\r\n\r\n"
+            b"Transfer-Encoding: chunked\r\n\r\n"
         )
 
 

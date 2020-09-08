@@ -41,10 +41,10 @@ def write_headers(headers, write):
     raw_items = headers.raw_items
     for raw_name, name, value in raw_items:
         if name == b"host":
-            write(bytesmod(b"%s: %s\r\n", (name, value)))
+            write(bytesmod(b"%s: %s\r\n", (raw_name, value)))
     for raw_name, name, value in raw_items:
         if name != b"host":
-            write(bytesmod(b"%s: %s\r\n", (name, value)))
+            write(bytesmod(b"%s: %s\r\n", (raw_name, value)))
     write(b"\r\n")
 
 
