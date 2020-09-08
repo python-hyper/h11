@@ -1,9 +1,3 @@
-try:
-    from collections.abc import Sequence
-except ImportError:
-    # Python 2.7 support
-    from collections import Sequence
-
 import re
 
 from ._abnf import field_name, field_value
@@ -68,26 +62,18 @@ _field_name_re = re.compile(field_name.encode("ascii"))
 _field_value_re = re.compile(field_value.encode("ascii"))
 
 
-class Headers(Sequence):
-    def __init__(self, items):
-        self._items = items
-
-    def __getitem__(self, item):
-        _, _, value = self._items[item]
-        return value
-
-    def __len__(self):
-        return len(self._items)
+class Header:
+    def __init__(self, name, value):
+        self.raw_name = name
+        self.name = name.lower()
+        self.value = value
 
     def __iter__(self):
-        for name, _, value in self._items:
-            yield name, value
+        yield self.name
+        yield self.value
 
     def __eq__(self, other):
-        return list(self) == other
-
-    def raw(self):
-        return list(self._items)
+        return (self.name, self.value) == other
 
 
 def normalize_and_validate(headers, _parsed=False):
@@ -103,14 +89,13 @@ def normalize_and_validate(headers, _parsed=False):
             value = bytesify(value)
             validate(_field_name_re, name, "Illegal header name {!r}", name)
             validate(_field_value_re, value, "Illegal header value {!r}", value)
-        raw_name = name
-        name = name.lower()
-        if name == b"content-length":
+        header = Header(name, value)
+        if header.name == b"content-length":
             if saw_content_length:
                 raise LocalProtocolError("multiple Content-Length headers")
             validate(_content_length_re, value, "bad Content-Length")
             saw_content_length = True
-        if name == b"transfer-encoding":
+        if header.name == b"transfer-encoding":
             # "A server that receives a request message with a transfer coding
             # it does not understand SHOULD respond with 501 (Not
             # Implemented)."
@@ -121,15 +106,15 @@ def normalize_and_validate(headers, _parsed=False):
                 )
             # "All transfer-coding names are case-insensitive"
             # -- https://tools.ietf.org/html/rfc7230#section-4
-            value = value.lower()
-            if value != b"chunked":
+            header.value = header.value.lower()
+            if header.value != b"chunked":
                 raise LocalProtocolError(
                     "Only Transfer-Encoding: chunked is supported",
                     error_status_hint=501,
                 )
             saw_transfer_encoding = True
-        new_headers.append((name, raw_name, value))
-    return Headers(new_headers)
+        new_headers.append(header)
+    return new_headers
 
 
 def get_comma_header(headers, name):
@@ -183,12 +168,12 @@ def set_comma_header(headers, name, new_values):
     name = name.lower()
 
     new_headers = []
-    for found_name, found_raw_name, found_raw_value in headers.raw():
-        if found_name != name:
-            new_headers.append((found_raw_name, found_raw_value))
+    for header in headers:
+        if header.name != name:
+            new_headers.append((header.raw_name, header.value))
     for new_value in new_values:
         new_headers.append((raw_name, new_value))
-    return normalize_and_validate(new_headers)
+    headers[:] = normalize_and_validate(new_headers)
 
 
 def has_expect_100_continue(request):

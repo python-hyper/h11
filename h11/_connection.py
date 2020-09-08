@@ -560,13 +560,13 @@ class Connection(object):
             # but the HTTP spec says that if our peer does this then we have
             # to fix it instead of erroring out, so we'll accord the user the
             # same respect).
-            headers = set_comma_header(headers, b"Content-Length", [])
+            set_comma_header(headers, b"Content-Length", [])
             if self.their_http_version is None or self.their_http_version < b"1.1":
                 # Either we never got a valid request and are sending back an
                 # error (their_http_version is None), so we assume the worst;
                 # or else we did get a valid HTTP/1.0 request, so we know that
                 # they don't understand chunked encoding.
-                headers = set_comma_header(headers, b"Transfer-Encoding", [])
+                set_comma_header(headers, b"Transfer-Encoding", [])
                 # This is actually redundant ATM, since currently we
                 # unconditionally disable keep-alive when talking to HTTP/1.0
                 # peers. But let's be defensive just in case we add
@@ -574,13 +574,13 @@ class Connection(object):
                 if self._request_method != b"HEAD":
                     need_close = True
             else:
-                headers = set_comma_header(headers, b"Transfer-Encoding", ["chunked"])
+                set_comma_header(headers, b"Transfer-Encoding", ["chunked"])
 
         if not self._cstate.keep_alive or need_close:
             # Make sure Connection: close is set
             connection = set(get_comma_header(headers, b"Connection"))
             connection.discard(b"keep-alive")
             connection.add(b"close")
-            headers = set_comma_header(headers, b"Connection", sorted(connection))
+            set_comma_header(headers, b"Connection", sorted(connection))
 
         response.headers = headers

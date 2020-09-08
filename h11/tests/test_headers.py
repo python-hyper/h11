@@ -83,7 +83,7 @@ def test_get_set_comma_header():
 
     assert get_comma_header(headers, b"connection") == [b"close", b"foo", b"bar"]
 
-    headers = set_comma_header(headers, b"newthing", ["a", "b"])
+    set_comma_header(headers, b"newthing", ["a", "b"])
 
     with pytest.raises(LocalProtocolError):
         set_comma_header(headers, b"newthing", ["  a", "b"])
@@ -96,7 +96,7 @@ def test_get_set_comma_header():
         (b"newthing", b"b"),
     ]
 
-    headers = set_comma_header(headers, b"whatever", ["different thing"])
+    set_comma_header(headers, b"whatever", ["different thing"])
 
     assert headers == [
         (b"connection", b"close"),
