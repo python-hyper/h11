@@ -534,7 +534,7 @@ class Connection(object):
     def _clean_up_response_headers_for_sending(self, response):
         assert type(response) is Response
 
-        headers = response.headers
+        headers = list(response.headers)
         need_close = False
 
         # HEAD requests need some special handling: they always act like they
