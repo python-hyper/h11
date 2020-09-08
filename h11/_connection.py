@@ -534,7 +534,7 @@ class Connection(object):
     def _clean_up_response_headers_for_sending(self, response):
         assert type(response) is Response
 
-        headers = list(response.headers)
+        headers = response.headers
         need_close = False
 
         # HEAD requests need some special handling: they always act like they
@@ -560,13 +560,13 @@ class Connection(object):
             # but the HTTP spec says that if our peer does this then we have
             # to fix it instead of erroring out, so we'll accord the user the
             # same respect).
-            set_comma_header(headers, b"content-length", [])
+            headers = set_comma_header(headers, b"content-length", [])
             if self.their_http_version is None or self.their_http_version < b"1.1":
                 # Either we never got a valid request and are sending back an
                 # error (their_http_version is None), so we assume the worst;
                 # or else we did get a valid HTTP/1.0 request, so we know that
                 # they don't understand chunked encoding.
-                set_comma_header(headers, b"transfer-encoding", [])
+                headers = set_comma_header(headers, b"transfer-encoding", [])
                 # This is actually redundant ATM, since currently we
                 # unconditionally disable keep-alive when talking to HTTP/1.0
                 # peers. But let's be defensive just in case we add
@@ -574,13 +574,13 @@ class Connection(object):
                 if self._request_method != b"HEAD":
                     need_close = True
             else:
-                set_comma_header(headers, b"transfer-encoding", ["chunked"])
+                headers = set_comma_header(headers, b"transfer-encoding", ["chunked"])
 
         if not self._cstate.keep_alive or need_close:
             # Make sure Connection: close is set
             connection = set(get_comma_header(headers, b"connection"))
             connection.discard(b"keep-alive")
             connection.add(b"close")
-            set_comma_header(headers, b"connection", sorted(connection))
+            headers = set_comma_header(headers, b"connection", sorted(connection))
 
         response.headers = headers

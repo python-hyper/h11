@@ -1,7 +1,7 @@
 import pytest
 
 from .._events import *
-from .._headers import normalize_and_validate
+from .._headers import normalize_and_validate, Headers
 from .._readers import (
     _obsolete_line_fold,
     ChunkedReader,
@@ -121,7 +121,7 @@ def test_writers_unusual():
         normalize_and_validate([("foo", "bar"), ("baz", "quux")]),
         b"foo: bar\r\nbaz: quux\r\n\r\n",
     )
-    tw(write_headers, [], b"\r\n")
+    tw(write_headers, Headers([]), b"\r\n")
 
     # We understand HTTP/1.0, but we don't speak it
     with pytest.raises(LocalProtocolError):
