@@ -173,6 +173,7 @@ def test_header_casing():
         http_version="1.1",
     )
     assert len(r.headers) == 2
+    assert r.headers[0] == (b"host", b"example.org")
     assert r.headers == [(b"host", b"example.org"), (b"connection", b"keep-alive")]
     assert r.headers.raw_items() == [
         (b"Host", b"example.org"),

@@ -128,6 +128,21 @@ have a newline inside a header value, and ``Content-Length: hello`` is
 an error because `Content-Length` should always be an integer. We may
 add additional checks in the future.
 
+While we make sure to expose header names as lowercased bytes, we also
+preserve the original header casing that is used. Compliant HTTP
+agents should always treat headers in a case insensitive manner, but
+this may not always be the case. When sending bytes over the wire we
+use send headers preserving whatever original header casing is used.
+
+It is possible to access the headers in their raw original casing,
+which may be useful for some user output or debugging purposes.
+
+.. ipython:: python
+
+    original_headers = [("Host", "example.com")]
+    req = h11.Request(method="GET", target="/", headers=original_headers)
+    req.headers.raw_items()
+
 .. _http_version-format:
 
 It's not just headers we normalize to being byte-strings: the same
