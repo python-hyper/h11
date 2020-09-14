@@ -63,20 +63,48 @@ _field_value_re = re.compile(field_value.encode("ascii"))
 
 
 class Headers:
-    __slots__ = ['raw_items']
+    """
+    A list-like interface that allows iterating over headers as byte-pairs
+    of (lowercased-name, value).
 
-    def __init__(self, raw_items):
-        self.raw_items = raw_items
+    Internally we actually store the representation as three-tuples,
+    including both the raw original casing, in order to preserve casing
+    over-the-wire, and the lowercased name, for case-insensitive comparisions.
+
+    r = Request(
+        method="GET",
+        target="/",
+        headers=[("Host", "example.org"), ("Connection", "keep-alive")],
+        http_version="1.1",
+    )
+    assert r.headers == [
+        (b"host", b"example.org"),
+        (b"connection", b"keep-alive")
+    ]
+    assert r.headers.raw_items() == [
+        (b"Host", b"example.org"),
+        (b"Connection", b"keep-alive")
+    ]
+    """
+
+    def __init__(self, full_items):
+        self._full_items = full_items
 
     def __iter__(self):
-        for _, name, value in self.raw_items:
+        for _, name, value in self._full_items:
             yield name, value
 
     def __bool__(self):
-        return bool(self.raw_items)
+        return bool(self._full_items)
 
     def __eq__(self, other):
         return list(self) == list(other)
+
+    def __len__(self):
+        return len(self._full_items)
+
+    def raw_items(self):
+        return [(raw_name, value) for raw_name, _, value in self._full_items]
 
 
 def normalize_and_validate(headers, _parsed=False):
@@ -158,7 +186,7 @@ def get_comma_header(headers, name):
     # "100-continue". Splitting on commas is harmless. Case insensitive.
     #
     out = []
-    for _, found_name, found_raw_value in headers.raw_items:
+    for _, found_name, found_raw_value in headers._full_items:
         if found_name == name:
             found_raw_value = found_raw_value.lower()
             for found_split_value in found_raw_value.split(b","):
@@ -171,7 +199,7 @@ def get_comma_header(headers, name):
 def set_comma_header(headers, name, new_values):
     # The header name `name` is expected to be lower-case bytes.
     new_headers = []
-    for found_raw_name, found_name, found_raw_value in headers.raw_items:
+    for found_raw_name, found_name, found_raw_value in headers._full_items:
         if found_name != name:
             new_headers.append((found_raw_name, found_raw_value))
     for new_value in new_values:
