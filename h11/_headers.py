@@ -103,6 +103,13 @@ class Headers:
     def __len__(self):
         return len(self._full_items)
 
+    def __repr__(self):
+        return "<Headers(%s)>" % repr(list(self))
+
+    def __getitem__(self, idx):
+         _, name, value = self._full_items[idx]
+         return (name, value)
+
     def raw_items(self):
         return [(raw_name, value) for raw_name, _, value in self._full_items]
 
