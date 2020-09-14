@@ -170,14 +170,12 @@ def get_comma_header(headers, name):
 
 def set_comma_header(headers, name, new_values):
     # The header name `name` is expected to be lower-case bytes.
-    raw_name = name
-    name = name.lower()
     new_headers = []
     for found_raw_name, found_name, found_raw_value in headers.raw_items:
         if found_name != name:
             new_headers.append((found_raw_name, found_raw_value))
     for new_value in new_values:
-        new_headers.append((raw_name, new_value))
+        new_headers.append((name.title(), new_value))
     return normalize_and_validate(new_headers)
 
 
