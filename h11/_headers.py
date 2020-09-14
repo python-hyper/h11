@@ -86,6 +86,7 @@ class Headers:
         (b"Connection", b"keep-alive")
     ]
     """
+    __slots__ = '_full_items'
 
     def __init__(self, full_items):
         self._full_items = full_items
