@@ -174,4 +174,7 @@ def test_header_casing():
     )
     assert len(r.headers) == 2
     assert r.headers == [(b"host", b"example.org"), (b"connection", b"keep-alive")]
-    assert r.headers.raw_items() == [(b"Host", b"example.org"), (b"Connection", b"keep-alive")]
+    assert r.headers.raw_items() == [
+        (b"Host", b"example.org"),
+        (b"Connection", b"keep-alive"),
+    ]
