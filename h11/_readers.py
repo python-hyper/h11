@@ -58,7 +58,9 @@ def _decode_header_lines(lines):
         # Python 3, validate() takes either and returns matches as bytes. But
         # on Python 2, validate can return matches as bytearrays, so we have
         # to explicitly cast back.
-        matches = validate(header_field_re, bytes(line), "illegal header line: {!r}", bytes(line))
+        matches = validate(
+            header_field_re, bytes(line), "illegal header line: {!r}", bytes(line)
+        )
         yield (matches["field_name"], matches["field_value"])
 
 
@@ -71,7 +73,9 @@ def maybe_read_from_IDLE_client(buf):
         return None
     if not lines:
         raise LocalProtocolError("no request line received")
-    matches = validate(request_line_re, lines[0], "illegal request line: {!r}", lines[0])
+    matches = validate(
+        request_line_re, lines[0], "illegal request line: {!r}", lines[0]
+    )
     return Request(
         headers=list(_decode_header_lines(lines[1:])), _parsed=True, **matches
     )
@@ -152,7 +156,12 @@ class ChunkedReader(object):
             chunk_header = buf.maybe_extract_until_next(b"\r\n")
             if chunk_header is None:
                 return None
-            matches = validate(chunk_header_re, chunk_header, "illegal chunk header: {!r}", chunk_header)
+            matches = validate(
+                chunk_header_re,
+                chunk_header,
+                "illegal chunk header: {!r}",
+                chunk_header,
+            )
             # XX FIXME: we discard chunk extensions. Does anyone care?
             # We convert to bytes because Python 2's `int()` function doesn't
             # work properly on bytearray objects.
