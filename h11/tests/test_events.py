@@ -163,3 +163,15 @@ def test_intenum_status_code():
     assert r.status_code == HTTPStatus.OK
     assert type(r.status_code) is not type(HTTPStatus.OK)
     assert type(r.status_code) is int
+
+
+def test_header_casing():
+    r = Request(
+        method="GET",
+        target="/",
+        headers=[("Host", "example.org"), ("Connection", "keep-alive")],
+        http_version="1.1",
+    )
+    assert len(r.headers) == 2
+    assert r.headers == [(b"host", b"example.org"), (b"connection", b"keep-alive")]
+    assert r.headers.raw_items() == [(b"Host", b"example.org"), (b"Connection", b"keep-alive")]
