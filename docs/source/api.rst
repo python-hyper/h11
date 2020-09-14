@@ -132,7 +132,7 @@ While we make sure to expose header names as lowercased bytes, we also
 preserve the original header casing that is used. Compliant HTTP
 agents should always treat headers in a case insensitive manner, but
 this may not always be the case. When sending bytes over the wire we
-use send headers preserving whatever original header casing is used.
+send headers preserving whatever original header casing was used.
 
 It is possible to access the headers in their raw original casing,
 which may be useful for some user output or debugging purposes.
