@@ -118,7 +118,7 @@ class Headers:
 
 def normalize_and_validate(headers, _parsed=False):
     new_headers = []
-    saw_content_length = None
+    seen_content_length = None
     saw_transfer_encoding = False
     for name, value in headers:
         # For headers coming out of the parser, we can safely skip some steps,
@@ -133,13 +133,13 @@ def normalize_and_validate(headers, _parsed=False):
         name = name.lower()
         if name == b"content-length":
             validate(_content_length_re, value, "bad Content-Length")
-            if saw_content_length:
-                if saw_content_length != value:
+            if seen_content_length is None:
+                seen_content_length = value
+                new_headers.append((raw_name, name, value))
+            else:
+                if seen_content_length != value:
                     raise LocalProtocolError("conflicting Content-Length headers")
-                # We have a duplicate Content-Length, so collapse it
-                new_headers.remove((name, saw_content_length))
-            saw_content_length = value
-        if name == b"transfer-encoding":
+        elif name == b"transfer-encoding":
             # "A server that receives a request message with a transfer coding
             # it does not understand SHOULD respond with 501 (Not
             # Implemented)."
@@ -157,7 +157,9 @@ def normalize_and_validate(headers, _parsed=False):
                     error_status_hint=501,
                 )
             saw_transfer_encoding = True
-        new_headers.append((raw_name, name, value))
+            new_headers.append((raw_name, name, value))
+        else:
+            new_headers.append((raw_name, name, value))
     return Headers(new_headers)
 
 

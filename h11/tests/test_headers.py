@@ -55,8 +55,8 @@ def test_normalize_and_validate():
     with pytest.raises(LocalProtocolError):
         normalize_and_validate([("Content-Length", "1"), ("Content-Length", "2")])
     assert normalize_and_validate(
-        [("Content-Length", "1"), ("Content-Length", "1")]
-    ) == [(b"content-length", b"1")]
+        [("Content-Length", "0"), ("Content-Length", "0")]
+    ) == [(b"content-length", b"0")]
     with pytest.raises(LocalProtocolError):
         normalize_and_validate(
             [("Content-Length", "1"), ("Content-Length", "1"), ("Content-Length", "2")]
