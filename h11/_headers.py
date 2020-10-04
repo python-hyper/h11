@@ -132,13 +132,16 @@ def normalize_and_validate(headers, _parsed=False):
         raw_name = name
         name = name.lower()
         if name == b"content-length":
+            lengths = set(length.strip() for length in value.split(b","))
+            if len(lengths) != 1:
+                raise LocalProtocolError("conflicting Content-Length headers")
+            value = lengths.pop()
             validate(_content_length_re, value, "bad Content-Length")
             if seen_content_length is None:
                 seen_content_length = value
                 new_headers.append((raw_name, name, value))
-            else:
-                if seen_content_length != value:
-                    raise LocalProtocolError("conflicting Content-Length headers")
+            elif seen_content_length != value:
+                raise LocalProtocolError("conflicting Content-Length headers")
         elif name == b"transfer-encoding":
             # "A server that receives a request message with a transfer coding
             # it does not understand SHOULD respond with 501 (Not
