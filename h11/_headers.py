@@ -86,7 +86,8 @@ class Headers:
         (b"Connection", b"keep-alive")
     ]
     """
-    __slots__ = '_full_items'
+
+    __slots__ = "_full_items"
 
     def __init__(self, full_items):
         self._full_items = full_items
@@ -108,8 +109,8 @@ class Headers:
         return "<Headers(%s)>" % repr(list(self))
 
     def __getitem__(self, idx):
-         _, name, value = self._full_items[idx]
-         return (name, value)
+        _, name, value = self._full_items[idx]
+        return (name, value)
 
     def raw_items(self):
         return [(raw_name, value) for raw_name, _, value in self._full_items]
