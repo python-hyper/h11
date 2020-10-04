@@ -1,7 +1,7 @@
 import pytest
 
 from .._events import *
-from .._headers import normalize_and_validate, Headers
+from .._headers import Headers, normalize_and_validate
 from .._readers import (
     _obsolete_line_fold,
     ChunkedReader,

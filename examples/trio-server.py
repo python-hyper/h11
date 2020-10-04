@@ -79,8 +79,9 @@ import json
 from itertools import count
 from wsgiref.handlers import format_date_time
 
-import h11
 import trio
+
+import h11
 
 MAX_RECV = 2 ** 16
 TIMEOUT = 10

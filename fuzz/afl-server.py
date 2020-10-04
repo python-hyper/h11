@@ -6,6 +6,7 @@ import os
 import sys
 
 import afl
+
 import h11
 
 if sys.version_info[0] >= 3:
