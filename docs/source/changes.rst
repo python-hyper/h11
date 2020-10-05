@@ -5,6 +5,27 @@ History of changes
 
 .. towncrier release notes start
 
+v0.11.0 (2020-10-05)
+--------------------
+
+New features:
+
+* h11 now stores and makes available the raw header name as
+  received. In addition h11 will write out header names with the same
+  casing as passed to it. This allows compatibility with systems that
+  expect titlecased header names. See `#31
+  <https://github.com/python-hyper/h11/issues/31>`__.
+* Multiple content length headers are now merged into a single header
+  if all the values are equal, if any are unequal a LocalProtocol
+  error is raised (as before). See `#92
+  <https://github.com/python-hyper/h11/issues/92>`__.
+
+Backwards **in**\compatible changes:
+
+* Headers added by h11, rather than passed to it, now have titlecased
+  names. Whilst this should help compatibility it replaces the
+  previous lowercased header names.
+
 v0.10.0 (2020-08-14)
 --------------------
 
