@@ -54,6 +54,18 @@ def test_normalize_and_validate():
         normalize_and_validate([("Content-Length", "1x")])
     with pytest.raises(LocalProtocolError):
         normalize_and_validate([("Content-Length", "1"), ("Content-Length", "2")])
+    assert normalize_and_validate(
+        [("Content-Length", "0"), ("Content-Length", "0")]
+    ) == [(b"content-length", b"0")]
+    assert normalize_and_validate([("Content-Length", "0 , 0")]) == [
+        (b"content-length", b"0")
+    ]
+    with pytest.raises(LocalProtocolError):
+        normalize_and_validate(
+            [("Content-Length", "1"), ("Content-Length", "1"), ("Content-Length", "2")]
+        )
+    with pytest.raises(LocalProtocolError):
+        normalize_and_validate([("Content-Length", "1 , 1,2")])
 
     # transfer-encoding
     assert normalize_and_validate([("Transfer-Encoding", "chunked")]) == [
