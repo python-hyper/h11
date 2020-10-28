@@ -7,52 +7,6 @@ from .._events import *
 from .._util import LocalProtocolError
 
 
-def test_event_bundle():
-    class T(_events._EventBundle):
-        _fields = ["a", "b"]
-        _defaults = {"b": 1}
-
-        def _validate(self):
-            if self.a == 0:
-                raise ValueError
-
-    # basic construction and methods
-    t = T(a=1, b=0)
-    assert repr(t) == "T(a=1, b=0)"
-    assert t == T(a=1, b=0)
-    assert not (t == T(a=2, b=0))
-    assert not (t != T(a=1, b=0))
-    assert t != T(a=2, b=0)
-    with pytest.raises(TypeError):
-        hash(t)
-
-    # check defaults
-    t = T(a=10)
-    assert t.a == 10
-    assert t.b == 1
-
-    # no positional args
-    with pytest.raises(TypeError):
-        T(1)
-
-    with pytest.raises(TypeError):
-        T(1, a=1, b=0)
-
-    # unknown field
-    with pytest.raises(TypeError):
-        T(a=1, b=0, c=10)
-
-    # missing required field
-    with pytest.raises(TypeError) as exc:
-        T(b=0)
-    # make sure we error on the right missing kwarg
-    assert "kwarg a" in str(exc.value)
-
-    # _validate is called
-    with pytest.raises(ValueError):
-        T(a=0, b=0)
-
-
 def test_events():
     with pytest.raises(LocalProtocolError):
         # Missing Host:

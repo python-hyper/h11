@@ -26,11 +26,13 @@ def normalize_data_events(in_events):
     out_events = []
     for event in in_events:
         if type(event) is Data:
-            event.data = bytes(event.data)
-            event.chunk_start = False
-            event.chunk_end = False
+            event = Data(data=bytes(event.data), chunk_start=False, chunk_end=False)
         if out_events and type(out_events[-1]) is type(event) is Data:
-            out_events[-1].data += event.data
+            out_events[-1] = Data(
+                data=out_events[-1].data + event.data,
+                chunk_start=out_events[-1].chunk_start,
+                chunk_end=out_events[-1].chunk_end,
+            )
         else:
             out_events.append(event)
     return out_events
