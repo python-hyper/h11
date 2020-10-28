@@ -467,7 +467,13 @@ def test_reuse_simple():
         CLIENT,
         [Request(method="GET", target="/", headers=[("Host", "a")]), EndOfMessage()],
     )
-    p.send(SERVER, [Response(status_code=200, headers=[]), EndOfMessage()])
+    p.send(
+        SERVER,
+        [
+            Response(status_code=200, headers=[(b"transfer-encoding", b"chunked")]),
+            EndOfMessage(),
+        ],
+    )
     for conn in p.conns:
         assert conn.states == {CLIENT: DONE, SERVER: DONE}
         conn.start_next_cycle()
@@ -479,7 +485,13 @@ def test_reuse_simple():
             EndOfMessage(),
         ],
     )
-    p.send(SERVER, [Response(status_code=404, headers=[]), EndOfMessage()])
+    p.send(
+        SERVER,
+        [
+            Response(status_code=404, headers=[(b"transfer-encoding", b"chunked")]),
+            EndOfMessage(),
+        ],
+    )
 
 
 def test_pipelining():
@@ -562,8 +574,8 @@ def test_protocol_switch():
                 target="example.com:443",
                 headers=[("Host", "foo"), ("Content-Length", "1")],
             ),
-            Response(status_code=404, headers=[]),
-            Response(status_code=200, headers=[]),
+            Response(status_code=404, headers=[(b"transfer-encoding", b"chunked")]),
+            Response(status_code=200, headers=[(b"transfer-encoding", b"chunked")]),
         ),
         (
             Request(
@@ -571,7 +583,7 @@ def test_protocol_switch():
                 target="/",
                 headers=[("Host", "foo"), ("Content-Length", "1"), ("Upgrade", "a, b")],
             ),
-            Response(status_code=200, headers=[]),
+            Response(status_code=200, headers=[(b"transfer-encoding", b"chunked")]),
             InformationalResponse(status_code=101, headers=[("Upgrade", "a")]),
         ),
         (
@@ -580,9 +592,9 @@ def test_protocol_switch():
                 target="example.com:443",
                 headers=[("Host", "foo"), ("Content-Length", "1"), ("Upgrade", "a, b")],
             ),
-            Response(status_code=404, headers=[]),
+            Response(status_code=404, headers=[(b"transfer-encoding", b"chunked")]),
             # Accept CONNECT, not upgrade
-            Response(status_code=200, headers=[]),
+            Response(status_code=200, headers=[(b"transfer-encoding", b"chunked")]),
         ),
         (
             Request(
@@ -590,7 +602,7 @@ def test_protocol_switch():
                 target="example.com:443",
                 headers=[("Host", "foo"), ("Content-Length", "1"), ("Upgrade", "a, b")],
             ),
-            Response(status_code=404, headers=[]),
+            Response(status_code=404, headers=[(b"transfer-encoding", b"chunked")]),
             # Accept Upgrade, not CONNECT
             InformationalResponse(status_code=101, headers=[("Upgrade", "b")]),
         ),
@@ -725,7 +737,10 @@ def test_close_different_states():
         Request(method="GET", target="/foo", headers=[("Host", "a")]),
         EndOfMessage(),
     ]
-    resp = [Response(status_code=200, headers=[]), EndOfMessage()]
+    resp = [
+        Response(status_code=200, headers=[(b"transfer-encoding", b"chunked")]),
+        EndOfMessage(),
+    ]
 
     # Client before request
     p = ConnectionPair()
@@ -949,7 +964,7 @@ def test_408_request_timeout():
     # Should be able to send this spontaneously as a server without seeing
     # anything from client
     p = ConnectionPair()
-    p.send(SERVER, Response(status_code=408, headers=[]))
+    p.send(SERVER, Response(status_code=408, headers=[(b"connection", b"close")]))
 
 
 # This used to raise IndexError

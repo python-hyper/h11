@@ -483,7 +483,7 @@ class Connection:
             raise LocalProtocolError("Can't send data when our state is ERROR")
         try:
             if type(event) is Response:
-                self._clean_up_response_headers_for_sending(event)
+                event = self._clean_up_response_headers_for_sending(event)
             # We want to call _process_event before calling the writer,
             # because if someone tries to do something invalid then this will
             # give a sensible error message, while our writers all just assume
@@ -528,8 +528,7 @@ class Connection:
     #
     # This function's *only* responsibility is making sure headers are set up
     # right -- everything downstream just looks at the headers. There are no
-    # side channels. It mutates the response event in-place (but not the
-    # response.headers list object).
+    # side channels.
     def _clean_up_response_headers_for_sending(self, response):
         assert type(response) is Response
 
@@ -582,4 +581,9 @@ class Connection:
             connection.add(b"close")
             headers = set_comma_header(headers, b"connection", sorted(connection))
 
-        response.headers = headers
+        return Response(
+            headers=headers,
+            status_code=response.status_code,
+            http_version=response.http_version,
+            reason=response.reason,
+        )
