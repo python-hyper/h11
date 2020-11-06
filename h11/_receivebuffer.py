@@ -1,3 +1,4 @@
+import re
 import sys
 
 __all__ = ["ReceiveBuffer"]
@@ -38,6 +39,12 @@ __all__ = ["ReceiveBuffer"]
 # slightly clever thing where we delay calling compress() until we've
 # processed a whole event, which could in theory be slightly more efficient
 # than the internal bytearray support.)
+
+default_delimiter = b"\n\r?\n"
+delimiter_regex = re.compile(b"\n\r?\n", re.MULTILINE)
+line_delimiter_regex = re.compile(b"\r?\n", re.MULTILINE)
+
+
 class ReceiveBuffer(object):
     def __init__(self):
         self._data = bytearray()
@@ -45,6 +52,9 @@ class ReceiveBuffer(object):
         self._start = 0
         self._looked_at = 0
         self._looked_for = b""
+
+        self._delimiter = b"\n\r?\n"
+        self._delimiter_regex = delimiter_regex
 
     def __bool__(self):
         return bool(len(self))
@@ -79,21 +89,34 @@ class ReceiveBuffer(object):
         self._start += len(out)
         return out
 
-    def maybe_extract_until_next(self, needle):
+    def maybe_extract_until_delimiter(self, delimiter=b"\n\r?\n"):
         # Returns extracted bytes on success (advancing offset), or None on
         # failure
-        if self._looked_for == needle:
-            search_start = max(self._start, self._looked_at - len(needle) + 1)
+        if delimiter == self._delimiter:
+            looked_at = max(self._start, self._looked_at - len(delimiter) + 1)
         else:
-            search_start = self._start
-        offset = self._data.find(needle, search_start)
-        if offset == -1:
+            looked_at = self._start
+            self._delimiter = delimiter
+            # re.compile operation is more expensive than just byte compare
+            if delimiter == default_delimiter:
+                self._delimiter_regex = delimiter_regex
+            else:
+                self._delimiter_regex = re.compile(delimiter, re.MULTILINE)
+
+        delimiter_match = next(
+            self._delimiter_regex.finditer(self._data, looked_at), None
+        )
+
+        if delimiter_match is None:
             self._looked_at = len(self._data)
-            self._looked_for = needle
             return None
-        new_start = offset + len(needle)
-        out = self._data[self._start : new_start]
-        self._start = new_start
+
+        _, end = delimiter_match.span(0)
+
+        out = self._data[self._start : end]
+
+        self._start = end
+
         return out
 
     # HTTP/1.1 has a number of constructs where you keep reading lines until
@@ -102,11 +125,19 @@ class ReceiveBuffer(object):
         if self._data[self._start : self._start + 2] == b"\r\n":
             self._start += 2
             return []
+        elif self._start < len(self._data) and self._data[self._start] == b"\n":
+            self._start += 1
+            return []
         else:
-            data = self.maybe_extract_until_next(b"\r\n\r\n")
+            data = self.maybe_extract_until_delimiter(b"\n\r?\n")
+
             if data is None:
                 return None
-            lines = data.split(b"\r\n")
+
+            lines = line_delimiter_regex.split(data)
+
             assert lines[-2] == lines[-1] == b""
+
             del lines[-2:]
+
             return lines

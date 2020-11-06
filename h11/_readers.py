@@ -153,7 +153,7 @@ class ChunkedReader(object):
         assert self._bytes_to_discard == 0
         if self._bytes_in_chunk == 0:
             # We need to refill our chunk count
-            chunk_header = buf.maybe_extract_until_next(b"\r\n")
+            chunk_header = buf.maybe_extract_until_delimiter(b"\r?\n")
             if chunk_header is None:
                 return None
             matches = validate(
