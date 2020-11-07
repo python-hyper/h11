@@ -32,28 +32,28 @@ def test_receivebuffer():
     assert not b
 
     ################################################################
-    # maybe_extract_until_delimiter
+    # maybe_extract_until_next
     ################################################################
 
     b += b"12345a6789aa"
 
-    assert b.maybe_extract_until_delimiter(b"a") == b"12345a"
+    assert b.maybe_extract_until_next(b"a") == b"12345a"
     assert bytes(b) == b"6789aa"
 
-    assert b.maybe_extract_until_delimiter(b"aaa") is None
+    assert b.maybe_extract_until_next(b"aaa") is None
     assert bytes(b) == b"6789aa"
 
     b += b"a12"
-    assert b.maybe_extract_until_delimiter(b"aaa") == b"6789aaa"
+    assert b.maybe_extract_until_next(b"aaa") == b"6789aaa"
     assert bytes(b) == b"12"
 
     # check repeated searches for the same needle, triggering the
     # pickup-where-we-left-off logic
     b += b"345"
-    assert b.maybe_extract_until_delimiter(b"aaa") is None
+    assert b.maybe_extract_until_next(b"aaa") is None
 
     b += b"6789aaa123"
-    assert b.maybe_extract_until_delimiter(b"aaa") == b"123456789aaa"
+    assert b.maybe_extract_until_next(b"aaa") == b"123456789aaa"
     assert bytes(b) == b"123"
 
     ################################################################
