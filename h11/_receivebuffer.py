@@ -51,10 +51,8 @@ class ReceiveBuffer(object):
         # These are both absolute offsets into self._data:
         self._start = 0
         self._looked_at = 0
-        self._looked_for = b""
-
-        self._delimiter = b"\n\r?\n"
-        self._delimiter_regex = delimiter_regex
+        self._looked_for = default_delimiter
+        self._looked_for_regex = delimiter_regex
 
     def __bool__(self):
         return bool(len(self))
@@ -89,22 +87,22 @@ class ReceiveBuffer(object):
         self._start += len(out)
         return out
 
-    def maybe_extract_until_delimiter(self, delimiter=b"\n\r?\n"):
+    def maybe_extract_until_next(self, needle):
         # Returns extracted bytes on success (advancing offset), or None on
         # failure
-        if delimiter == self._delimiter:
-            looked_at = max(self._start, self._looked_at - len(delimiter) + 1)
+        if self._looked_for == needle:
+            looked_at = max(self._start, self._looked_at - len(needle) + 1)
         else:
             looked_at = self._start
-            self._delimiter = delimiter
+            self._looked_for = needle
             # re.compile operation is more expensive than just byte compare
-            if delimiter == default_delimiter:
-                self._delimiter_regex = delimiter_regex
+            if needle == default_delimiter:
+                self._looked_for_regex = delimiter_regex
             else:
-                self._delimiter_regex = re.compile(delimiter, re.MULTILINE)
+                self._looked_for_regex = re.compile(needle, re.MULTILINE)
 
         delimiter_match = next(
-            self._delimiter_regex.finditer(self._data, looked_at), None
+            self._looked_for_regex.finditer(self._data, looked_at), None
         )
 
         if delimiter_match is None:
@@ -119,25 +117,30 @@ class ReceiveBuffer(object):
 
         return out
 
+    def _get_fields_delimiter(self, data, lines_delimiter_regex):
+        delimiter_match = next(lines_delimiter_regex.finditer(data), None)
+
+        if delimiter_match is not None:
+            begin, end = delimiter_match.span(0)
+            result = data[begin:end]
+        else:
+            result = b"\r\n"
+
+        return bytes(result)
+
     # HTTP/1.1 has a number of constructs where you keep reading lines until
     # you see a blank one. This does that, and then returns the lines.
     def maybe_extract_lines(self):
-        if self._data[self._start : self._start + 2] == b"\r\n":
-            self._start += 2
-            return []
-        elif self._start < len(self._data) and self._data[self._start] == b"\n":
-            self._start += 1
+        start_chunk = self._data[self._start : self._start + 2]
+        if start_chunk in [b"\r\n", b"\n"]:
+            self._start += len(start_chunk)
             return []
         else:
-            data = self.maybe_extract_until_delimiter(b"\n\r?\n")
-
+            data = self.maybe_extract_until_next(default_delimiter)
             if data is None:
                 return None
 
-            lines = line_delimiter_regex.split(data)
-
-            assert lines[-2] == lines[-1] == b""
-
-            del lines[-2:]
+            delimiter = self._get_fields_delimiter(data, line_delimiter_regex)
+            lines = data.rstrip(b"\r\n").split(delimiter)
 
             return lines
