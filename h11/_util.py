@@ -2,7 +2,6 @@ __all__ = [
     "ProtocolError",
     "LocalProtocolError",
     "RemoteProtocolError",
-    "validate",
     "make_sentinel",
     "bytesify",
 ]
@@ -78,15 +77,6 @@ class LocalProtocolError(ProtocolError):
 
 class RemoteProtocolError(ProtocolError):
     pass
-
-
-def validate(regex, data, msg="malformed data", *format_args):
-    match = regex.fullmatch(data)
-    if not match:
-        if format_args:
-            msg = msg.format(*format_args)
-        raise LocalProtocolError(msg)
-    return match.groupdict()
 
 
 # Sentinel values

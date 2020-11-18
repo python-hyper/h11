@@ -9,7 +9,7 @@ import re
 
 from . import _headers
 from ._abnf import request_target
-from ._util import bytesify, LocalProtocolError, validate
+from ._util import bytesify, LocalProtocolError
 
 # Everything in __all__ gets re-exported as part of the h11 public API.
 __all__ = [
@@ -85,7 +85,8 @@ class Request:
         if host_count > 1:
             raise LocalProtocolError("Found multiple Host: headers")
 
-        validate(request_target_re, self.target, "Illegal target characters")
+        if request_target_re.fullmatch(self.target) is None:
+            raise LocalProtocolError("Illegal target characters")
 
     def __repr__(self):
         return "{}(method={}, target={}, headers={}, http_version={})".format(

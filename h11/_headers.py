@@ -1,7 +1,7 @@
 import re
 
 from ._abnf import field_name, field_value
-from ._util import bytesify, LocalProtocolError, validate
+from ._util import bytesify, LocalProtocolError
 
 # Facts
 # -----
@@ -127,8 +127,10 @@ def normalize_and_validate(headers, _parsed=False):
         if not _parsed:
             name = bytesify(name)
             value = bytesify(value)
-            validate(_field_name_re, name, "Illegal header name {!r}", name)
-            validate(_field_value_re, value, "Illegal header value {!r}", value)
+            if _field_name_re.fullmatch(name) is None:
+                raise LocalProtocolError("Illegal header name {!r}".format(name))
+            if _field_value_re.fullmatch(value) is None:
+                raise LocalProtocolError("Illegal header value {!r}".format(value))
         raw_name = name
         name = name.lower()
         if name == b"content-length":
@@ -136,7 +138,8 @@ def normalize_and_validate(headers, _parsed=False):
             if len(lengths) != 1:
                 raise LocalProtocolError("conflicting Content-Length headers")
             value = lengths.pop()
-            validate(_content_length_re, value, "bad Content-Length")
+            if _content_length_re.fullmatch(value) is None:
+                raise LocalProtocolError("bad Content-Length")
             if seen_content_length is None:
                 seen_content_length = value
                 new_headers.append((raw_name, name, value))
