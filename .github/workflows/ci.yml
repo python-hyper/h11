@@ -13,11 +13,9 @@ jobs:
       max-parallel: 5
       matrix:
         python-version:
-        - 2.7
         - 3.6
         - 3.7
         - 3.8
-        - pypy2
         - pypy3
 
     steps:

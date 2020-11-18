@@ -9,11 +9,6 @@ import afl
 
 import h11
 
-if sys.version_info[0] >= 3:
-    in_file = sys.stdin.detach()
-else:
-    in_file = sys.stdin
-
 
 def process_all(c):
     while True:
@@ -26,7 +21,7 @@ def process_all(c):
 
 afl.init()
 
-data = in_file.read()
+data = sys.stdin.detach().read()
 
 # one big chunk
 server1 = h11.Connection(h11.SERVER)

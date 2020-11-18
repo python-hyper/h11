@@ -40,11 +40,10 @@ __all__ = ["ReceiveBuffer"]
 # slightly clever thing where we delay calling compress() until we've
 # processed a whole event, which could in theory be slightly more efficient
 # than the internal bytearray support.)
-
 blank_line_regex = re.compile(b"\n\r?\n", re.MULTILINE)
 
 
-class ReceiveBuffer(object):
+class ReceiveBuffer:
     def __init__(self):
         self._data = bytearray()
         self._next_line_search = 0
@@ -63,10 +62,6 @@ class ReceiveBuffer(object):
     # for @property unprocessed_data
     def __bytes__(self):
         return bytes(self._data)
-
-    if sys.version_info[0] < 3:  # version specific: Python 2
-        __str__ = __bytes__
-        __nonzero__ = __bool__
 
     def _extract(self, count):
         # extracting an initial slice of the data buffer and return it

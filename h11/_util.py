@@ -1,6 +1,3 @@
-import re
-import sys
-
 __all__ = [
     "ProtocolError",
     "LocalProtocolError",
@@ -74,34 +71,17 @@ class LocalProtocolError(ProtocolError):
         # (exc_info[0]) separately from the exception object (exc_info[1]),
         # and we only modified the latter. So we really do need to re-raise
         # the new type explicitly.
-        if sys.version_info[0] >= 3:
-            # On py3, the traceback is part of the exception object, so our
-            # in-place modification preserved it and we can just re-raise:
-            raise self
-        else:
-            # On py2, preserving the traceback requires 3-argument
-            # raise... but on py3 this is a syntax error, so we have to hide
-            # it inside an exec
-            exec("raise RemoteProtocolError, self, sys.exc_info()[2]")
+        # On py3, the traceback is part of the exception object, so our
+        # in-place modification preserved it and we can just re-raise:
+        raise self
 
 
 class RemoteProtocolError(ProtocolError):
     pass
 
 
-try:
-    _fullmatch = type(re.compile("")).fullmatch
-except AttributeError:
-
-    def _fullmatch(regex, data):  # version specific: Python < 3.4
-        match = regex.match(data)
-        if match and match.end() != len(data):
-            match = None
-        return match
-
-
 def validate(regex, data, msg="malformed data", *format_args):
-    match = _fullmatch(regex, data)
+    match = regex.fullmatch(data)
     if not match:
         if format_args:
             msg = msg.format(*format_args)

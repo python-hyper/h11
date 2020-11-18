@@ -54,13 +54,7 @@ def _obsolete_line_fold(lines):
 
 def _decode_header_lines(lines):
     for line in _obsolete_line_fold(lines):
-        # _obsolete_line_fold yields either bytearray or bytes objects. On
-        # Python 3, validate() takes either and returns matches as bytes. But
-        # on Python 2, validate can return matches as bytearrays, so we have
-        # to explicitly cast back.
-        matches = validate(
-            header_field_re, bytes(line), "illegal header line: {!r}", bytes(line)
-        )
+        matches = validate(header_field_re, line, "illegal header line: {!r}", line)
         yield (matches["field_name"], matches["field_value"])
 
 
@@ -127,7 +121,7 @@ class ContentLengthReader:
 chunk_header_re = re.compile(chunk_header.encode("ascii"))
 
 
-class ChunkedReader(object):
+class ChunkedReader:
     def __init__(self):
         self._bytes_in_chunk = 0
         # After reading a chunk, we have to throw away the trailing \r\n; if
@@ -163,9 +157,7 @@ class ChunkedReader(object):
                 chunk_header,
             )
             # XX FIXME: we discard chunk extensions. Does anyone care?
-            # We convert to bytes because Python 2's `int()` function doesn't
-            # work properly on bytearray objects.
-            self._bytes_in_chunk = int(bytes(matches["chunk_size"]), base=16)
+            self._bytes_in_chunk = int(matches["chunk_size"], base=16)
             if self._bytes_in_chunk == 0:
                 self._reading_trailer = True
                 return self(buf)
@@ -191,7 +183,7 @@ class ChunkedReader(object):
         )
 
 
-class Http10Reader(object):
+class Http10Reader:
     def __call__(self, buf):
         data = buf.maybe_extract_at_most(999999999)
         if data is None:
