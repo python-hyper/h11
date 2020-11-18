@@ -32,6 +32,7 @@ PAUSED = make_sentinel("PAUSED")
 # - Apache: <8 KiB per line>
 DEFAULT_MAX_INCOMPLETE_EVENT_SIZE = 16 * 1024
 
+
 # RFC 7230's rules for connection lifecycles:
 # - If either side says they want to close the connection, then the connection
 #   must close.
@@ -501,7 +502,7 @@ class Connection(object):
                 data_list = []
                 writer(event, data_list.append)
                 return data_list
-        except:
+        except BaseException:
             self._process_error(self.our_role)
             raise
 

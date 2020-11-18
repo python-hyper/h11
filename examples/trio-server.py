@@ -86,9 +86,11 @@ import h11
 MAX_RECV = 2 ** 16
 TIMEOUT = 10
 
+
 ################################################################
 # I/O adapter: h11 <-> trio
 ################################################################
+
 
 # The core of this could be factored out to be usable for trio-based clients
 # too, as well as servers. But as a simplified pedagogical example we don't
