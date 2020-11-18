@@ -93,7 +93,7 @@ def test_bytesify():
     assert bytesify("123") == b"123"
 
     with pytest.raises(UnicodeEncodeError):
-        bytesify(u"\u1234")
+        bytesify("\u1234")
 
     with pytest.raises(TypeError):
         bytesify(10)

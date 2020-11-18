@@ -197,7 +197,7 @@ STATE_TRIGGERED_TRANSITIONS = {
 }
 
 
-class ConnectionState(object):
+class ConnectionState:
     def __init__(self):
         # Extra bits of state that don't quite fit into the state model.
 

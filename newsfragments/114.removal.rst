@@ -1,0 +1,2 @@
+Python 2.7 and PyPy 2 support is removed. h11 now requires Python>=3.5 including PyPy 3.
+Users running `pip install h11` on Python 2 will automatically get the last Python 2-compatible version.

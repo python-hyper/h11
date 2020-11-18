@@ -109,7 +109,7 @@ def _body_framing(request_method, event):
 ################################################################
 
 
-class Connection(object):
+class Connection:
     """An object encapsulating the state of an HTTP connection.
 
     Args:

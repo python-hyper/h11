@@ -24,7 +24,7 @@ __all__ = [
 request_target_re = re.compile(request_target.encode("ascii"))
 
 
-class _EventBundle(object):
+class _EventBundle:
     _fields = []
     _defaults = {}
 
@@ -84,9 +84,6 @@ class _EventBundle(object):
     # Useful for tests
     def __eq__(self, other):
         return self.__class__ == other.__class__ and self.__dict__ == other.__dict__
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
 
     # This is an unhashable type.
     __hash__ = None
