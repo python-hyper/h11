@@ -7,52 +7,6 @@ from .._events import *
 from .._util import LocalProtocolError
 
 
-def test_event_bundle():
-    class T(_events._EventBundle):
-        _fields = ["a", "b"]
-        _defaults = {"b": 1}
-
-        def _validate(self):
-            if self.a == 0:
-                raise ValueError
-
-    # basic construction and methods
-    t = T(a=1, b=0)
-    assert repr(t) == "T(a=1, b=0)"
-    assert t == T(a=1, b=0)
-    assert not (t == T(a=2, b=0))
-    assert not (t != T(a=1, b=0))
-    assert t != T(a=2, b=0)
-    with pytest.raises(TypeError):
-        hash(t)
-
-    # check defaults
-    t = T(a=10)
-    assert t.a == 10
-    assert t.b == 1
-
-    # no positional args
-    with pytest.raises(TypeError):
-        T(1)
-
-    with pytest.raises(TypeError):
-        T(1, a=1, b=0)
-
-    # unknown field
-    with pytest.raises(TypeError):
-        T(a=1, b=0, c=10)
-
-    # missing required field
-    with pytest.raises(TypeError) as exc:
-        T(b=0)
-    # make sure we error on the right missing kwarg
-    assert "kwarg a" in str(exc.value)
-
-    # _validate is called
-    with pytest.raises(ValueError):
-        T(a=0, b=0)
-
-
 def test_events():
     with pytest.raises(LocalProtocolError):
         # Missing Host:
@@ -66,6 +20,10 @@ def test_events():
     assert req.target == b"/"
     assert req.headers == [(b"a", b"b")]
     assert req.http_version == b"1.0"
+    assert repr(req) == (
+        "Request(method=b'GET', target=b'/', "
+        "headers=<Headers([(b'a', b'b')])>, http_version=b'1.0')"
+    )
 
     # This is also okay -- has a Host (with weird capitalization, which is ok)
     req = Request(
@@ -126,6 +84,10 @@ def test_events():
     assert ir.status_code == 100
     assert ir.headers == [(b"host", b"a")]
     assert ir.http_version == b"1.1"
+    assert repr(ir) == (
+        "InformationalResponse(status_code=100, headers=<Headers([(b'host', b'a')])>, "
+        "http_version=b'1.1', reason=b'')"
+    )
 
     with pytest.raises(LocalProtocolError):
         InformationalResponse(status_code=200, headers=[("Host", "a")])
@@ -146,9 +108,11 @@ def test_events():
 
     d = Data(data=b"asdf")
     assert d.data == b"asdf"
+    assert repr(d) == "Data(data=b'asdf', chunk_start=False, chunk_end=False)"
 
     eom = EndOfMessage()
     assert eom.headers == []
+    assert repr(eom) == "EndOfMessage(headers=<Headers([])>)"
 
     cc = ConnectionClosed()
     assert repr(cc) == "ConnectionClosed()"
