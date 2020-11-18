@@ -7,31 +7,11 @@
 # - a writer
 # - or, for body writers, a dict of framin-dependent writer factories
 
-import sys
-
 from ._events import Data, EndOfMessage
 from ._state import CLIENT, IDLE, SEND_BODY, SEND_RESPONSE, SERVER
 from ._util import LocalProtocolError
 
 __all__ = ["WRITERS"]
-
-# Equivalent of bstr % values, that works on python 3.x for x < 5
-if (3, 0) <= sys.version_info < (3, 5):
-
-    def bytesmod(bstr, values):
-        decoded_values = []
-        for value in values:
-            if isinstance(value, bytes):
-                decoded_values.append(value.decode("ascii"))
-            else:
-                decoded_values.append(value)
-        return (bstr.decode("ascii") % tuple(decoded_values)).encode("ascii")
-
-
-else:
-
-    def bytesmod(bstr, values):
-        return bstr % values
 
 
 def write_headers(headers, write):
@@ -41,17 +21,17 @@ def write_headers(headers, write):
     raw_items = headers._full_items
     for raw_name, name, value in raw_items:
         if name == b"host":
-            write(bytesmod(b"%s: %s\r\n", (raw_name, value)))
+            write(b"%s: %s\r\n" % (raw_name, value))
     for raw_name, name, value in raw_items:
         if name != b"host":
-            write(bytesmod(b"%s: %s\r\n", (raw_name, value)))
+            write(b"%s: %s\r\n" % (raw_name, value))
     write(b"\r\n")
 
 
 def write_request(request, write):
     if request.http_version != b"1.1":
         raise LocalProtocolError("I only send HTTP/1.1")
-    write(bytesmod(b"%s %s HTTP/1.1\r\n", (request.method, request.target)))
+    write(b"%s %s HTTP/1.1\r\n" % (request.method, request.target))
     write_headers(request.headers, write)
 
 
@@ -68,11 +48,11 @@ def write_any_response(response, write):
     # from stdlib's http.HTTPStatus table. Or maybe just steal their enums
     # (either by import or copy/paste). We already accept them as status codes
     # since they're of type IntEnum < int.
-    write(bytesmod(b"HTTP/1.1 %s %s\r\n", (status_bytes, response.reason)))
+    write(b"HTTP/1.1 %s %s\r\n" % (status_bytes, response.reason))
     write_headers(response.headers, write)
 
 
-class BodyWriter(object):
+class BodyWriter:
     def __call__(self, event, write):
         if type(event) is Data:
             self.send_data(event.data, write)
@@ -111,7 +91,7 @@ class ChunkedWriter(BodyWriter):
         # end-of-message.
         if not data:
             return
-        write(bytesmod(b"%x\r\n", (len(data),)))
+        write(b"%x\r\n" % len(data))
         write(data)
         write(b"\r\n")
 

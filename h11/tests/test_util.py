@@ -42,37 +42,6 @@ def test_LocalProtocolError():
         assert new_traceback.endswith(orig_traceback)
 
 
-def test_validate():
-    my_re = re.compile(br"(?P<group1>[0-9]+)\.(?P<group2>[0-9]+)")
-    with pytest.raises(LocalProtocolError):
-        validate(my_re, b"0.")
-
-    groups = validate(my_re, b"0.1")
-    assert groups == {"group1": b"0", "group2": b"1"}
-
-    # successful partial matches are an error - must match whole string
-    with pytest.raises(LocalProtocolError):
-        validate(my_re, b"0.1xx")
-    with pytest.raises(LocalProtocolError):
-        validate(my_re, b"0.1\n")
-
-
-def test_validate_formatting():
-    my_re = re.compile(br"foo")
-
-    with pytest.raises(LocalProtocolError) as excinfo:
-        validate(my_re, b"", "oops")
-    assert "oops" in str(excinfo.value)
-
-    with pytest.raises(LocalProtocolError) as excinfo:
-        validate(my_re, b"", "oops {}")
-    assert "oops {}" in str(excinfo.value)
-
-    with pytest.raises(LocalProtocolError) as excinfo:
-        validate(my_re, b"", "oops {} xx", 10)
-    assert "oops 10 xx" in str(excinfo.value)
-
-
 def test_make_sentinel():
     S = make_sentinel("S")
     assert repr(S) == "S"
@@ -93,7 +62,7 @@ def test_bytesify():
     assert bytesify("123") == b"123"
 
     with pytest.raises(UnicodeEncodeError):
-        bytesify(u"\u1234")
+        bytesify("\u1234")
 
     with pytest.raises(TypeError):
         bytesify(10)

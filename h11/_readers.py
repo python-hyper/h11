@@ -3,9 +3,7 @@
 # Strategy: each reader is a callable which takes a ReceiveBuffer object, and
 # either:
 # 1) consumes some of it and returns an Event
-# 2) raises a LocalProtocolError (for consistency -- e.g. we call validate()
-#    and it might raise a LocalProtocolError, so simpler just to always use
-#    this)
+# 2) raises a LocalProtocolError
 # 3) returns None, meaning "I need more data"
 #
 # If they have a .read_eof attribute, then this will be called if an EOF is
@@ -21,7 +19,7 @@ import re
 from ._abnf import chunk_header, header_field, request_line, status_line
 from ._events import *
 from ._state import *
-from ._util import LocalProtocolError, RemoteProtocolError, validate
+from ._util import LocalProtocolError, RemoteProtocolError
 
 __all__ = ["READERS"]
 
@@ -54,14 +52,10 @@ def _obsolete_line_fold(lines):
 
 def _decode_header_lines(lines):
     for line in _obsolete_line_fold(lines):
-        # _obsolete_line_fold yields either bytearray or bytes objects. On
-        # Python 3, validate() takes either and returns matches as bytes. But
-        # on Python 2, validate can return matches as bytearrays, so we have
-        # to explicitly cast back.
-        matches = validate(
-            header_field_re, bytes(line), "illegal header line: {!r}", bytes(line)
-        )
-        yield (matches["field_name"], matches["field_value"])
+        match = header_field_re.fullmatch(line)
+        if match is None:
+            raise LocalProtocolError("illegal header line: {!r}", line)
+        yield match.group("field_name", "field_value")
 
 
 request_line_re = re.compile(request_line.encode("ascii"))
@@ -73,11 +67,15 @@ def maybe_read_from_IDLE_client(buf):
         return None
     if not lines:
         raise LocalProtocolError("no request line received")
-    matches = validate(
-        request_line_re, lines[0], "illegal request line: {!r}", lines[0]
-    )
+    match = request_line_re.fullmatch(lines[0])
+    if match is None:
+        raise LocalProtocolError("illegal request line: {!r}", lines[0])
     return Request(
-        headers=list(_decode_header_lines(lines[1:])), _parsed=True, **matches
+        headers=list(_decode_header_lines(lines[1:])),
+        method=match.group("method"),
+        target=match.group("target"),
+        http_version=match.group("http_version"),
+        _parsed=True,
     )
 
 
@@ -90,14 +88,19 @@ def maybe_read_from_SEND_RESPONSE_server(buf):
         return None
     if not lines:
         raise LocalProtocolError("no response line received")
-    matches = validate(status_line_re, lines[0], "illegal status line: {!r}", lines[0])
+    match = status_line_re.fullmatch(lines[0])
+    if match is None:
+        raise LocalProtocolError("illegal status line: {!r}", lines[0])
     # Tolerate missing reason phrases
-    if matches["reason"] is None:
-        matches["reason"] = b""
-    status_code = matches["status_code"] = int(matches["status_code"])
+    reason = match.group("reason") or b""
+    status_code = int(match.group("status_code"))
     class_ = InformationalResponse if status_code < 200 else Response
     return class_(
-        headers=list(_decode_header_lines(lines[1:])), _parsed=True, **matches
+        status_code=status_code,
+        headers=list(_decode_header_lines(lines[1:])),
+        http_version=match.group("http_version"),
+        reason=reason,
+        _parsed=True,
     )
 
 
@@ -127,7 +130,7 @@ class ContentLengthReader:
 chunk_header_re = re.compile(chunk_header.encode("ascii"))
 
 
-class ChunkedReader(object):
+class ChunkedReader:
     def __init__(self):
         self._bytes_in_chunk = 0
         # After reading a chunk, we have to throw away the trailing \r\n; if
@@ -156,16 +159,11 @@ class ChunkedReader(object):
             chunk_header = buf.maybe_extract_until_next(b"\r\n")
             if chunk_header is None:
                 return None
-            matches = validate(
-                chunk_header_re,
-                chunk_header,
-                "illegal chunk header: {!r}",
-                chunk_header,
-            )
+            match = chunk_header_re.fullmatch(chunk_header)
+            if match is None:
+                raise LocalProtocolError("illegal chunk header: {!r}", chunk_header)
             # XX FIXME: we discard chunk extensions. Does anyone care?
-            # We convert to bytes because Python 2's `int()` function doesn't
-            # work properly on bytearray objects.
-            self._bytes_in_chunk = int(bytes(matches["chunk_size"]), base=16)
+            self._bytes_in_chunk = int(match.group("chunk_size"), base=16)
             if self._bytes_in_chunk == 0:
                 self._reading_trailer = True
                 return self(buf)
@@ -191,7 +189,7 @@ class ChunkedReader(object):
         )
 
 
-class Http10Reader(object):
+class Http10Reader:
     def __call__(self, buf):
         data = buf.maybe_extract_at_most(999999999)
         if data is None:

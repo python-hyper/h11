@@ -70,10 +70,10 @@ other hand, the following are all very welcome:
   tox
   ```
 
-  But note that: (1) this will print slightly misleading coverage
+  But note that: (1) this might print slightly misleading coverage
   statistics, because it only shows coverage for individual python
-  versions, and there are some lines that are only executed on python
-  2 or only executed on python 3, and (2) the full test suite will
+  versions, and there might be some lines that are only executed on some
+  python versions or implementations, and (2) the full test suite will
   automatically get run when you submit a pull request, so you don't
   need to worry too much about tracking down a version of cpython 3.3
   or whatever just to run the tests.

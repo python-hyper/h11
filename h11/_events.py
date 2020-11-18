@@ -9,7 +9,7 @@ import re
 
 from . import _headers
 from ._abnf import request_target
-from ._util import bytesify, LocalProtocolError, validate
+from ._util import bytesify, LocalProtocolError
 
 # Everything in __all__ gets re-exported as part of the h11 public API.
 __all__ = [
@@ -24,75 +24,7 @@ __all__ = [
 request_target_re = re.compile(request_target.encode("ascii"))
 
 
-class _EventBundle(object):
-    _fields = []
-    _defaults = {}
-
-    def __init__(self, **kwargs):
-        _parsed = kwargs.pop("_parsed", False)
-        allowed = set(self._fields)
-        for kwarg in kwargs:
-            if kwarg not in allowed:
-                raise TypeError(
-                    "unrecognized kwarg {} for {}".format(
-                        kwarg, self.__class__.__name__
-                    )
-                )
-        required = allowed.difference(self._defaults)
-        for field in required:
-            if field not in kwargs:
-                raise TypeError(
-                    "missing required kwarg {} for {}".format(
-                        field, self.__class__.__name__
-                    )
-                )
-        self.__dict__.update(self._defaults)
-        self.__dict__.update(kwargs)
-
-        # Special handling for some fields
-
-        if "headers" in self.__dict__:
-            self.headers = _headers.normalize_and_validate(
-                self.headers, _parsed=_parsed
-            )
-
-        if not _parsed:
-            for field in ["method", "target", "http_version", "reason"]:
-                if field in self.__dict__:
-                    self.__dict__[field] = bytesify(self.__dict__[field])
-
-            if "status_code" in self.__dict__:
-                if not isinstance(self.status_code, int):
-                    raise LocalProtocolError("status code must be integer")
-                # Because IntEnum objects are instances of int, but aren't
-                # duck-compatible (sigh), see gh-72.
-                self.status_code = int(self.status_code)
-
-        self._validate()
-
-    def _validate(self):
-        pass
-
-    def __repr__(self):
-        name = self.__class__.__name__
-        kwarg_strs = [
-            "{}={}".format(field, self.__dict__[field]) for field in self._fields
-        ]
-        kwarg_str = ", ".join(kwarg_strs)
-        return "{}({})".format(name, kwarg_str)
-
-    # Useful for tests
-    def __eq__(self, other):
-        return self.__class__ == other.__class__ and self.__dict__ == other.__dict__
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    # This is an unhashable type.
-    __hash__ = None
-
-
-class Request(_EventBundle):
+class Request:
     """The beginning of an HTTP request.
 
     Fields:
@@ -126,10 +58,19 @@ class Request(_EventBundle):
 
     """
 
-    _fields = ["method", "target", "headers", "http_version"]
-    _defaults = {"http_version": b"1.1"}
+    __slots__ = ("method", "target", "headers", "http_version")
 
-    def _validate(self):
+    def __init__(self, method, target, headers, http_version=b"1.1", _parsed=False):
+        self.headers = _headers.normalize_and_validate(headers, _parsed=_parsed)
+        self.http_version = bytesify(http_version)
+
+        if _parsed:
+            self.method = method
+            self.target = target
+        else:
+            self.method = bytesify(method)
+            self.target = bytesify(target)
+
         # "A server MUST respond with a 400 (Bad Request) status code to any
         # HTTP/1.1 request message that lacks a Host header field and to any
         # request message that contains more than one Host header field or a
@@ -144,15 +85,34 @@ class Request(_EventBundle):
         if host_count > 1:
             raise LocalProtocolError("Found multiple Host: headers")
 
-        validate(request_target_re, self.target, "Illegal target characters")
+        if request_target_re.fullmatch(self.target) is None:
+            raise LocalProtocolError("Illegal target characters")
+
+    def __repr__(self):
+        return "{}(method={}, target={}, headers={}, http_version={})".format(
+            self.__class__.__name__,
+            self.method,
+            self.target,
+            self.headers,
+            self.http_version,
+        )
+
+    # Useful for tests
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return (
+            self.method == other.method
+            and self.target == other.target
+            and self.headers == other.headers
+            and self.http_version == other.http_version
+        )
+
+    # This is an unhashable type.
+    __hash__ = None
 
 
-class _ResponseBase(_EventBundle):
-    _fields = ["status_code", "headers", "http_version", "reason"]
-    _defaults = {"http_version": b"1.1", "reason": b""}
-
-
-class InformationalResponse(_ResponseBase):
+class InformationalResponse:
     """An HTTP informational response.
 
     Fields:
@@ -182,15 +142,57 @@ class InformationalResponse(_ResponseBase):
 
     """
 
-    def _validate(self):
+    __slots__ = ("status_code", "headers", "http_version", "reason")
+
+    def __init__(
+        self, status_code, headers, http_version=b"1.1", reason=b"", _parsed=False
+    ):
+        self.status_code = status_code
+        self.headers = _headers.normalize_and_validate(headers, _parsed=_parsed)
+
+        if _parsed:
+            self.http_version = http_version
+            self.reason = reason
+        else:
+            self.http_version = bytesify(http_version)
+            self.reason = bytesify(reason)
+            if not isinstance(self.status_code, int):
+                raise LocalProtocolError("status code must be integer")
+            # Because IntEnum objects are instances of int, but aren't
+            # duck-compatible (sigh), see gh-72.
+            self.status_code = int(self.status_code)
+
         if not (100 <= self.status_code < 200):
             raise LocalProtocolError(
                 "InformationalResponse status_code should be in range "
                 "[100, 200), not {}".format(self.status_code)
             )
 
+    def __repr__(self):
+        return "{}(status_code={}, headers={}, http_version={}, reason={})".format(
+            self.__class__.__name__,
+            self.status_code,
+            self.headers,
+            self.http_version,
+            self.reason,
+        )
 
-class Response(_ResponseBase):
+    # Useful for tests
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return (
+            self.status_code == other.status_code
+            and self.headers == other.headers
+            and self.http_version == other.http_version
+            and self.reason == other.reason
+        )
+
+    # This is an unhashable type.
+    __hash__ = None
+
+
+class Response:
     """The beginning of an HTTP response.
 
     Fields:
@@ -219,7 +221,26 @@ class Response(_ResponseBase):
 
     """
 
-    def _validate(self):
+    __slots__ = ("status_code", "headers", "http_version", "reason")
+
+    def __init__(
+        self, status_code, headers, http_version=b"1.1", reason=b"", _parsed=False
+    ):
+        self.status_code = status_code
+        self.headers = _headers.normalize_and_validate(headers, _parsed=_parsed)
+
+        if _parsed:
+            self.http_version = http_version
+            self.reason = reason
+        else:
+            self.http_version = bytesify(http_version)
+            self.reason = bytesify(reason)
+            if not isinstance(self.status_code, int):
+                raise LocalProtocolError("status code must be integer")
+            # Because IntEnum objects are instances of int, but aren't
+            # duck-compatible (sigh), see gh-72.
+            self.status_code = int(self.status_code)
+
         if not (200 <= self.status_code < 600):
             raise LocalProtocolError(
                 "Response status_code should be in range [200, 600), not {}".format(
@@ -227,8 +248,31 @@ class Response(_ResponseBase):
                 )
             )
 
+    def __repr__(self):
+        return "{}(status_code={}, headers={}, http_version={}, reason={})".format(
+            self.__class__.__name__,
+            self.status_code,
+            self.headers,
+            self.http_version,
+            self.reason,
+        )
 
-class Data(_EventBundle):
+    # Useful for tests
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return (
+            self.status_code == other.status_code
+            and self.headers == other.headers
+            and self.http_version == other.http_version
+            and self.reason == other.reason
+        )
+
+    # This is an unhashable type.
+    __hash__ = None
+
+
+class Data:
     """Part of an HTTP message body.
 
     Fields:
@@ -261,8 +305,33 @@ class Data(_EventBundle):
 
     """
 
-    _fields = ["data", "chunk_start", "chunk_end"]
-    _defaults = {"chunk_start": False, "chunk_end": False}
+    __slots__ = ("data", "chunk_start", "chunk_end")
+
+    def __init__(self, data, chunk_start=False, chunk_end=False):
+        self.data = data
+        self.chunk_start = chunk_start
+        self.chunk_end = chunk_end
+
+    def __repr__(self):
+        return "{}(data={}, chunk_start={}, chunk_end={})".format(
+            self.__class__.__name__,
+            self.data,
+            self.chunk_start,
+            self.chunk_end,
+        )
+
+    # Useful for tests
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return (
+            self.data == other.data
+            and self.chunk_start == other.chunk_start
+            and self.chunk_end == other.chunk_end
+        )
+
+    # This is an unhashable type.
+    __hash__ = None
 
 
 # XX FIXME: "A recipient MUST ignore (or consider as an error) any fields that
@@ -270,7 +339,7 @@ class Data(_EventBundle):
 # present in the header section might bypass external security filters."
 # https://svn.tools.ietf.org/svn/wg/httpbis/specs/rfc7230.html#chunked.trailer.part
 # Unfortunately, the list of forbidden fields is long and vague :-/
-class EndOfMessage(_EventBundle):
+class EndOfMessage:
     """The end of an HTTP message.
 
     Fields:
@@ -287,11 +356,28 @@ class EndOfMessage(_EventBundle):
 
     """
 
-    _fields = ["headers"]
-    _defaults = {"headers": []}
+    __slots__ = ("headers",)
+
+    def __init__(self, headers=[], _parsed=False):
+        self.headers = _headers.normalize_and_validate(headers, _parsed=_parsed)
+
+    def __repr__(self):
+        return "{}(headers={})".format(
+            self.__class__.__name__,
+            self.headers,
+        )
+
+    # Useful for tests
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return self.headers == other.headers
+
+    # This is an unhashable type.
+    __hash__ = None
 
 
-class ConnectionClosed(_EventBundle):
+class ConnectionClosed:
     """This event indicates that the sender has closed their outgoing
     connection.
 
@@ -302,4 +388,18 @@ class ConnectionClosed(_EventBundle):
     No fields.
     """
 
-    pass
+    __slots__ = ()
+
+    def __repr__(self):
+        return "{}()".format(
+            self.__class__.__name__,
+        )
+
+    # Useful for tests
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return True
+
+    # This is an unhashable type.
+    __hash__ = None
