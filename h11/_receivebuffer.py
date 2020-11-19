@@ -135,7 +135,9 @@ class ReceiveBuffer(object):
             if data is None:
                 return None
 
-            real_lines_delimiter = self._get_fields_delimiter(data, line_delimiter_regex)
+            real_lines_delimiter = self._get_fields_delimiter(
+                data, line_delimiter_regex
+            )
             lines = data.rstrip(b"\r\n").split(real_lines_delimiter)
 
             return lines
