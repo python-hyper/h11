@@ -21,6 +21,7 @@ import re
 from ._abnf import chunk_header, header_field, request_line, status_line
 from ._events import *
 from ._state import *
+from ._receivebuffer import line_delimiter_regex
 from ._util import LocalProtocolError, RemoteProtocolError, validate
 
 __all__ = ["READERS"]
@@ -153,7 +154,7 @@ class ChunkedReader(object):
         assert self._bytes_to_discard == 0
         if self._bytes_in_chunk == 0:
             # We need to refill our chunk count
-            chunk_header = buf.maybe_extract_until_next(b"\r?\n")
+            chunk_header = buf.maybe_extract_until_next(line_delimiter_regex, 2)
             if chunk_header is None:
                 return None
             matches = validate(
