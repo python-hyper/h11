@@ -40,8 +40,7 @@ __all__ = ["ReceiveBuffer"]
 # processed a whole event, which could in theory be slightly more efficient
 # than the internal bytearray support.)
 
-default_delimiter = b"\n\r?\n"
-delimiter_regex = re.compile(b"\n\r?\n", re.MULTILINE)
+body_and_headers_delimiter_regex = re.compile(b"\n\r?\n", re.MULTILINE)
 line_delimiter_regex = re.compile(b"\r?\n", re.MULTILINE)
 
 
@@ -51,8 +50,7 @@ class ReceiveBuffer(object):
         # These are both absolute offsets into self._data:
         self._start = 0
         self._looked_at = 0
-        self._looked_for = default_delimiter
-        self._looked_for_regex = delimiter_regex
+        self._looked_for_regex = body_and_headers_delimiter_regex
 
     def __bool__(self):
         return bool(len(self))
@@ -87,19 +85,14 @@ class ReceiveBuffer(object):
         self._start += len(out)
         return out
 
-    def maybe_extract_until_next(self, needle):
+    def maybe_extract_until_next(self, needle_regex, max_needle_length):
         # Returns extracted bytes on success (advancing offset), or None on
         # failure
-        if self._looked_for == needle:
-            looked_at = max(self._start, self._looked_at - len(needle) + 1)
+        if self._looked_for_regex == needle_regex:
+            looked_at = max(self._start, self._looked_at - max_needle_length)
         else:
             looked_at = self._start
-            self._looked_for = needle
-            # Check if default delimiter to avoid expensive re.compile
-            if needle == default_delimiter:
-                self._looked_for_regex = delimiter_regex
-            else:
-                self._looked_for_regex = re.compile(needle, re.MULTILINE)
+            self._looked_for_regex = needle_regex
 
         delimiter_match = next(
             self._looked_for_regex.finditer(self._data, looked_at), None
@@ -136,11 +129,11 @@ class ReceiveBuffer(object):
             self._start += len(start_chunk)
             return []
         else:
-            data = self.maybe_extract_until_next(default_delimiter)
+            data = self.maybe_extract_until_next(body_and_headers_delimiter_regex, 3)
             if data is None:
                 return None
 
-            delimiter = self._get_fields_delimiter(data, line_delimiter_regex)
-            lines = data.rstrip(b"\r\n").split(delimiter)
+            real_lines_delimiter = self._get_fields_delimiter(data, line_delimiter_regex)
+            lines = data.rstrip(b"\r\n").split(real_lines_delimiter)
 
             return lines
