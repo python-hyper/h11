@@ -5,7 +5,8 @@ __all__ = ["ReceiveBuffer"]
 
 
 # Operations we want to support:
-# - find next \r\n or \r\n\r\n, or wait until there is one
+# - find next \r\n or \r\n\r\n (\n or \n\n are also acceptable),
+#   or wait until there is one
 # - read at-most-N bytes
 # Goals:
 # - on average, do this fast
@@ -40,7 +41,7 @@ __all__ = ["ReceiveBuffer"]
 # processed a whole event, which could in theory be slightly more efficient
 # than the internal bytearray support.)
 
-body_and_headers_delimiter_regex = re.compile(b"\n\r?\n", re.MULTILINE)
+blank_line_delimiter_regex = re.compile(b"\n\r?\n", re.MULTILINE)
 line_delimiter_regex = re.compile(b"\r?\n", re.MULTILINE)
 
 
@@ -50,7 +51,8 @@ class ReceiveBuffer(object):
         # These are both absolute offsets into self._data:
         self._start = 0
         self._looked_at = 0
-        self._looked_for_regex = body_and_headers_delimiter_regex
+
+        self._looked_for_regex = blank_line_delimiter_regex
 
     def __bool__(self):
         return bool(len(self))
@@ -129,7 +131,7 @@ class ReceiveBuffer(object):
             self._start += len(start_chunk)
             return []
         else:
-            data = self.maybe_extract_until_next(body_and_headers_delimiter_regex, 3)
+            data = self.maybe_extract_until_next(blank_line_delimiter_regex, 3)
             if data is None:
                 return None
 
