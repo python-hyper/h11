@@ -95,7 +95,7 @@ class ReceiveBuffer(object):
         else:
             looked_at = self._start
             self._looked_for = needle
-            # re.compile operation is more expensive than just byte compare
+            # Check if default delimiter to avoid expensive re.compile
             if needle == default_delimiter:
                 self._looked_for_regex = delimiter_regex
             else:
