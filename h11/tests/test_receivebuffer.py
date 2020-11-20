@@ -85,14 +85,37 @@ def test_receivebuffer():
 @pytest.mark.parametrize(
     "data",
     [
-        (
-            b"HTTP/1.1 200 OK\r\n",
-            b"Content-type: text/plain\r\n",
-            b"\r\n",
-            b"Some body",
+        pytest.param(
+            (
+                b"HTTP/1.1 200 OK\r\n",
+                b"Content-type: text/plain\r\n",
+                b"\r\n",
+                b"Some body",
+            ),
+            id="with_crlf_delimiter",
         ),
-        (b"HTTP/1.1 200 OK\n", b"Content-type: text/plain\n", b"\n", b"Some body"),
-        (b"HTTP/1.1 200 OK\r\n", b"Content-type: text/plain\n", b"\n", b"Some body"),
+        pytest.param(
+            (b"HTTP/1.1 200 OK\n", b"Content-type: text/plain\n", b"\n", b"Some body"),
+            id="with_lf_only_delimiter",
+        ),
+        pytest.param(
+            (
+                b"HTTP/1.1 200 OK\r\n",
+                b"Content-type: text/plain\n",
+                b"\n",
+                b"Some body",
+            ),
+            id="with_double_lf_before_body",
+        ),
+        pytest.param(
+            (
+                b"HTTP/1.1 200 OK\r\n",
+                b"Content-type: text/plain\r\n",
+                b"\n",
+                b"Some body",
+            ),
+            id="with_mixed_crlf",
+        ),
     ],
 )
 def test_receivebuffer_for_invalid_delimiter(data):
