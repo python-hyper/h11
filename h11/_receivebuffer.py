@@ -41,7 +41,7 @@ __all__ = ["ReceiveBuffer"]
 # processed a whole event, which could in theory be slightly more efficient
 # than the internal bytearray support.)
 
-blank_line_delimiter_regex = re.compile(b"\n\r?\n", re.MULTILINE)
+blank_line_delimiter_regex = re.compile(b"(\r\n\r\n|\n\n)", re.MULTILINE)
 line_delimiter_regex = re.compile(b"\r?\n", re.MULTILINE)
 
 
@@ -126,12 +126,14 @@ class ReceiveBuffer(object):
     # HTTP/1.1 has a number of constructs where you keep reading lines until
     # you see a blank one. This does that, and then returns the lines.
     def maybe_extract_lines(self):
-        start_chunk = self._data[self._start : self._start + 2]
-        if start_chunk in [b"\r\n", b"\n"]:
-            self._start += len(start_chunk)
+        if self._data[self._start : self._start + 2] == b"\r\n":
+            self._start += 2
+            return []
+        elif self._data[self._start : self._start + 1] == b"\n":
+            self._start += 1
             return []
         else:
-            data = self.maybe_extract_until_next(blank_line_delimiter_regex, 3)
+            data = self.maybe_extract_until_next(blank_line_delimiter_regex, 4)
             if data is None:
                 return None
 
