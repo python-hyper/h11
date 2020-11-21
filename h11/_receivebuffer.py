@@ -42,7 +42,10 @@ __all__ = ["ReceiveBuffer"]
 # than the internal bytearray support.)
 
 blank_line_delimiter_regex = re.compile(b"\n\r?\n", re.MULTILINE)
-line_delimiter_regex = re.compile(b"\r?\n", re.MULTILINE)
+
+
+def rstrip_line(line):
+    return line.rstrip(b"\r")
 
 
 class ReceiveBuffer(object):
@@ -126,6 +129,6 @@ class ReceiveBuffer(object):
             if data is None:
                 return None
 
-            lines = line_delimiter_regex.split(data.rstrip(b"\r\n"))
+            lines = list(map(rstrip_line, data.rstrip(b"\r\n").split(b"\n")))
 
             return lines

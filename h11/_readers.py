@@ -20,7 +20,6 @@ import re
 
 from ._abnf import chunk_header, header_field, request_line, status_line
 from ._events import *
-from ._receivebuffer import line_delimiter_regex
 from ._state import *
 from ._util import LocalProtocolError, RemoteProtocolError, validate
 
