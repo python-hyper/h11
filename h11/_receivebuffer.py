@@ -45,8 +45,8 @@ class ReceiveBuffer(object):
         out = self._data[:count]
         if not out:
             return None
-        # Note that front-truncation of bytesarray is O(1), from Python 3.4
-        # onwards, thanks to some excellent work by Antoine Pitrou:
+        # Note that front-truncation of bytesarray is amortized O(1), from
+        # Python 3.4 onwards, thanks to some excellent work by Antoine Pitrou:
         #
         # https://bugs.python.org/issue19087
         del self._data[:count]
