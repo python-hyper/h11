@@ -45,7 +45,11 @@ class ReceiveBuffer(object):
         out = self._data[:count]
         if not out:
             return None
-        self._data[:count] = b""
+        # Note that front-truncation of bytesarray is amortized O(n), from
+        # Python 3.4 onwards, thanks to some excellent work by Antoine Martin:
+        #
+        # https://bugs.python.org/issue19087
+        del self._data[:count]
         return out
 
     def maybe_extract_until_next(self, needle):
@@ -62,14 +66,14 @@ class ReceiveBuffer(object):
             return None
         new_start = offset + len(needle)
         out = self._data[:new_start]
-        self._data[:new_start] = b""
+        del self._data[:new_start]
         return out
 
     # HTTP/1.1 has a number of constructs where you keep reading lines until
     # you see a blank one. This does that, and then returns the lines.
     def maybe_extract_lines(self):
         if self._data[:2] == b"\r\n":
-            self._data[:2] = b""
+            del self._data[:2]
             return []
         else:
             data = self.maybe_extract_until_next(b"\r\n\r\n")
