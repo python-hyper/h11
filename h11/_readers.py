@@ -30,7 +30,6 @@ header_field_re = re.compile(header_field.encode("ascii"))
 # Remember that this has to run in O(n) time -- so e.g. the bytearray cast is
 # critical.
 obs_fold_re = re.compile(br"[ \t]+")
-strict_line_delimiter_regex = re.compile(b"\r\n", re.MULTILINE)
 
 
 def _obsolete_line_fold(lines):
@@ -154,7 +153,7 @@ class ChunkedReader(object):
         assert self._bytes_to_discard == 0
         if self._bytes_in_chunk == 0:
             # We need to refill our chunk count
-            chunk_header = buf.maybe_extract_until_next(strict_line_delimiter_regex, 2)
+            chunk_header = buf.maybe_extract_next_line()
             if chunk_header is None:
                 return None
             matches = validate(

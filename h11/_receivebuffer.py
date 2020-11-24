@@ -41,94 +41,98 @@ __all__ = ["ReceiveBuffer"]
 # processed a whole event, which could in theory be slightly more efficient
 # than the internal bytearray support.)
 
-blank_line_delimiter_regex = re.compile(b"\n\r?\n", re.MULTILINE)
-
-
-def rstrip_line(line):
-    return line.rstrip(b"\r")
+blank_line_regex = re.compile(b"\n\r?\n", re.MULTILINE)
 
 
 class ReceiveBuffer(object):
     def __init__(self):
         self._data = bytearray()
-        # These are both absolute offsets into self._data:
-        self._start = 0
-        self._looked_at = 0
-
-        self._looked_for_regex = blank_line_delimiter_regex
-
-    def __bool__(self):
-        return bool(len(self))
-
-    # for @property unprocessed_data
-    def __bytes__(self):
-        return bytes(self._data[self._start :])
-
-    if sys.version_info[0] < 3:  # version specific: Python 2
-        __str__ = __bytes__
-        __nonzero__ = __bool__
-
-    def __len__(self):
-        return len(self._data) - self._start
-
-    def compress(self):
-        # Heuristic: only compress if it lets us reduce size by a factor
-        # of 2
-        if self._start > len(self._data) // 2:
-            del self._data[: self._start]
-            self._looked_at -= self._start
-            self._start -= self._start
+        self._next_line_search = 0
+        self._multiple_lines_search = 0
 
     def __iadd__(self, byteslike):
         self._data += byteslike
         return self
 
+    def __bool__(self):
+        return bool(len(self))
+
+    def __len__(self):
+        return len(self._data)
+
+    # for @property unprocessed_data
+    def __bytes__(self):
+        return bytes(self._data)
+
+    if sys.version_info[0] < 3:  # version specific: Python 2
+        __str__ = __bytes__
+        __nonzero__ = __bool__
+
     def maybe_extract_at_most(self, count):
-        out = self._data[self._start : self._start + count]
+        """
+        Extract a fixed number of bytes from the buffer.
+        """
+        out = self._data[:count]
         if not out:
             return None
-        self._start += len(out)
+
+        self._data[:count] = b""
+        self._next_line_search = 0
+        self._multiple_lines_search = 0
         return out
 
-    def maybe_extract_until_next(self, needle_regex, max_needle_length):
-        # Returns extracted bytes on success (advancing offset), or None on
-        # failure
-        if self._looked_for_regex == needle_regex:
-            looked_at = max(self._start, self._looked_at - max_needle_length)
-        else:
-            looked_at = self._start
-            self._looked_for_regex = needle_regex
-
-        delimiter_match = next(
-            self._looked_for_regex.finditer(self._data, looked_at), None
-        )
-
-        if delimiter_match is None:
-            self._looked_at = len(self._data)
+    def maybe_extract_next_line(self):
+        """
+        Extract the first line, if it is completed in the buffer.
+        """
+        # Only search in buffer space that we've not already looked at.
+        partial_buffer = self._data[self._next_line_search :]
+        partial_idx = partial_buffer.find(b"\n")
+        if partial_idx == -1:
+            self._next_line_search = len(self._data)
             return None
 
-        _, end = delimiter_match.span(0)
-
-        out = self._data[self._start : end]
-
-        self._start = end
-
+        # Truncate the buffer and return it.
+        idx = self._next_line_search + partial_idx + 1
+        out = self._data[:idx]
+        self._data[:idx] = b""
+        self._next_line_search = 0
+        self._multiple_lines_search = 0
         return out
 
-    # HTTP/1.1 has a number of constructs where you keep reading lines until
-    # you see a blank one. This does that, and then returns the lines.
     def maybe_extract_lines(self):
-        if self._data[self._start : self._start + 2] == b"\r\n":
-            self._start += 2
+        """
+        Extract everything up to the first blank line, and return a list of lines.
+        """
+        # Handle the case where we have an immediate empty line.
+        if self._data[:1] == b"\n":
+            self._data[:1] = b""
+            self._next_line_search = 0
+            self._multiple_lines_search = 0
             return []
-        elif self._data[self._start : self._start + 1] == b"\n":
-            self._start += 1
+
+        if self._data[:2] == b"\r\n":
+            self._data[:2] = b""
+            self._next_line_search = 0
+            self._multiple_lines_search = 0
             return []
-        else:
-            data = self.maybe_extract_until_next(blank_line_delimiter_regex, 3)
-            if data is None:
-                return None
 
-            lines = list(map(rstrip_line, data.rstrip(b"\r\n").split(b"\n")))
+        # Only search in buffer space that we've not already looked at.
+        partial_buffer = self._data[self._multiple_lines_search :]
+        match = blank_line_regex.search(partial_buffer)
+        if match is None:
+            self._multiple_lines_search = max(0, len(self._data) - 2)
+            return None
 
-            return lines
+        # Truncate the buffer and return it.
+        idx = self._multiple_lines_search + match.span(0)[-1]
+        out = self._data[:idx]
+        lines = [line.rstrip(b"\r") for line in out.split(b"\n")]
+
+        self._data[:idx] = b""
+        self._next_line_search = 0
+        self._multiple_lines_search = 0
+
+        assert lines[-2] == lines[-1] == b""
+
+        return lines[:-2]
