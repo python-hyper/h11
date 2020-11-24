@@ -16,7 +16,6 @@ def test_receivebuffer():
     assert len(b) == 3
     assert bytes(b) == b"123"
 
-    b.compress()
     assert bytes(b) == b"123"
 
     assert b.maybe_extract_at_most(2) == b"12"
@@ -24,7 +23,6 @@ def test_receivebuffer():
     assert len(b) == 1
     assert bytes(b) == b"3"
 
-    b.compress()
     assert bytes(b) == b"3"
 
     assert b.maybe_extract_at_most(10) == b"3"
@@ -37,32 +35,33 @@ def test_receivebuffer():
     # maybe_extract_until_next
     ################################################################
 
-    b += b"12345a6789aa"
+    b += b"12345\n6789\r\n"
 
-    assert b.maybe_extract_until_next(re.compile(b"a"), 1) == b"12345a"
-    assert bytes(b) == b"6789aa"
+    assert b.maybe_extract_next_line() == b"12345\n"
+    assert bytes(b) == b"6789\r\n"
 
-    assert b.maybe_extract_until_next(re.compile(b"aaa"), 3) is None
-    assert bytes(b) == b"6789aa"
+    assert b.maybe_extract_next_line() == b"6789\r\n"
+    assert bytes(b) == b""
 
-    b += b"a12"
-    assert b.maybe_extract_until_next(re.compile(b"aaa"), 3) == b"6789aaa"
-    assert bytes(b) == b"12"
+    b += b"12\r"
+    assert b.maybe_extract_next_line() is None
+    assert bytes(b) == b"12\r"
 
     # check repeated searches for the same needle, triggering the
     # pickup-where-we-left-off logic
-    b += b"345"
-    assert b.maybe_extract_until_next(re.compile(b"aaa"), 3) is None
+    b += b"345\n\r"
+    assert b.maybe_extract_next_line() == b"12\r345\n"
+    assert bytes(b) == b"\r"
 
-    b += b"6789aaa123"
-    assert b.maybe_extract_until_next(re.compile(b"aaa"), 3) == b"123456789aaa"
-    assert bytes(b) == b"123"
+    b += b"6789aaa123\n"
+    assert b.maybe_extract_next_line() == b"\r6789aaa123\n"
+    assert bytes(b) == b""
 
     ################################################################
     # maybe_extract_lines
     ################################################################
 
-    b += b"\r\na: b\r\nfoo:bar\r\n\r\ntrailing"
+    b += b"123\r\na: b\r\nfoo:bar\r\n\r\ntrailing"
     lines = b.maybe_extract_lines()
     assert lines == [b"123", b"a: b", b"foo:bar"]
     assert bytes(b) == b"trailing"

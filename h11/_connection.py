@@ -425,7 +425,6 @@ class Connection(object):
             event = self._extract_next_receive_event()
             if event not in [NEED_DATA, PAUSED]:
                 self._process_event(self.their_role, event)
-                self._receive_buffer.compress()
             if event is NEED_DATA:
                 if len(self._receive_buffer) > self._max_incomplete_event_size:
                     # 431 is "Request header fields too large" which is pretty
