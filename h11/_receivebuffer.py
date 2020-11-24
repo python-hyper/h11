@@ -42,7 +42,6 @@ class ReceiveBuffer(object):
     def __init__(self):
         self._data = bytearray()
         # These are both absolute offsets into self._data:
-        self._start = 0
         self._looked_at = 0
         self._looked_for = b""
 
@@ -51,56 +50,48 @@ class ReceiveBuffer(object):
 
     # for @property unprocessed_data
     def __bytes__(self):
-        return bytes(self._data[self._start :])
+        return bytes(self._data)
 
     if sys.version_info[0] < 3:  # version specific: Python 2
         __str__ = __bytes__
         __nonzero__ = __bool__
 
     def __len__(self):
-        return len(self._data) - self._start
-
-    def compress(self):
-        # Heuristic: only compress if it lets us reduce size by a factor
-        # of 2
-        if self._start > len(self._data) // 2:
-            del self._data[: self._start]
-            self._looked_at -= self._start
-            self._start -= self._start
+        return len(self._data)
 
     def __iadd__(self, byteslike):
         self._data += byteslike
         return self
 
     def maybe_extract_at_most(self, count):
-        out = self._data[self._start : self._start + count]
+        out = self._data[:count]
         if not out:
             return None
-        self._start += len(out)
+        self._data[:count] = b""
         return out
 
     def maybe_extract_until_next(self, needle):
         # Returns extracted bytes on success (advancing offset), or None on
         # failure
         if self._looked_for == needle:
-            search_start = max(self._start, self._looked_at - len(needle) + 1)
+            search_start = max(0, self._looked_at - len(needle) + 1)
         else:
-            search_start = self._start
+            search_start = 0
         offset = self._data.find(needle, search_start)
         if offset == -1:
             self._looked_at = len(self._data)
             self._looked_for = needle
             return None
         new_start = offset + len(needle)
-        out = self._data[self._start : new_start]
-        self._start = new_start
+        out = self._data[:new_start]
+        self._data[:new_start] = b""
         return out
 
     # HTTP/1.1 has a number of constructs where you keep reading lines until
     # you see a blank one. This does that, and then returns the lines.
     def maybe_extract_lines(self):
-        if self._data[self._start : self._start + 2] == b"\r\n":
-            self._start += 2
+        if self._data[:2] == b"\r\n":
+            self._data[:2] = b""
             return []
         else:
             data = self.maybe_extract_until_next(b"\r\n\r\n")

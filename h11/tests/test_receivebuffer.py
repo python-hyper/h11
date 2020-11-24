@@ -12,7 +12,6 @@ def test_receivebuffer():
     assert len(b) == 3
     assert bytes(b) == b"123"
 
-    b.compress()
     assert bytes(b) == b"123"
 
     assert b.maybe_extract_at_most(2) == b"12"
@@ -20,7 +19,6 @@ def test_receivebuffer():
     assert len(b) == 1
     assert bytes(b) == b"3"
 
-    b.compress()
     assert bytes(b) == b"3"
 
     assert b.maybe_extract_at_most(10) == b"3"
