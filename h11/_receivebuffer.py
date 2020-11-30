@@ -86,14 +86,16 @@ class ReceiveBuffer(object):
         Extract the first line, if it is completed in the buffer.
         """
         # Only search in buffer space that we've not already looked at.
-        partial_buffer = self._data[self._next_line_search :]
-        partial_idx = partial_buffer.find(b"\n")
+        search_start_index = max(0, self._next_line_search - 1)
+        partial_buffer = self._data[search_start_index:]
+        partial_idx = partial_buffer.find(b"\r\n")
         if partial_idx == -1:
             self._next_line_search = len(self._data)
             return None
 
         # Truncate the buffer and return it.
-        idx = self._next_line_search + partial_idx + 1
+        # + 2 is to compensate len(b"\r\n")
+        idx = search_start_index + partial_idx + 2
         out = self._data[:idx]
         self._data[:idx] = b""
         self._next_line_search = 0

@@ -35,26 +35,28 @@ def test_receivebuffer():
     # maybe_extract_until_next
     ################################################################
 
-    b += b"12345\n6789\r\n"
+    b += b"123\n456\r\n789\r\n"
 
-    assert b.maybe_extract_next_line() == b"12345\n"
-    assert bytes(b) == b"6789\r\n"
+    assert b.maybe_extract_next_line() == b"123\n456\r\n"
+    assert bytes(b) == b"789\r\n"
 
-    assert b.maybe_extract_next_line() == b"6789\r\n"
+    assert b.maybe_extract_next_line() == b"789\r\n"
     assert bytes(b) == b""
 
     b += b"12\r"
     assert b.maybe_extract_next_line() is None
     assert bytes(b) == b"12\r"
 
-    # check repeated searches for the same needle, triggering the
-    # pickup-where-we-left-off logic
     b += b"345\n\r"
-    assert b.maybe_extract_next_line() == b"12\r345\n"
-    assert bytes(b) == b"\r"
+    assert b.maybe_extract_next_line() is None
+    assert bytes(b) == b"12\r345\n\r"
 
-    b += b"6789aaa123\n"
-    assert b.maybe_extract_next_line() == b"\r6789aaa123\n"
+    # here we stopped at the middle of b"\r\n" delimiter
+
+    b += b"\n6789aaa123\r\n"
+    assert b.maybe_extract_next_line() == b"12\r345\n\r\n"
+    assert b.maybe_extract_next_line() == b"6789aaa123\r\n"
+    assert b.maybe_extract_next_line() is None
     assert bytes(b) == b""
 
     ################################################################
