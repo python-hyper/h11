@@ -68,6 +68,16 @@ class ReceiveBuffer(object):
         __str__ = __bytes__
         __nonzero__ = __bool__
 
+    def _extract(self, count):
+        # extracting an initial slice of the data buffer and return it
+        out = self._data[:count]
+        del self._data[:count]
+
+        self._next_line_search = 0
+        self._multiple_lines_search = 0
+
+        return out
+
     def maybe_extract_at_most(self, count):
         """
         Extract a fixed number of bytes from the buffer.
@@ -76,10 +86,7 @@ class ReceiveBuffer(object):
         if not out:
             return None
 
-        self._data[:count] = b""
-        self._next_line_search = 0
-        self._multiple_lines_search = 0
-        return out
+        return self._extract(count)
 
     def maybe_extract_next_line(self):
         """
@@ -87,20 +94,16 @@ class ReceiveBuffer(object):
         """
         # Only search in buffer space that we've not already looked at.
         search_start_index = max(0, self._next_line_search - 1)
-        partial_buffer = self._data[search_start_index:]
-        partial_idx = partial_buffer.find(b"\r\n")
+        partial_idx = self._data.find(b"\r\n", search_start_index)
+
         if partial_idx == -1:
             self._next_line_search = len(self._data)
             return None
 
-        # Truncate the buffer and return it.
         # + 2 is to compensate len(b"\r\n")
-        idx = search_start_index + partial_idx + 2
-        out = self._data[:idx]
-        self._data[:idx] = b""
-        self._next_line_search = 0
-        self._multiple_lines_search = 0
-        return out
+        idx = partial_idx + 2
+
+        return self._extract(idx)
 
     def maybe_extract_lines(self):
         """
@@ -108,33 +111,26 @@ class ReceiveBuffer(object):
         """
         # Handle the case where we have an immediate empty line.
         if self._data[:1] == b"\n":
-            self._data[:1] = b""
-            self._next_line_search = 0
-            self._multiple_lines_search = 0
+            self._extract(1)
             return []
 
         if self._data[:2] == b"\r\n":
-            self._data[:2] = b""
-            self._next_line_search = 0
-            self._multiple_lines_search = 0
+            self._extract(2)
             return []
 
         # Only search in buffer space that we've not already looked at.
-        partial_buffer = self._data[self._multiple_lines_search :]
-        match = blank_line_regex.search(partial_buffer)
+        match = blank_line_regex.search(self._data, self._multiple_lines_search)
         if match is None:
             self._multiple_lines_search = max(0, len(self._data) - 2)
             return None
 
         # Truncate the buffer and return it.
-        idx = self._multiple_lines_search + match.span(0)[-1]
-        out = self._data[:idx]
+        idx = match.span(0)[-1]
+        out = self._extract(idx)
         lines = [line.rstrip(b"\r") for line in out.split(b"\n")]
-
-        self._data[:idx] = b""
-        self._next_line_search = 0
-        self._multiple_lines_search = 0
 
         assert lines[-2] == lines[-1] == b""
 
-        return lines[:-2]
+        del lines[-2:]
+
+        return lines

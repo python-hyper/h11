@@ -215,6 +215,43 @@ def test_readers_unusual():
         ),
     )
 
+    # Tolerate headers line endings (\r\n and \n)
+    #    \n\r\b between headers and body
+    tr(
+        READERS[SERVER, SEND_RESPONSE],
+        b"HTTP/1.1 200 OK\r\nSomeHeader: val\n\r\n",
+        Response(
+            status_code=200,
+            headers=[("SomeHeader", "val")],
+            http_version="1.1",
+            reason="OK",
+        ),
+    )
+
+    #   delimited only with \n
+    tr(
+        READERS[SERVER, SEND_RESPONSE],
+        b"HTTP/1.1 200 OK\nSomeHeader1: val1\nSomeHeader2: val2\n\n",
+        Response(
+            status_code=200,
+            headers=[("SomeHeader1", "val1"), ("SomeHeader2", "val2")],
+            http_version="1.1",
+            reason="OK",
+        ),
+    )
+
+    #   mixed \r\n and \n
+    tr(
+        READERS[SERVER, SEND_RESPONSE],
+        b"HTTP/1.1 200 OK\r\nSomeHeader1: val1\nSomeHeader2: val2\n\r\n",
+        Response(
+            status_code=200,
+            headers=[("SomeHeader1", "val1"), ("SomeHeader2", "val2")],
+            http_version="1.1",
+            reason="OK",
+        ),
+    )
+
     # obsolete line folding
     tr(
         READERS[CLIENT, IDLE],
