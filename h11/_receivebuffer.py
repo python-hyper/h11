@@ -127,7 +127,11 @@ class ReceiveBuffer(object):
         # Truncate the buffer and return it.
         idx = match.span(0)[-1]
         out = self._extract(idx)
-        lines = [line.rstrip(b"\r") for line in out.split(b"\n")]
+        lines = out.split(b"\n")
+
+        for line in lines:
+            if line.endswith(b"\r"):
+                del line[-1]
 
         assert lines[-2] == lines[-1] == b""
 
