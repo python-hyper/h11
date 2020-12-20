@@ -969,6 +969,38 @@ def test_empty_response():
         c.next_event()
 
 
+@pytest.mark.parametrize(
+    "data",
+    [
+        b"\x00",
+        b"\x20",
+        b"\x16\x03\x01\x00\xa5",  # Typical start of a TLS Client Hello
+    ],
+)
+def test_early_detection_of_invalid_request(data):
+    c = Connection(SERVER)
+    # Early detection should occur before even receiving a `\r\n`
+    c.receive_data(data)
+    with pytest.raises(RemoteProtocolError):
+        c.next_event()
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        b"\x00",
+        b"\x20",
+        b"\x16\x03\x03\x00\x31",  # Typical start of a TLS Server Hello
+    ],
+)
+def test_early_detection_of_invalid_response(data):
+    c = Connection(CLIENT)
+    # Early detection should occur before even receiving a `\r\n`
+    c.receive_data(data)
+    with pytest.raises(RemoteProtocolError):
+        c.next_event()
+
+
 # This used to give different headers for HEAD and GET.
 # The correct way to handle HEAD is to put whatever headers we *would* have
 # put if it were a GET -- even though we know that for HEAD, those headers
