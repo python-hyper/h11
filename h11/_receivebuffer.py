@@ -133,3 +133,20 @@ class ReceiveBuffer:
         del lines[-2:]
 
         return lines
+
+    # In theory we should wait until `\r\n` before starting to validate
+    # incoming data. However it's interesting to detect (very) invalid data
+    # early given they might not even contain `\r\n` at all (hence only
+    # timeout will get rid of them).
+    # This is not a 100% effective detection but more of a cheap sanity check
+    # allowing for early abort in some useful cases.
+    # This is especially interesting when peer is messing up with HTTPS and
+    # sent us a TLS stream where we were expecting plain HTTP given all
+    # versions of TLS so far start handshake with a 0x16 message type code.
+    def is_next_line_obviously_invalid_request_line(self):
+        try:
+            # HTTP header line must not contain non-printable characters
+            # and should not start with a space
+            return self._data[0] < 0x21
+        except IndexError:
+            return False

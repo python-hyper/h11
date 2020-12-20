@@ -64,6 +64,8 @@ request_line_re = re.compile(request_line.encode("ascii"))
 def maybe_read_from_IDLE_client(buf):
     lines = buf.maybe_extract_lines()
     if lines is None:
+        if buf.is_next_line_obviously_invalid_request_line():
+            raise LocalProtocolError("illegal request line")
         return None
     if not lines:
         raise LocalProtocolError("no request line received")
@@ -81,6 +83,8 @@ status_line_re = re.compile(status_line.encode("ascii"))
 def maybe_read_from_SEND_RESPONSE_server(buf):
     lines = buf.maybe_extract_lines()
     if lines is None:
+        if buf.is_next_line_obviously_invalid_request_line():
+            raise LocalProtocolError("illegal request line")
         return None
     if not lines:
         raise LocalProtocolError("no response line received")
