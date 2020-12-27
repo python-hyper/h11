@@ -1,0 +1,3 @@
+Clarify that the Headers class is a Sequence and inherit from the
+collections Sequence abstract base class to also indicate this (and
+gain the mixin methods). See also #104.
