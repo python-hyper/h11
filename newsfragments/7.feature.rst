@@ -1,3 +1,0 @@
-Added support for servers with broken line endings.
-
-After this change h11 accepts both ``\r\n`` and ``\n`` as a headers delimiter.

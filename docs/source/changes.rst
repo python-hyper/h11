@@ -5,6 +5,30 @@ History of changes
 
 .. towncrier release notes start
 
+v0.12.0 (2021-01-01)
+--------------------
+
+Features
+~~~~~~~~
+
+- Added support for servers with broken line endings.
+
+  After this change h11 accepts both ``\r\n`` and ``\n`` as a headers
+  delimiter. (`#7 <https://github.com/python-hyper/h11/issues/7>`__)
+- Add early detection of invalid http data when request line starts
+  with binary (`#122
+  <https://github.com/python-hyper/h11/issues/122>`__)
+
+
+Deprecations and Removals
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Python 2.7 and PyPy 2 support is removed. h11 now requires
+  Python>=3.6 including PyPy 3.  Users running `pip install h11` on
+  Python 2 will automatically get the last Python 2-compatible
+  version. (`#114 <https://github.com/python-hyper/h11/issues/114>`__)
+
+
 v0.11.0 (2020-10-05)
 --------------------
 

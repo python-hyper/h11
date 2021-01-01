@@ -1,1 +1,0 @@
-Add early detection of invalid http data when request line starts with binary
