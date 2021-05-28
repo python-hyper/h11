@@ -252,7 +252,7 @@ class ConnectionState:
                 "can't handle event type {} when role={} and state={}".format(
                     event_type.__name__, role, self.states[role]
                 )
-            )
+            ) from None
         self.states[role] = new_state
 
     def _fire_state_triggered_transitions(self):
