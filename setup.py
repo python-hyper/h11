@@ -18,7 +18,10 @@ setup(
     # doesn't look like a source file, so long as it appears in MANIFEST.in:
     include_package_data=True,
     python_requires=">=3.6",
-    install_requires=["dataclasses; python_version < '3.7'"],
+    install_requires=[
+        "dataclasses; python_version < '3.7'",
+        "typing_extensions; python_version < '3.8'",
+    ],
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",

@@ -3,11 +3,19 @@ from http import HTTPStatus
 import pytest
 
 from .. import _events
-from .._events import *
+from .._events import (
+    ConnectionClosed,
+    Data,
+    EndOfMessage,
+    Event,
+    InformationalResponse,
+    Request,
+    Response,
+)
 from .._util import LocalProtocolError
 
 
-def test_events():
+def test_events() -> None:
     with pytest.raises(LocalProtocolError):
         # Missing Host:
         req = Request(
@@ -68,9 +76,9 @@ def test_events():
     )
 
     # Request target is validated
-    for bad_char in b"\x00\x20\x7f\xee":
+    for bad_byte in b"\x00\x20\x7f\xee":
         target = bytearray(b"/")
-        target.append(bad_char)
+        target.append(bad_byte)
         with pytest.raises(LocalProtocolError):
             Request(
                 method="GET", target=target, headers=[("Host", "a")], http_version="1.1"
@@ -84,19 +92,19 @@ def test_events():
     with pytest.raises(LocalProtocolError):
         InformationalResponse(status_code=200, headers=[("Host", "a")])
 
-    resp = Response(status_code=204, headers=[], http_version="1.0")
+    resp = Response(status_code=204, headers=[], http_version="1.0")  # type: ignore[arg-type]
     assert resp.status_code == 204
     assert resp.headers == []
     assert resp.http_version == b"1.0"
 
     with pytest.raises(LocalProtocolError):
-        resp = Response(status_code=100, headers=[], http_version="1.0")
+        resp = Response(status_code=100, headers=[], http_version="1.0")  # type: ignore[arg-type]
 
     with pytest.raises(LocalProtocolError):
-        Response(status_code="100", headers=[], http_version="1.0")
+        Response(status_code="100", headers=[], http_version="1.0")  # type: ignore[arg-type]
 
     with pytest.raises(LocalProtocolError):
-        InformationalResponse(status_code=b"100", headers=[], http_version="1.0")
+        InformationalResponse(status_code=b"100", headers=[], http_version="1.0")  # type: ignore[arg-type]
 
     d = Data(data=b"asdf")
     assert d.data == b"asdf"
@@ -108,16 +116,16 @@ def test_events():
     assert repr(cc) == "ConnectionClosed()"
 
 
-def test_intenum_status_code():
+def test_intenum_status_code() -> None:
     # https://github.com/python-hyper/h11/issues/72
 
-    r = Response(status_code=HTTPStatus.OK, headers=[], http_version="1.0")
+    r = Response(status_code=HTTPStatus.OK, headers=[], http_version="1.0")  # type: ignore[arg-type]
     assert r.status_code == HTTPStatus.OK
     assert type(r.status_code) is not type(HTTPStatus.OK)
     assert type(r.status_code) is int
 
 
-def test_header_casing():
+def test_header_casing() -> None:
     r = Request(
         method="GET",
         target="/",
