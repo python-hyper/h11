@@ -129,9 +129,8 @@ sending an :class:`EndOfMessage` event:
 Of course, it turns out that in this case, the HTTP/1.1 specification
 tells us that any request that doesn't contain either a
 ``Content-Length`` or ``Transfer-Encoding`` header automatically has a
-0 length body, and h11 knows that, and h11 knows that the server knows
-that, so it actually encoded the :class:`EndOfMessage` event as the
-empty string:
+0 length body, and h11 knows that the server knows that, so it
+actually encoded the :class:`EndOfMessage` event as the empty string:
 
 .. ipython:: python
 
