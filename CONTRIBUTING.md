@@ -48,7 +48,7 @@ other hand, the following are all very welcome:
   the project. With those projects installed the commands,
 
       black h11/ bench/ examples/ fuzz/
-      isort --dont-skip __init__.py --apply --settings-path setup.cfg --recursive h11 bench examples fuzz
+      isort --profile black --dt h11 bench examples fuzz
 
   will format your code for you.
 
