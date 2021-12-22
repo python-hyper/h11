@@ -22,7 +22,7 @@ PAUSED = make_sentinel("PAUSED")
 
 # If we ever have this much buffered without it making a complete parseable
 # event, we error out. The only time we really buffer is when reading the
-# request/reponse line + headers together, so this is effectively the limit on
+# request/response line + headers together, so this is effectively the limit on
 # the size of that.
 #
 # Some precedents for defaults:
