@@ -224,7 +224,7 @@ class Response(_ResponseBase):
 
        The status code of this response, as an integer. For an
        :class:`Response`, this is always in the range [200,
-       600).
+       1000).
 
     .. attribute:: headers
 
@@ -245,9 +245,9 @@ class Response(_ResponseBase):
     """
 
     def __post_init__(self) -> None:
-        if not (200 <= self.status_code < 600):
+        if not (200 <= self.status_code < 1000):
             raise LocalProtocolError(
-                "Response status_code should be in range [200, 600), not {}".format(
+                "Response status_code should be in range [200, 1000), not {}".format(
                     self.status_code
                 )
             )
