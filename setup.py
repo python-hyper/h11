@@ -13,6 +13,7 @@ setup(
     author_email="njs@pobox.com",
     license="MIT",
     packages=find_packages(),
+    package_data={'h11': ['py.typed']},
     url="https://github.com/python-hyper/h11",
     # This means, just install *everything* you see under h11/, even if it
     # doesn't look like a source file, so long as it appears in MANIFEST.in:
