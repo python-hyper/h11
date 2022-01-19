@@ -5,6 +5,33 @@ History of changes
 
 .. towncrier release notes start
 
+v0.13.0 (2022-01-19)
+--------------------
+
+Features
+~~~~~~~~
+
+- Clarify that the Headers class is a Sequence and inherit from the
+  collections Sequence abstract base class to also indicate this (and
+  gain the mixin methods). See also #104. (`#112
+  <https://github.com/python-hyper/h11/issues/112>`__)
+- Switch event classes to dataclasses for easier typing and slightly
+  improved performance. (`#124
+  <https://github.com/python-hyper/h11/issues/124>`__)
+- Shorten traceback of protocol errors for easier readability (`#132
+  <https://github.com/python-hyper/h11/pull/132>`__).
+- Add typing including a PEP 561 marker for usage by type checkers
+  (`#135 <https://github.com/python-hyper/h11/pull/135>`__).
+- Expand the allowed status codes to [0, 999] from [0, 600] (`#134
+  https://github.com/python-hyper/h11/issues/134`__).
+
+Backwards **in**\compatible changes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Ensure request method is a valid token (`#141
+  https://github.com/python-hyper/h11/pull/141>`__).
+
+
 v0.12.0 (2021-01-01)
 --------------------
 

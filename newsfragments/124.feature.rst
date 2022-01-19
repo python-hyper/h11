@@ -1,2 +1,0 @@
-Switch event classes to dataclasses for easier typing and slightly
-improved performance.
