@@ -10,7 +10,7 @@ from abc import ABC
 from dataclasses import dataclass, field
 from typing import Any, cast, Dict, List, Tuple, Union
 
-from ._abnf import request_target
+from ._abnf import method, request_target
 from ._headers import Headers, normalize_and_validate
 from ._util import bytesify, LocalProtocolError, validate
 
@@ -25,6 +25,7 @@ __all__ = [
     "ConnectionClosed",
 ]
 
+method_re = re.compile(method.encode("ascii"))
 request_target_re = re.compile(request_target.encode("ascii"))
 
 
@@ -117,6 +118,7 @@ class Request(Event):
         if host_count > 1:
             raise LocalProtocolError("Found multiple Host: headers")
 
+        validate(method_re, self.method, "Illegal method characters")
         validate(request_target_re, self.target, "Illegal target characters")
 
     # This is an unhashable type.

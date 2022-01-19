@@ -84,6 +84,15 @@ def test_events() -> None:
                 method="GET", target=target, headers=[("Host", "a")], http_version="1.1"
             )
 
+    # Request method is validated
+    with pytest.raises(LocalProtocolError):
+        Request(
+            method="GET / HTTP/1.1",
+            target=target,
+            headers=[("Host", "a")],
+            http_version="1.1"
+        )
+
     ir = InformationalResponse(status_code=100, headers=[("Host", "a")])
     assert ir.status_code == 100
     assert ir.headers == [(b"host", b"a")]
