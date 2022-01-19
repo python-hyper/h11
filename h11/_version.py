@@ -13,4 +13,4 @@
 # want. (Contrast with the special suffix 1.0.0.dev, which sorts *before*
 # 1.0.0.)
 
-__version__ = "0.13.0"
+__version__ = "0.13.0+dev"
