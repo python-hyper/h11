@@ -90,7 +90,7 @@ def test_events() -> None:
             method="GET / HTTP/1.1",
             target=target,
             headers=[("Host", "a")],
-            http_version="1.1"
+            http_version="1.1",
         )
 
     ir = InformationalResponse(status_code=100, headers=[("Host", "a")])
