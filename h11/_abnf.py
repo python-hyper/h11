@@ -125,5 +125,5 @@ chunk_ext = r";.*"
 chunk_header = (
     r"(?P<chunk_size>{chunk_size})"
     r"(?P<chunk_ext>{chunk_ext})?"
-    r"\r\n".format(**globals())
+    r"\s*\r\n".format(**globals())
 )
