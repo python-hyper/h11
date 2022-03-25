@@ -421,7 +421,7 @@ class Connection:
             event = NEED_DATA
         return event  # type: ignore[no-any-return]
 
-    def next_event(self) -> Union[Event, Type[Sentinel]]:
+    def next_event(self) -> Union[Event, NEED_DATA, PAUSED]:
         """Parse the next event out of our receive buffer, update our internal
         state, and return it.
 
