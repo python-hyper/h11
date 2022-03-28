@@ -51,7 +51,7 @@ def test_LocalProtocolError() -> None:
 
 
 def test_validate() -> None:
-    my_re = re.compile(br"(?P<group1>[0-9]+)\.(?P<group2>[0-9]+)")
+    my_re = re.compile(rb"(?P<group1>[0-9]+)\.(?P<group2>[0-9]+)")
     with pytest.raises(LocalProtocolError):
         validate(my_re, b"0.")
 
@@ -66,7 +66,7 @@ def test_validate() -> None:
 
 
 def test_validate_formatting() -> None:
-    my_re = re.compile(br"foo")
+    my_re = re.compile(rb"foo")
 
     with pytest.raises(LocalProtocolError) as excinfo:
         validate(my_re, b"", "oops")

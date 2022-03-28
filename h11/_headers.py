@@ -67,7 +67,7 @@ except ImportError:
 #
 # Maybe a dict-of-lists would be better?
 
-_content_length_re = re.compile(br"[0-9]+")
+_content_length_re = re.compile(rb"[0-9]+")
 _field_name_re = re.compile(field_name.encode("ascii"))
 _field_value_re = re.compile(field_value.encode("ascii"))
 

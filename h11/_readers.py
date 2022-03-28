@@ -37,7 +37,7 @@ from ._util import LocalProtocolError, RemoteProtocolError, Sentinel, validate
 __all__ = ["READERS"]
 
 header_field_re = re.compile(header_field.encode("ascii"))
-obs_fold_re = re.compile(br"[ \t]+")
+obs_fold_re = re.compile(rb"[ \t]+")
 
 
 def _obsolete_line_fold(lines: Iterable[bytes]) -> Iterable[bytes]:
