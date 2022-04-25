@@ -131,7 +131,13 @@ class TrioHTTPWrapper:
         # appropriate when 'data' is None.
         assert type(event) is not h11.ConnectionClosed
         data = self.conn.send(event)
-        await self.stream.send_all(data)
+        try:
+            await self.stream.send_all(data)
+        except BaseException:
+            # If send_all raises an exception (especially trio.Cancelled),
+            # we have no choice but to give it up.
+            self.conn.send_failed()
+            raise
 
     async def _read_from_peer(self):
         if self.conn.they_are_waiting_for_100_continue:
