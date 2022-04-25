@@ -76,8 +76,9 @@
 #   TCP_CORK and suchlike.
 
 import json
+import datetime
+import email.utils
 from itertools import count
-from wsgiref.handlers import format_date_time
 
 import trio
 
@@ -85,6 +86,21 @@ import h11
 
 MAX_RECV = 2**16
 TIMEOUT = 10
+
+
+# We are using email.utils.format_datetime to generate the Date header.
+# It may sound weird, but it actually follows the RFC.
+# Please see: https://stackoverflow.com/a/59416334/14723771
+#
+# See also:
+# [1] https://www.rfc-editor.org/rfc/rfc7231#section-7.1.1.1
+# [2] https://www.rfc-editor.org/rfc/rfc5322#section-3.3
+def format_date_time(dt=None):
+    """Generate a RFC 7231 IMF-fixdate string"""
+    if dt is None:
+        dt = datetime.datetime.now(datetime.timezone.utc)
+    return email.utils.format_datetime(dt, usegmt=True)
+
 
 ################################################################
 # I/O adapter: h11 <-> trio
@@ -177,7 +193,7 @@ class TrioHTTPWrapper:
         # HTTP requires these headers in all responses (client would do
         # something different here)
         return [
-            ("Date", format_date_time(None).encode("ascii")),
+            ("Date", format_date_time().encode("ascii")),
             ("Server", self.ident),
         ]
 
