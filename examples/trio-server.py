@@ -1,6 +1,5 @@
 # A simple HTTP server implemented using h11 and Trio:
 #   http://trio.readthedocs.io/en/latest/index.html
-# (so requires python 3.5+).
 #
 # All requests get echoed back a JSON document containing information about
 # the request.
