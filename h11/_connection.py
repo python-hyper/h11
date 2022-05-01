@@ -323,7 +323,7 @@ class Connection:
         else:
             # General case: the io_dict just has the appropriate reader/writer
             # for this state
-            return io_dict.get((role, state))  # type: ignore
+            return io_dict.get((role, state))  # type: ignore[return-value]
 
     # This must be called after any action that might have caused
     # self._cstate.states to change.
