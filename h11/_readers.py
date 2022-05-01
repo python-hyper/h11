@@ -225,7 +225,7 @@ def expect_nothing(buf: ReceiveBuffer) -> None:
 
 
 ReadersType = Dict[
-    Union[Sentinel, Tuple[Sentinel, Sentinel]],
+    Union[Type[Sentinel], Tuple[Type[Sentinel], Type[Sentinel]]],
     Union[Callable[..., Any], Dict[str, Callable[..., Any]]],
 ]
 

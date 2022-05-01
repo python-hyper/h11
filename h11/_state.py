@@ -226,9 +226,13 @@ EVENT_TRIGGERED_TRANSITIONS: EventTransitionType = {
     },
 }
 
+StateTransitionType = Dict[
+    Tuple[Type[Sentinel], Type[Sentinel]], Dict[Type[Sentinel], Type[Sentinel]]
+]
+
 # NB: there are also some special-case state-triggered transitions hard-coded
 # into _fire_state_triggered_transitions below.
-STATE_TRIGGERED_TRANSITIONS = {
+STATE_TRIGGERED_TRANSITIONS: StateTransitionType = {
     # (Client state, Server state) -> new states
     # Protocol negotiation
     (MIGHT_SWITCH_PROTOCOL, SWITCHED_PROTOCOL): {CLIENT: SWITCHED_PROTOCOL},
@@ -345,7 +349,7 @@ class ConnectionState:
             # Tabular state-triggered transitions
             joint_state = (self.states[CLIENT], self.states[SERVER])
             changes = STATE_TRIGGERED_TRANSITIONS.get(joint_state, {})
-            self.states.update(changes)  # type: ignore
+            self.states.update(changes)
 
             if self.states == start_states:
                 # Fixed point reached

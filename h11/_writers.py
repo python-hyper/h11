@@ -125,7 +125,7 @@ class Http10Writer(BodyWriter):
 
 
 WritersType = Dict[
-    Union[Tuple[Sentinel, Sentinel], Sentinel],
+    Union[Tuple[Type[Sentinel], Type[Sentinel]], Type[Sentinel]],
     Union[
         Dict[str, Type[BodyWriter]],
         Callable[[Union[InformationalResponse, Response], Writer], None],
