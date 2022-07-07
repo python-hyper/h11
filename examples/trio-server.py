@@ -93,10 +93,11 @@ TIMEOUT = 10
 # Please see: https://stackoverflow.com/a/59416334/14723771
 #
 # See also:
-# [1] https://www.rfc-editor.org/rfc/rfc7231#section-7.1.1.1
-# [2] https://www.rfc-editor.org/rfc/rfc5322#section-3.3
+# [1] https://www.rfc-editor.org/rfc/rfc9110#section-5.6.7
+# [2] https://www.rfc-editor.org/rfc/rfc7231#section-7.1.1.1
+# [3] https://www.rfc-editor.org/rfc/rfc5322#section-3.3
 def format_date_time(dt=None):
-    """Generate a RFC 7231 IMF-fixdate string"""
+    """Generate a RFC 7231 / RFC 9110 IMF-fixdate string"""
     if dt is None:
         dt = datetime.datetime.now(datetime.timezone.utc)
     return email.utils.format_datetime(dt, usegmt=True)
