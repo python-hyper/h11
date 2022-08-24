@@ -74,9 +74,9 @@
 # - We should probably do something cleverer with buffering responses and
 #   TCP_CORK and suchlike.
 
-import json
 import datetime
 import email.utils
+import json
 from itertools import count
 
 import trio
