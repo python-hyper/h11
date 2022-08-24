@@ -455,6 +455,12 @@ def test_ChunkedReader() -> None:
         [Data(data=b"xxxxx"), EndOfMessage()],
     )
 
+    t_body_reader(
+        ChunkedReader,
+        b"5   	 \r\n01234\r\n" + b"0\r\n\r\n",
+        [Data(data=b"01234"), EndOfMessage()],
+    )
+
 
 def test_ContentLengthWriter() -> None:
     w = ContentLengthWriter(5)
