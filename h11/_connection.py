@@ -395,7 +395,7 @@ class Connection:
         else:
             self._receive_buffer_closed = True
 
-    def _extract_next_receive_event(self) -> Union[Event, Type[Sentinel]]:
+    def _extract_next_receive_event(self) -> Union[Event, Type[NEED_DATA], Type[PAUSED]]:
         state = self.their_state
         # We don't pause immediately when they enter DONE, because even in
         # DONE state we can still process a ConnectionClosed() event. But
@@ -421,7 +421,7 @@ class Connection:
             event = NEED_DATA
         return event  # type: ignore[no-any-return]
 
-    def next_event(self) -> Union[Event, NEED_DATA, PAUSED]:
+    def next_event(self) -> Union[Event, Type[NEED_DATA], Type[PAUSED]]:
         """Parse the next event out of our receive buffer, update our internal
         state, and return it.
 
