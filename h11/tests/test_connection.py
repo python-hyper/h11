@@ -20,12 +20,13 @@ from .._state import (
     IDLE,
     MIGHT_SWITCH_PROTOCOL,
     MUST_CLOSE,
+    Role,
     SEND_BODY,
     SEND_RESPONSE,
     SERVER,
     SWITCHED_PROTOCOL,
 )
-from .._util import LocalProtocolError, RemoteProtocolError, Sentinel
+from .._util import LocalProtocolError, RemoteProtocolError
 from .helpers import ConnectionPair, get_all_events, receive_and_get
 
 
@@ -926,7 +927,7 @@ def test_errors() -> None:
     # After an error sending, you can no longer send
     # (This is especially important for things like content-length errors,
     # where there's complex internal state being modified)
-    def conn(role: Type[Sentinel]) -> Connection:
+    def conn(role: Role) -> Connection:
         c = Connection(our_role=role)
         if role is SERVER:
             # Put it into the state where it *could* send a response...

@@ -10,8 +10,7 @@ from .._events import (
     Request,
     Response,
 )
-from .._state import CLIENT, CLOSED, DONE, MUST_CLOSE, SERVER
-from .._util import Sentinel
+from .._state import CLIENT, CLOSED, DONE, MUST_CLOSE, Role, SERVER
 
 try:
     from typing import Literal
@@ -71,7 +70,7 @@ class ConnectionPair:
     # expect="match" if expect=send_events; expect=[...] to say what expected
     def send(
         self,
-        role: Type[Sentinel],
+        role: Role,
         send_events: Union[List[Event], Event],
         expect: Union[List[Event], Event, Literal["match"]] = "match",
     ) -> bytes:

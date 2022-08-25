@@ -5,6 +5,7 @@ sys.path.append("../..")
 
 import os.path
 import subprocess
+from enum import Enum
 
 from h11._events import *
 from h11._state import *
@@ -41,8 +42,11 @@ class Edges:
             quoted_label = "<<i>{}</i>>".format(label)
         else:
             quoted_label = '<{}>'.format(label)
+
+        source_name = source.name if isinstance(source, Enum) else str(source)
+        target_name = target.name if isinstance(target, Enum) else str(target)
         self.edges.append(
-            '{source} -> {target} [\n'
+            '{source_name} -> {target_name} [\n'
             '  label={quoted_label},\n'
             '  color="{color}", fontcolor="{color}",\n'
             '  weight={weight},\n'

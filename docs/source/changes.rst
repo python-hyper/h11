@@ -181,9 +181,9 @@ v0.7.0 (2016-11-25)
 
 New features (backwards compatible):
 
-* Made it so that sentinels are :ref:`instances of themselves
-  <sentinel-type-trickiness>`, to enable certain dispatch tricks on
-  the return value of :func:`Connection.next_event` (see `issue #8
+* Made it so that sentinels are instances of themselves, to enable
+  certain dispatch tricks on the return value of
+  :func:`Connection.next_event` (see `issue #8
   <https://github.com/python-hyper/h11/issues/8>`__ for discussion).
 
 * Added :data:`Data.chunk_start` and :data:`Data.chunk_end` properties

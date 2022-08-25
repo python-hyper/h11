@@ -28,11 +28,13 @@ from ._state import (
     DONE,
     IDLE,
     MUST_CLOSE,
+    Role,
     SEND_BODY,
     SEND_RESPONSE,
     SERVER,
+    State,
 )
-from ._util import LocalProtocolError, RemoteProtocolError, Sentinel, validate
+from ._util import LocalProtocolError, RemoteProtocolError, validate
 
 __all__ = ["READERS"]
 
@@ -225,7 +227,7 @@ def expect_nothing(buf: ReceiveBuffer) -> None:
 
 
 ReadersType = Dict[
-    Union[Type[Sentinel], Tuple[Type[Sentinel], Type[Sentinel]]],
+    Union[State, Tuple[Role, State]],
     Union[Callable[..., Any], Dict[str, Callable[..., Any]]],
 ]
 

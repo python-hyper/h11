@@ -10,7 +10,6 @@ from .._util import (
     LocalProtocolError,
     ProtocolError,
     RemoteProtocolError,
-    Sentinel,
     validate,
 )
 
@@ -79,25 +78,6 @@ def test_validate_formatting() -> None:
     with pytest.raises(LocalProtocolError) as excinfo:
         validate(my_re, b"", "oops {} xx", 10)
     assert "oops 10 xx" in str(excinfo.value)
-
-
-def test_make_sentinel() -> None:
-    class S(Sentinel, metaclass=Sentinel):
-        pass
-
-    assert repr(S) == "S"
-    assert S == S
-    assert type(S).__name__ == "S"
-    assert S in {S}
-    assert type(S) is S
-
-    class S2(Sentinel, metaclass=Sentinel):
-        pass
-
-    assert repr(S2) == "S2"
-    assert S != S2
-    assert S not in {S2}
-    assert type(S) is not type(S2)
 
 
 def test_bytesify() -> None:
