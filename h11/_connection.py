@@ -395,7 +395,9 @@ class Connection:
         else:
             self._receive_buffer_closed = True
 
-    def _extract_next_receive_event(self) -> Union[Event, Type[NEED_DATA], Type[PAUSED]]:
+    def _extract_next_receive_event(
+        self,
+    ) -> Union[Event, Type[NEED_DATA], Type[PAUSED]]:
         state = self.their_state
         # We don't pause immediately when they enter DONE, because even in
         # DONE state we can still process a ConnectionClosed() event. But
