@@ -1,3 +1,0 @@
-Python 3.6 support is removed. h11 now requires Python>=3.7 including
-PyPy 3.  Users running `pip install h11` on Python 2 will
-automatically get the last Python 2-compatible version.

@@ -5,6 +5,29 @@ History of changes
 
 .. towncrier release notes start
 
+H11 0.14.0 (2022-09-25)
+-----------------------
+
+Features
+~~~~~~~~
+
+- Allow additional trailing whitespace in chunk headers for additional
+  compatibility with existing servers. (`#133
+  <https://github.com/python-hyper/h11/issues/133>`__)
+- Improve the type hints for Sentinel types, which should make it
+  easier to type hint h11 usage. (`#151
+  <https://github.com/python-hyper/h11/pull/151>`__ & `#144
+  <https://github.com/python-hyper/h11/pull/144>`__))
+
+Deprecations and Removals
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Python 3.6 support is removed. h11 now requires Python>=3.7
+  including PyPy 3.  Users running `pip install h11` on Python 2 will
+  automatically get the last Python 2-compatible version. (`#138
+  <https://github.com/python-hyper/h11/issues/138>`__)
+
+
 v0.13.0 (2022-01-19)
 --------------------
 
