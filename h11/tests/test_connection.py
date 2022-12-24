@@ -7,7 +7,6 @@ from .._events import (
     ConnectionClosed,
     Data,
     EndOfMessage,
-    Event,
     InformationalResponse,
     Request,
     Response,
@@ -17,7 +16,6 @@ from .._state import (
     CLOSED,
     DONE,
     ERROR,
-    IDLE,
     MIGHT_SWITCH_PROTOCOL,
     MUST_CLOSE,
     SEND_BODY,
@@ -1120,3 +1118,8 @@ def test_special_exceptions_for_lost_connection_in_message_body() -> None:
     with pytest.raises(RemoteProtocolError) as excinfo:
         c.next_event()
     assert "incomplete chunked read" in str(excinfo.value)
+
+def test_ensure_connection_close_remains_untouched() -> None:
+    c = Connection(SERVER)
+    data = c.send(Response(status_code=200, headers=[(b"connection", b"close")]))  # type: ignore[arg-type]
+    assert data == b"HTTP/1.1 200 \r\n" b"connection: close\r\n\r\n"
