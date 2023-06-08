@@ -594,7 +594,7 @@ def test_pipelining() -> None:
 
 
 def test_protocol_switch() -> None:
-    for (req, deny, accept) in [
+    for req, deny, accept in [
         (
             Request(
                 method="CONNECT",
@@ -721,7 +721,7 @@ def test_protocol_switch() -> None:
 def test_close_simple() -> None:
     # Just immediately closing a new connection without anything having
     # happened yet.
-    for (who_shot_first, who_shot_second) in [(CLIENT, SERVER), (SERVER, CLIENT)]:
+    for who_shot_first, who_shot_second in [(CLIENT, SERVER), (SERVER, CLIENT)]:
 
         def setup() -> ConnectionPair:
             p = ConnectionPair()

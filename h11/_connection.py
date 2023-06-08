@@ -57,6 +57,7 @@ class PAUSED(Sentinel, metaclass=Sentinel):
 # - Apache: <8 KiB per line>
 DEFAULT_MAX_INCOMPLETE_EVENT_SIZE = 16 * 1024
 
+
 # RFC 7230's rules for connection lifecycles:
 # - If either side says they want to close the connection, then the connection
 #   must close.

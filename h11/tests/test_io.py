@@ -125,12 +125,12 @@ def tr(reader: Any, data: bytes, expected: Any) -> None:
 
 
 def test_writers_simple() -> None:
-    for ((role, state), event, binary) in SIMPLE_CASES:
+    for (role, state), event, binary in SIMPLE_CASES:
         tw(WRITERS[role, state], event, binary)
 
 
 def test_readers_simple() -> None:
-    for ((role, state), event, binary) in SIMPLE_CASES:
+    for (role, state), event, binary in SIMPLE_CASES:
         tr(READERS[role, state], binary, event)
 
 
