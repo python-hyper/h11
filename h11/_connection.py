@@ -1,6 +1,17 @@
 # This contains the main Connection class. Everything in h11 revolves around
 # this.
-from typing import Any, Callable, cast, Dict, List, Optional, Tuple, Type, Union, overload
+from typing import (
+    Any,
+    Callable,
+    cast,
+    Dict,
+    List,
+    Optional,
+    overload,
+    Tuple,
+    Type,
+    Union,
+)
 
 from ._events import (
     ConnectionClosed,
