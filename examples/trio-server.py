@@ -106,6 +106,7 @@ def format_date_time(dt=None):
 # I/O adapter: h11 <-> trio
 ################################################################
 
+
 # The core of this could be factored out to be usable for trio-based clients
 # too, as well as servers. But as a simplified pedagogical example we don't
 # attempt this here.
@@ -212,6 +213,7 @@ class TrioHTTPWrapper:
 # Server main loop
 ################################################################
 
+
 # General theory:
 #
 # If everything goes well:
@@ -275,6 +277,7 @@ async def http_serve(stream):
 ################################################################
 # Actual response handlers
 ################################################################
+
 
 # Helper function
 async def send_simple_response(wrapper, status_code, content_type, body):
