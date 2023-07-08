@@ -92,35 +92,6 @@ def validate(
     return match.groupdict()
 
 
-# Sentinel values
-#
-# - Inherit identity-based comparison and hashing from object
-# - Have a nice repr
-# - Have a *bonus property*: type(sentinel) is sentinel
-#
-# The bonus property is useful if you want to take the return value from
-# next_event() and do some sort of dispatch based on type(event).
-
-_T_Sentinel = TypeVar("_T_Sentinel", bound="Sentinel")
-
-
-class Sentinel(type):
-    def __new__(
-        cls: Type[_T_Sentinel],
-        name: str,
-        bases: Tuple[type, ...],
-        namespace: Dict[str, Any],
-        **kwds: Any
-    ) -> _T_Sentinel:
-        assert bases == (Sentinel,)
-        v = super().__new__(cls, name, bases, namespace, **kwds)
-        v.__class__ = v  # type: ignore
-        return v
-
-    def __repr__(self) -> str:
-        return self.__name__
-
-
 # Used for methods, request targets, HTTP versions, header names, and header
 # values. Accepts ascii-strings, or bytes/bytearray/memoryview/..., and always
 # returns bytes.

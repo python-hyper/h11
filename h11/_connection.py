@@ -1,5 +1,6 @@
 # This contains the main Connection class. Everything in h11 revolves around
 # this.
+from enum import auto, Enum
 from typing import Any, Callable, cast, Dict, List, Optional, Tuple, Type, Union
 
 from ._events import (
@@ -22,27 +23,29 @@ from ._state import (
     DONE,
     ERROR,
     MIGHT_SWITCH_PROTOCOL,
+    Role,
     SEND_BODY,
     SERVER,
+    State,
     SWITCHED_PROTOCOL,
+    SwitchState,
+    SwitchType,
 )
-from ._util import (  # Import the internal things we need
-    LocalProtocolError,
-    RemoteProtocolError,
-    Sentinel,
-)
+from ._util import LocalProtocolError  # Import the internal things we need
+from ._util import RemoteProtocolError
 from ._writers import WRITERS, WritersType
 
 # Everything in __all__ gets re-exported as part of the h11 public API.
 __all__ = ["Connection", "NEED_DATA", "PAUSED"]
 
 
-class NEED_DATA(Sentinel, metaclass=Sentinel):
-    pass
+class PseudoEvent(Enum):
+    NEED_DATA = auto()
+    PAUSED = auto()
 
 
-class PAUSED(Sentinel, metaclass=Sentinel):
-    pass
+NEED_DATA = PseudoEvent.NEED_DATA
+PAUSED = PseudoEvent.PAUSED
 
 
 # If we ever have this much buffered without it making a complete parseable
@@ -155,7 +158,7 @@ class Connection:
 
     def __init__(
         self,
-        our_role: Type[Sentinel],
+        our_role: Role,
         max_incomplete_event_size: int = DEFAULT_MAX_INCOMPLETE_EVENT_SIZE,
     ) -> None:
         self._max_incomplete_event_size = max_incomplete_event_size
@@ -163,7 +166,7 @@ class Connection:
         if our_role not in (CLIENT, SERVER):
             raise ValueError("expected CLIENT or SERVER, not {!r}".format(our_role))
         self.our_role = our_role
-        self.their_role: Type[Sentinel]
+        self.their_role: Role
         if our_role is CLIENT:
             self.their_role = SERVER
         else:
@@ -193,7 +196,7 @@ class Connection:
         self.client_is_waiting_for_100_continue = False
 
     @property
-    def states(self) -> Dict[Type[Sentinel], Type[Sentinel]]:
+    def states(self) -> Dict[Role, Union[State, SwitchState]]:
         """A dictionary like::
 
            {CLIENT: <client state>, SERVER: <server state>}
@@ -204,14 +207,14 @@ class Connection:
         return dict(self._cstate.states)
 
     @property
-    def our_state(self) -> Type[Sentinel]:
+    def our_state(self) -> Union[State, SwitchState]:
         """The current state of whichever role we are playing. See
         :ref:`state-machine` for details.
         """
         return self._cstate.states[self.our_role]
 
     @property
-    def their_state(self) -> Type[Sentinel]:
+    def their_state(self) -> Union[State, SwitchState]:
         """The current state of whichever role we are NOT playing. See
         :ref:`state-machine` for details.
         """
@@ -241,12 +244,12 @@ class Connection:
         assert not self.client_is_waiting_for_100_continue
         self._respond_to_state_changes(old_states)
 
-    def _process_error(self, role: Type[Sentinel]) -> None:
+    def _process_error(self, role: Role) -> None:
         old_states = dict(self._cstate.states)
         self._cstate.process_error(role)
         self._respond_to_state_changes(old_states)
 
-    def _server_switch_event(self, event: Event) -> Optional[Type[Sentinel]]:
+    def _server_switch_event(self, event: Event) -> Optional[SwitchType]:
         if type(event) is InformationalResponse and event.status_code == 101:
             return _SWITCH_UPGRADE
         if type(event) is Response:
@@ -258,7 +261,7 @@ class Connection:
         return None
 
     # All events go through here
-    def _process_event(self, role: Type[Sentinel], event: Event) -> None:
+    def _process_event(self, role: Role, event: Event) -> None:
         # First, pass the event through the state machine to make sure it
         # succeeds.
         old_states = dict(self._cstate.states)
@@ -308,7 +311,7 @@ class Connection:
 
     def _get_io_object(
         self,
-        role: Type[Sentinel],
+        role: Role,
         event: Optional[Event],
         io_dict: Union[ReadersType, WritersType],
     ) -> Optional[Callable[..., Any]]:
@@ -324,13 +327,13 @@ class Connection:
         else:
             # General case: the io_dict just has the appropriate reader/writer
             # for this state
-            return io_dict.get((role, state))  # type: ignore[return-value]
+            return io_dict.get((role, state))  # type: ignore[arg-type, return-value]
 
     # This must be called after any action that might have caused
     # self._cstate.states to change.
     def _respond_to_state_changes(
         self,
-        old_states: Dict[Type[Sentinel], Type[Sentinel]],
+        old_states: Dict[Role, Union[State, SwitchState]],
         event: Optional[Event] = None,
     ) -> None:
         # Update reader/writer
@@ -398,7 +401,7 @@ class Connection:
 
     def _extract_next_receive_event(
         self,
-    ) -> Union[Event, Type[NEED_DATA], Type[PAUSED]]:
+    ) -> Union[Event, PseudoEvent]:
         state = self.their_state
         # We don't pause immediately when they enter DONE, because even in
         # DONE state we can still process a ConnectionClosed() event. But
@@ -424,7 +427,7 @@ class Connection:
             event = NEED_DATA
         return event  # type: ignore[no-any-return]
 
-    def next_event(self) -> Union[Event, Type[NEED_DATA], Type[PAUSED]]:
+    def next_event(self) -> Union[Event, PseudoEvent]:
         """Parse the next event out of our receive buffer, update our internal
         state, and return it.
 

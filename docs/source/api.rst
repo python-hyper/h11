@@ -365,29 +365,7 @@ from :meth:`Connection.next_event`:
 .. data:: NEED_DATA
           PAUSED
 
-All of these behave the same, and their behavior is modeled after
-:data:`None`: they're opaque singletons, their :meth:`__repr__` is
-their name, and you compare them with ``is``.
-
-.. _sentinel-type-trickiness:
-
-Finally, h11's constants have a quirky feature that can sometimes be
-useful: they are instances of themselves.
-
-.. ipython:: python
-
-   type(h11.NEED_DATA) is h11.NEED_DATA
-   type(h11.PAUSED) is h11.PAUSED
-
-The main application of this is that when handling the return value
-from :meth:`Connection.next_event`, which is sometimes an instance of
-an event class and sometimes :data:`NEED_DATA` or :data:`PAUSED`, you
-can always call ``type(event)`` to get something useful to dispatch
-one, using e.g. a handler table, :func:`functools.singledispatch`, or
-calling ``getattr(some_object, "handle_" +
-type(event).__name__)``. Not that this kind of dispatch-based strategy
-is always the best approach -- but the option is there if you want it.
-
+These special constants are part of a ``PseudoEvent`` enum.
 
 The Connection object
 ---------------------

@@ -11,8 +11,8 @@ from typing import Any, Callable, Dict, List, Tuple, Type, Union
 
 from ._events import Data, EndOfMessage, Event, InformationalResponse, Request, Response
 from ._headers import Headers
-from ._state import CLIENT, IDLE, SEND_BODY, SEND_RESPONSE, SERVER
-from ._util import LocalProtocolError, Sentinel
+from ._state import CLIENT, IDLE, Role, SEND_BODY, SEND_RESPONSE, SERVER, State
+from ._util import LocalProtocolError
 
 __all__ = ["WRITERS"]
 
@@ -125,7 +125,7 @@ class Http10Writer(BodyWriter):
 
 
 WritersType = Dict[
-    Union[Tuple[Type[Sentinel], Type[Sentinel]], Type[Sentinel]],
+    Union[Tuple[Role, State], State],
     Union[
         Dict[str, Type[BodyWriter]],
         Callable[[Union[InformationalResponse, Response], Writer], None],
