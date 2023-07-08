@@ -1,6 +1,17 @@
 # This contains the main Connection class. Everything in h11 revolves around
 # this.
-from typing import Any, Callable, cast, Dict, List, Optional, Tuple, Type, Union
+from typing import (
+    Any,
+    Callable,
+    cast,
+    Dict,
+    List,
+    Optional,
+    overload,
+    Tuple,
+    Type,
+    Union,
+)
 
 from ._events import (
     ConnectionClosed,
@@ -488,6 +499,14 @@ class Connection:
                 exc._reraise_as_remote_protocol_error()
             else:
                 raise
+
+    @overload
+    def send(self, event: ConnectionClosed) -> None:
+        ...
+
+    @overload
+    def send(self, event: Event) -> bytes:
+        ...
 
     def send(self, event: Event) -> Optional[bytes]:
         """Convert a high-level event into bytes that can be sent to the peer,
