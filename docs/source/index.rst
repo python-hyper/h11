@@ -44,7 +44,7 @@ whatever. But h11 makes it much easier to implement something like
 Vital statistics
 ----------------
 
-* Requirements: Python 3.7+ (PyPy works great)
+* Requirements: Python 3.8+ (PyPy works great)
 
   The last Python 2-compatible version was h11 0.11.x.
 
