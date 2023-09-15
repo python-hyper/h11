@@ -38,16 +38,16 @@ class Edges:
 
     def e(self, source, target, label, color, italicize=False, weight=1):
         if italicize:
-            quoted_label = "<<i>{}</i>>".format(label)
+            quoted_label = f"<<i>{label}</i>>"
         else:
-            quoted_label = '<{}>'.format(label)
+            quoted_label = f'<{label}>'
         self.edges.append(
-            '{source} -> {target} [\n'
-            '  label={quoted_label},\n'
-            '  color="{color}", fontcolor="{color}",\n'
-            '  weight={weight},\n'
-            ']\n'
-            .format(**locals()))
+            f'{source} -> {target} [\n'
+            f'  label={quoted_label},\n'
+            f'  color="{color}", fontcolor="{color}",\n'
+            f'  weight={weight},\n'
+            f']\n'
+            )
 
     def write(self, f):
         self.edges.sort()
@@ -150,7 +150,7 @@ def make_dot(role, out_path):
             else:
                 (their_state, our_state) = state_pair
             edges.e(our_state, updates[role],
-                    "<i>peer in</i><BR/>{}".format(their_state),
+                    f"<i>peer in</i><BR/>{their_state}",
                     color=_STATE_COLOR)
 
         if role is CLIENT:

@@ -60,7 +60,7 @@ def _run_basic_get_repeatedly():
         for _ in range(REPEAT):
             time_server_basic_get_with_realistic_headers()
         finish = default_timer()
-        print("{:.1f} requests/sec".format(REPEAT / (finish - start)))
+        print(f"{REPEAT / (finish - start):.1f} requests/sec")
 
 
 if __name__ == "__main__":
