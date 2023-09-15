@@ -172,7 +172,7 @@ class Connection:
         self._max_incomplete_event_size = max_incomplete_event_size
         # State and role tracking
         if our_role not in (CLIENT, SERVER):
-            raise ValueError("expected CLIENT or SERVER, not {!r}".format(our_role))
+            raise ValueError(f"expected CLIENT or SERVER, not {our_role!r}")
         self.our_role = our_role
         self.their_role: Type[Sentinel]
         if our_role is CLIENT:

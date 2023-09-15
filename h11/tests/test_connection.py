@@ -879,7 +879,7 @@ def test_sendfile() -> None:
     ) -> Tuple[Connection, Optional[List[bytes]]]:
         c = Connection(SERVER)
         receive_and_get(
-            c, "GET / HTTP/{}\r\nHost: a\r\n\r\n".format(http_version).encode("ascii")
+            c, f"GET / HTTP/{http_version}\r\nHost: a\r\n\r\n".encode("ascii")
         )
         headers = []
         if header:

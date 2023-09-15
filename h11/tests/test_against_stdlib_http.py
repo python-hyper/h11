@@ -104,7 +104,7 @@ class H11RequestHandler(socketserver.BaseRequestHandler):
 def test_h11_as_server() -> None:
     with socket_server(H11RequestHandler) as httpd:
         host, port = httpd.server_address
-        url = "http://{}:{}/some-path".format(host, port)
+        url = f"http://{host}:{port}/some-path"
         with closing(urlopen(url)) as f:
             assert f.getcode() == 200
             data = f.read()

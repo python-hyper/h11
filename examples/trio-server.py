@@ -118,7 +118,7 @@ class TrioHTTPWrapper:
         self.conn = h11.Connection(h11.SERVER)
         # Our Server: header
         self.ident = " ".join(
-            ["h11-example-trio-server/{}".format(h11.__version__), h11.PRODUCT_ID]
+            [f"h11-example-trio-server/{h11.__version__}", h11.PRODUCT_ID]
         ).encode("ascii")
         # A unique id for this connection, to include in debugging output
         # (useful for understanding what's going on if there are multiple
@@ -206,7 +206,7 @@ class TrioHTTPWrapper:
 
     def info(self, *args):
         # Little debugging method
-        print("{}:".format(self._obj_id), *args)
+        print(f"{self._obj_id}:", *args)
 
 
 ################################################################
@@ -253,7 +253,7 @@ async def http_serve(stream):
                 if type(event) is h11.Request:
                     await send_echo_response(wrapper, event)
         except Exception as exc:
-            wrapper.info("Error during response handler: {!r}".format(exc))
+            wrapper.info(f"Error during response handler: {exc!r}")
             await maybe_send_error_response(wrapper, exc)
 
         if wrapper.conn.our_state is h11.MUST_CLOSE:
@@ -268,7 +268,7 @@ async def http_serve(stream):
                 states = wrapper.conn.states
                 wrapper.info("unexpected state", states, "-- bailing out")
                 await maybe_send_error_response(
-                    wrapper, RuntimeError("unexpected state {}".format(states))
+                    wrapper, RuntimeError(f"unexpected state {states}")
                 )
                 await wrapper.shutdown_and_clean_up()
                 return
@@ -343,7 +343,7 @@ async def send_echo_response(wrapper, request):
 
 
 async def serve(port):
-    print("listening on http://localhost:{}".format(port))
+    print(f"listening on http://localhost:{port}")
     try:
         await trio.serve_tcp(http_serve, port)
     except KeyboardInterrupt:
