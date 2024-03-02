@@ -1,0 +1,1 @@
+Remove the `tests` folder from wheel files. This reduces the zipped file size by 20KB (about 30%).

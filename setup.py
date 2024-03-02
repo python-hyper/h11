@@ -12,12 +12,9 @@ setup(
     author="Nathaniel J. Smith",
     author_email="njs@pobox.com",
     license="MIT",
-    packages=find_packages(),
+    packages=find_packages(exclude=["h11.tests"]),
     package_data={'h11': ['py.typed']},
     url="https://github.com/python-hyper/h11",
-    # This means, just install *everything* you see under h11/, even if it
-    # doesn't look like a source file, so long as it appears in MANIFEST.in:
-    include_package_data=True,
     python_requires=">=3.8",
     classifiers=[
         "Development Status :: 3 - Alpha",
