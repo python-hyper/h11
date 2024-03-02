@@ -3,7 +3,6 @@ from typing import Any, Callable, Generator, List
 import pytest
 
 from .._events import (
-    ConnectionClosed,
     Data,
     EndOfMessage,
     Event,
@@ -20,18 +19,7 @@ from .._readers import (
     READERS,
 )
 from .._receivebuffer import ReceiveBuffer
-from .._state import (
-    CLIENT,
-    CLOSED,
-    DONE,
-    IDLE,
-    MIGHT_SWITCH_PROTOCOL,
-    MUST_CLOSE,
-    SEND_BODY,
-    SEND_RESPONSE,
-    SERVER,
-    SWITCHED_PROTOCOL,
-)
+from .._state import CLIENT, IDLE, SEND_RESPONSE, SERVER
 from .._util import LocalProtocolError
 from .._writers import (
     ChunkedWriter,
@@ -61,7 +49,7 @@ SIMPLE_CASES = [
     ),
     (
         (SERVER, SEND_RESPONSE),
-        Response(status_code=200, headers=[], reason=b"OK"),  # type: ignore[arg-type]
+        Response(status_code=200, headers=[], reason=b"OK"),
         b"HTTP/1.1 200 OK\r\n\r\n",
     ),
     (
@@ -73,7 +61,7 @@ SIMPLE_CASES = [
     ),
     (
         (SERVER, SEND_RESPONSE),
-        InformationalResponse(status_code=101, headers=[], reason=b"Upgrade"),  # type: ignore[arg-type]
+        InformationalResponse(status_code=101, headers=[], reason=b"Upgrade"),
         b"HTTP/1.1 101 Upgrade\r\n\r\n",
     ),
 ]
@@ -125,12 +113,12 @@ def tr(reader: Any, data: bytes, expected: Any) -> None:
 
 
 def test_writers_simple() -> None:
-    for ((role, state), event, binary) in SIMPLE_CASES:
+    for (role, state), event, binary in SIMPLE_CASES:
         tw(WRITERS[role, state], event, binary)
 
 
 def test_readers_simple() -> None:
-    for ((role, state), event, binary) in SIMPLE_CASES:
+    for (role, state), event, binary in SIMPLE_CASES:
         tr(READERS[role, state], binary, event)
 
 
@@ -182,7 +170,7 @@ def test_readers_unusual() -> None:
     tr(
         READERS[CLIENT, IDLE],
         b"HEAD /foo HTTP/1.0\r\n\r\n",
-        Request(method="HEAD", target="/foo", headers=[], http_version="1.0"),  # type: ignore[arg-type]
+        Request(method="HEAD", target="/foo", headers=[], http_version="1.0"),
     )
 
     tr(

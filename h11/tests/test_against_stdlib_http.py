@@ -13,7 +13,7 @@ import h11
 
 @contextmanager
 def socket_server(
-    handler: Callable[..., socketserver.BaseRequestHandler]
+    handler: Callable[..., socketserver.BaseRequestHandler],
 ) -> Generator[socketserver.TCPServer, None, None]:
     httpd = socketserver.TCPServer(("127.0.0.1", 0), handler)
     thread = threading.Thread(
@@ -39,17 +39,17 @@ class SingleMindedRequestHandler(SimpleHTTPRequestHandler):
 
 def test_h11_as_client() -> None:
     with socket_server(SingleMindedRequestHandler) as httpd:
-        with closing(socket.create_connection(httpd.server_address)) as s:
+        with closing(socket.create_connection(httpd.server_address)) as s:  # type: ignore[arg-type]
             c = h11.Connection(h11.CLIENT)
 
             s.sendall(
-                c.send(  # type: ignore[arg-type]
+                c.send(
                     h11.Request(
                         method="GET", target="/foo", headers=[("Host", "localhost")]
                     )
                 )
             )
-            s.sendall(c.send(h11.EndOfMessage()))  # type: ignore[arg-type]
+            s.sendall(c.send(h11.EndOfMessage()))
 
             data = bytearray()
             while True:
@@ -96,7 +96,7 @@ class H11RequestHandler(socketserver.BaseRequestHandler):
                     },
                 }
             )
-            s.sendall(c.send(h11.Response(status_code=200, headers=[])))  # type: ignore[arg-type]
+            s.sendall(c.send(h11.Response(status_code=200, headers=[])))
             s.sendall(c.send(h11.Data(data=info.encode("ascii"))))
             s.sendall(c.send(h11.EndOfMessage()))
 
@@ -104,7 +104,7 @@ class H11RequestHandler(socketserver.BaseRequestHandler):
 def test_h11_as_server() -> None:
     with socket_server(H11RequestHandler) as httpd:
         host, port = httpd.server_address
-        url = "http://{}:{}/some-path".format(host, port)
+        url = f"http://{host}:{port}/some-path"  # type: ignore[str-bytes-safe]
         with closing(urlopen(url)) as f:
             assert f.getcode() == 200
             data = f.read()

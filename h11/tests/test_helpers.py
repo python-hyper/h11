@@ -1,12 +1,4 @@
-from .._events import (
-    ConnectionClosed,
-    Data,
-    EndOfMessage,
-    Event,
-    InformationalResponse,
-    Request,
-    Response,
-)
+from .._events import Data, EndOfMessage, Response
 from .helpers import normalize_data_events
 
 
@@ -15,7 +7,7 @@ def test_normalize_data_events() -> None:
         [
             Data(data=bytearray(b"1")),
             Data(data=b"2"),
-            Response(status_code=200, headers=[]),  # type: ignore[arg-type]
+            Response(status_code=200, headers=[]),
             Data(data=b"3"),
             Data(data=b"4"),
             EndOfMessage(),
@@ -25,7 +17,7 @@ def test_normalize_data_events() -> None:
         ]
     ) == [
         Data(data=b"12"),
-        Response(status_code=200, headers=[]),  # type: ignore[arg-type]
+        Response(status_code=200, headers=[]),
         Data(data=b"34"),
         EndOfMessage(),
         Data(data=b"567"),

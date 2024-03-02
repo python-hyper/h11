@@ -38,3 +38,9 @@ showcontent = true
 directory = "misc"
 name = "Miscellaneous internal changes"
 showcontent = true
+
+[tool.mypy]
+strict = true
+warn_unused_configs = true
+warn_unused_ignores = true
+show_error_codes = true

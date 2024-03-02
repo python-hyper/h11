@@ -2,12 +2,10 @@ from http import HTTPStatus
 
 import pytest
 
-from .. import _events
 from .._events import (
     ConnectionClosed,
     Data,
     EndOfMessage,
-    Event,
     InformationalResponse,
     Request,
     Response,
@@ -101,13 +99,13 @@ def test_events() -> None:
     with pytest.raises(LocalProtocolError):
         InformationalResponse(status_code=200, headers=[("Host", "a")])
 
-    resp = Response(status_code=204, headers=[], http_version="1.0")  # type: ignore[arg-type]
+    resp = Response(status_code=204, headers=[], http_version="1.0")
     assert resp.status_code == 204
     assert resp.headers == []
     assert resp.http_version == b"1.0"
 
     with pytest.raises(LocalProtocolError):
-        resp = Response(status_code=100, headers=[], http_version="1.0")  # type: ignore[arg-type]
+        resp = Response(status_code=100, headers=[], http_version="1.0")
 
     with pytest.raises(LocalProtocolError):
         Response(status_code="100", headers=[], http_version="1.0")  # type: ignore[arg-type]
@@ -128,7 +126,7 @@ def test_events() -> None:
 def test_intenum_status_code() -> None:
     # https://github.com/python-hyper/h11/issues/72
 
-    r = Response(status_code=HTTPStatus.OK, headers=[], http_version="1.0")  # type: ignore[arg-type]
+    r = Response(status_code=HTTPStatus.OK, headers=[], http_version="1.0")
     assert r.status_code == HTTPStatus.OK
     assert type(r.status_code) is not type(HTTPStatus.OK)
     assert type(r.status_code) is int

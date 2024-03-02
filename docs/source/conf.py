@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # h11 documentation build configuration file, created by
 # sphinx-quickstart on Tue May  3 00:20:14 2016.
