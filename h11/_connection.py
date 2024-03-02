@@ -428,7 +428,7 @@ class Connection:
                 # return that event, and then the state will change and we'll
                 # get called again to generate the actual ConnectionClosed().
                 if hasattr(self._reader, "read_eof"):
-                    event = self._reader.read_eof()  # type: ignore[attr-defined]
+                    event = self._reader.read_eof()
                 else:
                     event = ConnectionClosed()
         if event is None:
@@ -505,7 +505,13 @@ class Connection:
         ...
 
     @overload
-    def send(self, event: Event) -> bytes:
+    def send(
+        self, event: Union[Request, InformationalResponse, Response, Data, EndOfMessage]
+    ) -> bytes:
+        ...
+
+    @overload
+    def send(self, event: Event) -> Optional[bytes]:
         ...
 
     def send(self, event: Event) -> Optional[bytes]:
