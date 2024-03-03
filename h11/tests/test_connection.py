@@ -1119,7 +1119,8 @@ def test_special_exceptions_for_lost_connection_in_message_body() -> None:
         c.next_event()
     assert "incomplete chunked read" in str(excinfo.value)
 
+
 def test_ensure_connection_close_remains_untouched() -> None:
     c = Connection(SERVER)
-    data = c.send(Response(status_code=200, headers=[(b"connection", b"close")]))  # type: ignore[arg-type]
+    data = c.send(Response(status_code=200, headers=[(b"connection", b"close")]))
     assert data == b"HTTP/1.1 200 \r\n" b"connection: close\r\n\r\n"
