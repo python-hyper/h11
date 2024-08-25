@@ -1,3 +1,4 @@
 mistune
 jsonschema
 ipython
+sphinx<4
