@@ -18,12 +18,13 @@ jobs:
         - "3.10"
         - "3.11"
         - "3.12"
+        - "3.13"
         - pypy-3.9
         - pypy-3.10
 
     steps:
     - uses: actions/checkout@v4
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
         allow-prereleases: true
@@ -37,6 +38,6 @@ jobs:
     - name: Test with tox
       run: |
         tox --parallel 0
-    - uses: codecov/codecov-action@v3
+    - uses: codecov/codecov-action@v4
       with:
         file: ./coverage.xml
