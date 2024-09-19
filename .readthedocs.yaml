@@ -1,0 +1,17 @@
+version: 2
+
+build:
+  os: ubuntu-22.04
+  apt_packages:
+    - graphviz
+  tools:
+    python: "3.8"
+
+sphinx:
+  configuration: docs/source/conf.py
+
+python:
+  install:
+    - method: pip
+      path: .
+    - requirements: docs/requirements.txt
