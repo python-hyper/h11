@@ -1,5 +1,5 @@
 import re
-from typing import AnyStr, cast, List, overload, Sequence, Tuple, TYPE_CHECKING, Union
+from typing import List, overload, Sequence, Tuple, TYPE_CHECKING, TypeVar, Union
 
 from ._abnf import field_name, field_value
 from ._util import bytesify, LocalProtocolError, validate
@@ -12,6 +12,8 @@ try:
 except ImportError:
     from typing_extensions import Literal  # type: ignore
 
+
+T = TypeVar("T")
 
 # Facts
 # -----
@@ -84,19 +86,29 @@ class Headers(Sequence[Tuple[bytes, bytes]]):
     r = Request(
         method="GET",
         target="/",
-        headers=[("Host", "example.org"), ("Connection", "keep-alive")],
+        headers=[
+            ("Host", "example.org"),
+            ("Connection", "keep-alive"),
+            ("Cookie", "session=1234"),
+            ("Cookie", "lang=en_US"),
+        ],
         http_version="1.1",
     )
     assert r.headers == [
         (b"host", b"example.org"),
-        (b"connection", b"keep-alive")
+        (b"connection", b"keep-alive"),
+        (b"cookie", b"session=1234"),
+        (b"cookie", b"lang=en_US"),
     ]
     assert r.headers.raw_items() == [
         (b"Host", b"example.org"),
-        (b"Connection", b"keep-alive")
+        (b"Connection", b"keep-alive"),
+        (b"Cookie", b"session=1234"),
+        (b"Cookie", b"lang=en_US"),
     ]
+    assert r.headers.get(b"host") == b"example.org"
+    assert r.headers.getlist(b"cookie") == [b"session=1234", b"lang=en_US"]
     """
-
     __slots__ = "_full_items"
 
     def __init__(self, full_items: List[Tuple[bytes, bytes, bytes]]) -> None:
@@ -117,6 +129,27 @@ class Headers(Sequence[Tuple[bytes, bytes]]):
     def __getitem__(self, idx: int) -> Tuple[bytes, bytes]:  # type: ignore[override]
         _, name, value = self._full_items[idx]
         return (name, value)
+
+    def get(self, key: bytes, default: T = None) -> Union[bytes, T]:
+        """Find the first header with lowercased-name :param:`key`, it returns
+        its value when found, and :param:`default` otherwise.
+
+        Args:
+            key (bytes): The lowercased header name to find.
+
+            default: The value to return when the header is not found.
+        """
+        return next((value for name, value in self if name == key), default)
+
+    def getlist(self, key: bytes) -> List[bytes]:
+        """Find the all the headers with lowercased-name :param:`key`,
+        it returns their values in a list. It returns an empty list when
+        no header matched.
+
+        Args:
+            key (bytes): The lowercased header name to find.
+        """
+        return [value for name, value in self if name == key]
 
     def raw_items(self) -> List[Tuple[bytes, bytes]]:
         return [(raw_name, value) for raw_name, _, value in self._full_items]

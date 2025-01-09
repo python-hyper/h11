@@ -128,6 +128,18 @@ have a newline inside a header value, and ``Content-Length: hello`` is
 an error because `Content-Length` should always be an integer. We may
 add additional checks in the future.
 
+It is possible to get the first or all headers for a given name.
+
+.. ipython:: python
+
+   res = h11.Response(status_code=204, headers=[
+      ("Date", b"Thu, 09 Jan 2025 18:37:23 GMT"),
+      ("Set-Cookie", b"sid=1234"),
+      ("Set-Cookie", b"lang=en_US"),
+   ])
+   res.headers.get(b"date")
+   res.headers.getlist(b"set-cookie")
+
 While we make sure to expose header names as lowercased bytes, we also
 preserve the original header casing that is used. Compliant HTTP
 agents should always treat headers in a case insensitive manner, but
