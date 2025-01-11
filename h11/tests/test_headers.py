@@ -74,6 +74,8 @@ def test_normalize_and_validate() -> None:
         )
     with pytest.raises(LocalProtocolError):
         normalize_and_validate([("Content-Length", "1 , 1,2")])
+    with pytest.raises(LocalProtocolError):
+        normalize_and_validate([("Content-Length", "1" * 21)])  # 1 billion TB
 
     # transfer-encoding
     assert normalize_and_validate([("Transfer-Encoding", "chunked")]) == [
