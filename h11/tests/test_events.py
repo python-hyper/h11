@@ -146,3 +146,19 @@ def test_header_casing() -> None:
         (b"Host", b"example.org"),
         (b"Connection", b"keep-alive"),
     ]
+
+def test_header_get() -> None:
+    r = Response(status_code=204, headers=[
+        ("Date", b"Thu, 09 Jan 2025 18:37:23 GMT"),
+        ("Set-Cookie", b"sid=1234"),
+        ("Set-Cookie", b"lang=en_US"),
+    ])
+
+    assert r.headers.get(b"date") == b"Thu, 09 Jan 2025 18:37:23 GMT"
+    assert r.headers.get(b"set-cookie") == b"sid=1234"
+    assert r.headers.get(b"content-length") is None
+    assert r.headers.get(b"content-length", b"0") == b"0"
+
+    assert r.headers.getlist(b"date") == [b"Thu, 09 Jan 2025 18:37:23 GMT"]
+    assert r.headers.getlist(b"set-cookie") == [b"sid=1234", b"lang=en_US"]
+    assert r.headers.getlist(b"content-length") == []
