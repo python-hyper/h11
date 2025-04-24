@@ -5,7 +5,19 @@ History of changes
 
 .. towncrier release notes start
 
-H11 0.14.0 (2025-04-23)
+H11 0.16.0 (2025-04-23)
+-----------------------
+
+Security fix
+~~~~~~~~~~~~
+
+Reject certain malformed `Transfer-Encoding: chunked` bodies that were previously accepted. These could have enabled request-smuggling attacks when an h11-based HTTP server was placed behind a load balancer with a matching bug in its `chunked` handling.
+
+Advisory with more details: https://github.com/python-hyper/h11/security/advisories/GHSA-vqfr-h8mv-ghfj
+
+Reported by: Jeppe Bonde Weikop
+
+H11 0.15.0 (2025-04-23)
 -----------------------
 
 Bugfixes
