@@ -163,11 +163,11 @@ class ChunkedReader:
             data = buf.maybe_extract_at_most(len(self._bytes_to_discard))
             if data is None:
                 return None
-            if data != self._bytes_to_discard[:len(data)]:
+            if data != self._bytes_to_discard[: len(data)]:
                 raise LocalProtocolError(
                     f"malformed chunk footer: {data!r} (expected {self._bytes_to_discard!r})"
                 )
-            self._bytes_to_discard = self._bytes_to_discard[len(data):]
+            self._bytes_to_discard = self._bytes_to_discard[len(data) :]
             if self._bytes_to_discard:
                 return None
             # else, fall through and read some more

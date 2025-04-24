@@ -349,7 +349,7 @@ def _run_reader(*args: Any) -> List[Event]:
 
 
 def t_body_reader(
-    thunk: Any, data: bytes, expected: list[Any], do_eof: bool = False
+    thunk: Any, data: bytes, expected: Any, do_eof: bool = False
 ) -> None:
     # Simple: consume whole thing
     print("Test 1")
