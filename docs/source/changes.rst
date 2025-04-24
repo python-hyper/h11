@@ -5,6 +5,21 @@ History of changes
 
 .. towncrier release notes start
 
+H11 0.14.0 (2025-04-23)
+-----------------------
+
+Bugfixes
+~~~~~~~~
+
+- Reject Content-Lengths >= 1 zettabyte (1 billion terabytes) early, `without attempting to parse the integer <https://docs.python.org/3/library/stdtypes.html#integer-string-conversion-length-limitation>`__ (`#178 <https://github.com/python-hyper/h11/issues/178>`__)
+
+
+Miscellaneous internal changes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Remove the `tests` folder from wheel files. This reduces the zipped file size by 20KB (about 30%). (`#158 <https://github.com/python-hyper/h11/issues/158>`__)
+
+
 H11 0.14.0 (2022-09-25)
 -----------------------
 
