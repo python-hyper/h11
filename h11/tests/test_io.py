@@ -348,7 +348,9 @@ def _run_reader(*args: Any) -> List[Event]:
     return normalize_data_events(events)
 
 
-def t_body_reader(thunk: Any, data: bytes, expected: list[Any], do_eof: bool = False) -> None:
+def t_body_reader(
+    thunk: Any, data: bytes, expected: list[Any], do_eof: bool = False
+) -> None:
     # Simple: consume whole thing
     print("Test 1")
     buf = makebuf(data)
@@ -471,6 +473,7 @@ def test_ChunkedReader() -> None:
     # Confirm we check both bytes individually
     t_body_reader(ChunkedReader, b"3\r\nxxx\r_1a\r\n", [LocalProtocolError])
     t_body_reader(ChunkedReader, b"3\r\nxxx_\n1a\r\n", [LocalProtocolError])
+
 
 def test_ContentLengthWriter() -> None:
     w = ContentLengthWriter(5)
