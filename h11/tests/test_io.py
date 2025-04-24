@@ -348,22 +348,34 @@ def _run_reader(*args: Any) -> List[Event]:
     return normalize_data_events(events)
 
 
-def t_body_reader(thunk: Any, data: bytes, expected: Any, do_eof: bool = False) -> None:
+def t_body_reader(thunk: Any, data: bytes, expected: list, do_eof: bool = False) -> None:
     # Simple: consume whole thing
     print("Test 1")
     buf = makebuf(data)
-    assert _run_reader(thunk(), buf, do_eof) == expected
+    try:
+        assert _run_reader(thunk(), buf, do_eof) == expected
+    except LocalProtocolError:
+        if LocalProtocolError in expected:
+            pass
+        else:
+            raise
 
     # Incrementally growing buffer
     print("Test 2")
     reader = thunk()
     buf = ReceiveBuffer()
     events = []
-    for i in range(len(data)):
-        events += _run_reader(reader, buf, False)
-        buf += data[i : i + 1]
-    events += _run_reader(reader, buf, do_eof)
-    assert normalize_data_events(events) == expected
+    try:
+        for i in range(len(data)):
+            events += _run_reader(reader, buf, False)
+            buf += data[i : i + 1]
+        events += _run_reader(reader, buf, do_eof)
+        assert normalize_data_events(events) == expected
+    except LocalProtocolError:
+        if LocalProtocolError in expected:
+            pass
+        else:
+            raise
 
     is_complete = any(type(event) is EndOfMessage for event in expected)
     if is_complete and not do_eof:
@@ -424,14 +436,12 @@ def test_ChunkedReader() -> None:
     )
 
     # refuses arbitrarily long chunk integers
-    with pytest.raises(LocalProtocolError):
-        # Technically this is legal HTTP/1.1, but we refuse to process chunk
-        # sizes that don't fit into 20 characters of hex
-        t_body_reader(ChunkedReader, b"9" * 100 + b"\r\nxxx", [Data(data=b"xxx")])
+    # Technically this is legal HTTP/1.1, but we refuse to process chunk
+    # sizes that don't fit into 20 characters of hex
+    t_body_reader(ChunkedReader, b"9" * 100 + b"\r\nxxx", [LocalProtocolError])
 
     # refuses garbage in the chunk count
-    with pytest.raises(LocalProtocolError):
-        t_body_reader(ChunkedReader, b"10\x00\r\nxxx", None)
+    t_body_reader(ChunkedReader, b"10\x00\r\nxxx", [LocalProtocolError])
 
     # handles (and discards) "chunk extensions" omg wtf
     t_body_reader(
@@ -445,10 +455,22 @@ def test_ChunkedReader() -> None:
 
     t_body_reader(
         ChunkedReader,
-        b"5   	 \r\n01234\r\n" + b"0\r\n\r\n",
+        b"5   \t \r\n01234\r\n" + b"0\r\n\r\n",
         [Data(data=b"01234"), EndOfMessage()],
     )
 
+    # Chunked encoding with bad chunk termination characters are refused. Originally we
+    # simply dropped the 2 bytes after a chunk, instead of validating that the bytes
+    # were \r\n -- so we would successfully decode the data below as b"xxxa". And
+    # apparently there are other HTTP processors that ignore the chunk length and just
+    # keep reading until they see \r\n, so they would decode it as b"xxx__1a". Any time
+    # two HTTP processors accept the same input but interpret it differently, there's a
+    # possibility of request smuggling shenanigans. So we now reject this.
+    t_body_reader(ChunkedReader, b"3\r\nxxx__1a\r\n", [LocalProtocolError])
+
+    # Confirm we check both bytes individually
+    t_body_reader(ChunkedReader, b"3\r\nxxx\r_1a\r\n", [LocalProtocolError])
+    t_body_reader(ChunkedReader, b"3\r\nxxx_\n1a\r\n", [LocalProtocolError])
 
 def test_ContentLengthWriter() -> None:
     w = ContentLengthWriter(5)
@@ -471,8 +493,8 @@ def test_ContentLengthWriter() -> None:
         dowrite(w, EndOfMessage())
 
     w = ContentLengthWriter(5)
-    dowrite(w, Data(data=b"123")) == b"123"
-    dowrite(w, Data(data=b"45")) == b"45"
+    assert dowrite(w, Data(data=b"123")) == b"123"
+    assert dowrite(w, Data(data=b"45")) == b"45"
     with pytest.raises(LocalProtocolError):
         dowrite(w, EndOfMessage(headers=[("Etag", "asdf")]))
 
