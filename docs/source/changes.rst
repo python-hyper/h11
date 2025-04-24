@@ -23,7 +23,7 @@ H11 0.15.0 (2025-04-23)
 Bugfixes
 ~~~~~~~~
 
-- Reject Content-Lengths >= 1 zettabyte (1 billion terabytes) early, `without attempting to parse the integer <https://docs.python.org/3/library/stdtypes.html#integer-string-conversion-length-limitation>`__ (`#178 <https://github.com/python-hyper/h11/issues/178>`__)
+- Reject Content-Lengths >= 1 zettabyte (1 billion terabytes) early, `without attempting to parse the integer <https://docs.python.org/3/library/stdtypes.html#integer-string-conversion-length-limitation>`__ (`#181 <https://github.com/python-hyper/h11/issues/181>`__)
 
 
 Miscellaneous internal changes
