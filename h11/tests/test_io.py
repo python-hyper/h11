@@ -348,9 +348,7 @@ def _run_reader(*args: Any) -> List[Event]:
     return normalize_data_events(events)
 
 
-def t_body_reader(
-    thunk: Any, data: bytes, expected: Any, do_eof: bool = False
-) -> None:
+def t_body_reader(thunk: Any, data: bytes, expected: Any, do_eof: bool = False) -> None:
     # Simple: consume whole thing
     print("Test 1")
     buf = makebuf(data)
