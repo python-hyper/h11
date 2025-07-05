@@ -425,6 +425,8 @@ def test_max_incomplete_event_size_countermeasure() -> None:
     c = Connection(SERVER, max_incomplete_event_size=5000)
     c.receive_data(b"GET / HTTP/1.0\r\nBig: ")
     c.receive_data(b"a" * 4000)
+    assert get_all_events(c) == []
+
     c.receive_data(b"\r\n\r\n")
     assert get_all_events(c) == [
         Request(
@@ -437,7 +439,7 @@ def test_max_incomplete_event_size_countermeasure() -> None:
     c.receive_data(b"GET / HTTP/1.0\r\nBig: ")
     c.receive_data(b"a" * 4000)
     with pytest.raises(RemoteProtocolError):
-        c.next_event()
+        get_all_events(c)
 
     # Temporarily exceeding the size limit is fine, as long as its done with
     # complete events:
