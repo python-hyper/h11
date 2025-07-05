@@ -478,6 +478,7 @@ class Connection:
         if self.their_state is ERROR:
             raise RemoteProtocolError("Can't receive data when peer state is ERROR")
         try:
+            receive_buffer_len_before = len(self._receive_buffer)
             event = self._extract_next_receive_event()
             if event not in [NEED_DATA, PAUSED]:
                 self._process_event(self.their_role, cast(Event, event))
@@ -492,6 +493,15 @@ class Connection:
                     # We're still trying to complete some event, but that's
                     # never going to happen because no more data is coming
                     raise RemoteProtocolError("peer unexpectedly closed connection")
+
+            if isinstance(event, (Request, InformationalResponse, Response)):
+                read_from_buffer = receive_buffer_len_before - len(self._receive_buffer)
+                if read_from_buffer > self._max_incomplete_event_size + 1:
+                    # 431 is "Request header fields too large" which is pretty
+                    # much the only situation where we can get here
+                    raise RemoteProtocolError(
+                        "Receive buffer too long", error_status_hint=431
+                    )
             return event
         except BaseException as exc:
             self._process_error(self.their_role)

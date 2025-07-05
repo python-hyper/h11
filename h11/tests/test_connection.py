@@ -486,6 +486,22 @@ def test_max_incomplete_event_size_countermeasure() -> None:
         c.next_event()
 
 
+@pytest.mark.parametrize("chunking", [False, True])
+def test_max_incomplete_event_size_enforced_regardless_of_chunking(chunking) -> None:
+    buffer = b"GET / HTTP/1.0\r\nBig: " + b"a" * 4000 + b"\r\n\r\n"
+    c = Connection(SERVER, max_incomplete_event_size=(len(buffer) - 2))
+
+    if chunking:
+        chunks = [buffer[:-1], buffer[-1:]]
+    else:
+        chunks = [buffer]
+
+    with pytest.raises(RemoteProtocolError):
+        for chunk in chunks:
+            c.receive_data(chunk)
+            get_all_events(c)
+
+
 def test_reuse_simple() -> None:
     p = ConnectionPair()
     p.send(
