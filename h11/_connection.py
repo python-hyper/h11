@@ -1,16 +1,10 @@
 # This contains the main Connection class. Everything in h11 revolves around
 # this.
+from collections.abc import Callable
 from typing import (
     Any,
-    Callable,
     cast,
-    Dict,
-    List,
-    Optional,
     overload,
-    Tuple,
-    Type,
-    Union,
 )
 
 from ._events import (
@@ -29,13 +23,13 @@ from ._state import (
     _SWITCH_CONNECT,
     _SWITCH_UPGRADE,
     CLIENT,
-    ConnectionState,
     DONE,
     ERROR,
     MIGHT_SWITCH_PROTOCOL,
     SEND_BODY,
     SERVER,
     SWITCHED_PROTOCOL,
+    ConnectionState,
 )
 from ._util import (  # Import the internal things we need
     LocalProtocolError,
@@ -45,10 +39,10 @@ from ._util import (  # Import the internal things we need
 from ._writers import WRITERS, WritersType
 
 # Everything in __all__ gets re-exported as part of the h11 public API.
-__all__ = ["Connection", "NEED_DATA", "PAUSED"]
+__all__ = ["NEED_DATA", "PAUSED", "Connection"]
 
 
-class NEED_DATA(Sentinel, metaclass=Sentinel):
+class NEED_DATA(Sentinel, metaclass=Sentinel):  # noqa: N801
     pass
 
 
@@ -81,18 +75,17 @@ DEFAULT_MAX_INCOMPLETE_EVENT_SIZE = 16 * 1024
 # our rule is:
 # - If someone says Connection: close, we will close
 # - If someone uses HTTP/1.0, we will close.
-def _keep_alive(event: Union[Request, Response]) -> bool:
+def _keep_alive(event: Request | Response) -> bool:
     connection = get_comma_header(event.headers, b"connection")
     if b"close" in connection:
         return False
-    if getattr(event, "http_version", b"1.1") < b"1.1":
-        return False
-    return True
+
+    return not getattr(event, "http_version", b"1.1") < b"1.1"
 
 
 def _body_framing(
-    request_method: bytes, event: Union[Request, Response]
-) -> Tuple[str, Union[Tuple[()], Tuple[int]]]:
+    request_method: bytes | None, event: Request | Response
+) -> tuple[str, tuple[()] | tuple[int]]:
     # Called when we enter SEND_BODY to figure out framing information for
     # this body.
     #
@@ -137,8 +130,7 @@ def _body_framing(
     # Step 4: no applicable headers; fallback/default depends on type
     if type(event) is Request:
         return ("content-length", (0,))
-    else:
-        return ("http/1.0", ())
+    return ("http/1.0", ())
 
 
 ################################################################
@@ -166,7 +158,7 @@ class Connection:
 
     def __init__(
         self,
-        our_role: Type[Sentinel],
+        our_role: type[Sentinel],
         max_incomplete_event_size: int = DEFAULT_MAX_INCOMPLETE_EVENT_SIZE,
     ) -> None:
         self._max_incomplete_event_size = max_incomplete_event_size
@@ -174,7 +166,7 @@ class Connection:
         if our_role not in (CLIENT, SERVER):
             raise ValueError(f"expected CLIENT or SERVER, not {our_role!r}")
         self.our_role = our_role
-        self.their_role: Type[Sentinel]
+        self.their_role: type[Sentinel]
         if our_role is CLIENT:
             self.their_role = SERVER
         else:
@@ -197,14 +189,14 @@ class Connection:
         # These two are only used to interpret framing headers for figuring
         # out how to read/write response bodies. their_http_version is also
         # made available as a convenient public API.
-        self.their_http_version: Optional[bytes] = None
-        self._request_method: Optional[bytes] = None
+        self.their_http_version: bytes | None = None
+        self._request_method: bytes | None = None
         # This is pure flow-control and doesn't at all affect the set of legal
         # transitions, so no need to bother ConnectionState with it:
         self.client_is_waiting_for_100_continue = False
 
     @property
-    def states(self) -> Dict[Type[Sentinel], Type[Sentinel]]:
+    def states(self) -> dict[type[Sentinel], type[Sentinel]]:
         """A dictionary like::
 
            {CLIENT: <client state>, SERVER: <server state>}
@@ -215,14 +207,14 @@ class Connection:
         return dict(self._cstate.states)
 
     @property
-    def our_state(self) -> Type[Sentinel]:
+    def our_state(self) -> type[Sentinel]:
         """The current state of whichever role we are playing. See
         :ref:`state-machine` for details.
         """
         return self._cstate.states[self.our_role]
 
     @property
-    def their_state(self) -> Type[Sentinel]:
+    def their_state(self) -> type[Sentinel]:
         """The current state of whichever role we are NOT playing. See
         :ref:`state-machine` for details.
         """
@@ -252,24 +244,25 @@ class Connection:
         assert not self.client_is_waiting_for_100_continue
         self._respond_to_state_changes(old_states)
 
-    def _process_error(self, role: Type[Sentinel]) -> None:
+    def _process_error(self, role: type[Sentinel]) -> None:
         old_states = dict(self._cstate.states)
         self._cstate.process_error(role)
         self._respond_to_state_changes(old_states)
 
-    def _server_switch_event(self, event: Event) -> Optional[Type[Sentinel]]:
+    def _server_switch_event(self, event: Event) -> type[Sentinel] | None:
         if type(event) is InformationalResponse and event.status_code == 101:
             return _SWITCH_UPGRADE
-        if type(event) is Response:
-            if (
-                _SWITCH_CONNECT in self._cstate.pending_switch_proposals
-                and 200 <= event.status_code < 300
-            ):
-                return _SWITCH_CONNECT
+
+        if type(event) is Response and (
+            _SWITCH_CONNECT in self._cstate.pending_switch_proposals
+            and 200 <= event.status_code < 300
+        ):
+            return _SWITCH_CONNECT
+
         return None
 
     # All events go through here
-    def _process_event(self, role: Type[Sentinel], event: Event) -> None:
+    def _process_event(self, role: type[Sentinel], event: Event) -> None:
         # First, pass the event through the state machine to make sure it
         # succeeds.
         old_states = dict(self._cstate.states)
@@ -293,7 +286,7 @@ class Connection:
             Response,
             InformationalResponse,
         ):
-            event = cast(Union[Request, Response, InformationalResponse], event)
+            event = cast(Request | Response | InformationalResponse, event)
             self.their_http_version = event.http_version
 
         # Keep alive handling
@@ -303,7 +296,7 @@ class Connection:
         # this is not supposed to happen. In any case, if it does happen, we
         # ignore it.
         if type(event) in (Request, Response) and not _keep_alive(
-            cast(Union[Request, Response], event)
+            cast(Request | Response, event)
         ):
             self._cstate.process_keep_alive_disabled()
 
@@ -319,30 +312,29 @@ class Connection:
 
     def _get_io_object(
         self,
-        role: Type[Sentinel],
-        event: Optional[Event],
-        io_dict: Union[ReadersType, WritersType],
-    ) -> Optional[Callable[..., Any]]:
+        role: type[Sentinel],
+        event: Event | None,
+        io_dict: ReadersType | WritersType,
+    ) -> Callable[..., Any] | None:
         # event may be None; it's only used when entering SEND_BODY
         state = self._cstate.states[role]
         if state is SEND_BODY:
             # Special case: the io_dict has a dict of reader/writer factories
             # that depend on the request/response framing.
             framing_type, args = _body_framing(
-                cast(bytes, self._request_method), cast(Union[Request, Response], event)
+                cast(bytes, self._request_method), cast(Request | Response, event)
             )
             return io_dict[SEND_BODY][framing_type](*args)  # type: ignore[index]
-        else:
-            # General case: the io_dict just has the appropriate reader/writer
-            # for this state
-            return io_dict.get((role, state))  # type: ignore[return-value]
+        # General case: the io_dict just has the appropriate reader/writer
+        # for this state
+        return io_dict.get((role, state))  # type: ignore[return-value]
 
     # This must be called after any action that might have caused
     # self._cstate.states to change.
     def _respond_to_state_changes(
         self,
-        old_states: Dict[Type[Sentinel], Type[Sentinel]],
-        event: Optional[Event] = None,
+        old_states: dict[type[Sentinel], type[Sentinel]],
+        event: Event | None = None,
     ) -> None:
         # Update reader/writer
         if self.our_state != old_states[self.our_role]:
@@ -351,7 +343,7 @@ class Connection:
             self._reader = self._get_io_object(self.their_role, event, READERS)
 
     @property
-    def trailing_data(self) -> Tuple[bytes, bool]:
+    def trailing_data(self) -> tuple[bytes, bool]:
         """Data that has been received, but not yet processed, represented as
         a tuple with two elements, where the first is a byte-string containing
         the unprocessed data itself, and the second is a bool that is True if
@@ -409,7 +401,7 @@ class Connection:
 
     def _extract_next_receive_event(
         self,
-    ) -> Union[Event, Type[NEED_DATA], Type[PAUSED]]:
+    ) -> Event | type[NEED_DATA] | type[PAUSED]:
         state = self.their_state
         # We don't pause immediately when they enter DONE, because even in
         # DONE state we can still process a ConnectionClosed() event. But
@@ -421,21 +413,20 @@ class Connection:
             return PAUSED
         assert self._reader is not None
         event = self._reader(self._receive_buffer)
-        if event is None:
-            if not self._receive_buffer and self._receive_buffer_closed:
-                # In some unusual cases (basically just HTTP/1.0 bodies), EOF
-                # triggers an actual protocol event; in that case, we want to
-                # return that event, and then the state will change and we'll
-                # get called again to generate the actual ConnectionClosed().
-                if hasattr(self._reader, "read_eof"):
-                    event = self._reader.read_eof()
-                else:
-                    event = ConnectionClosed()
+        if event is None and (not self._receive_buffer and self._receive_buffer_closed):
+            # In some unusual cases (basically just HTTP/1.0 bodies), EOF
+            # triggers an actual protocol event; in that case, we want to
+            # return that event, and then the state will change and we'll
+            # get called again to generate the actual ConnectionClosed().
+            if hasattr(self._reader, "read_eof"):
+                event = self._reader.read_eof()
+            else:
+                event = ConnectionClosed()
         if event is None:
             event = NEED_DATA
         return event  # type: ignore[no-any-return]
 
-    def next_event(self) -> Union[Event, Type[NEED_DATA], Type[PAUSED]]:
+    def next_event(self) -> Event | type[NEED_DATA] | type[PAUSED]:
         """Parse the next event out of our receive buffer, update our internal
         state, and return it.
 
@@ -501,20 +492,17 @@ class Connection:
                 raise
 
     @overload
-    def send(self, event: ConnectionClosed) -> None:
-        ...
+    def send(self, event: ConnectionClosed) -> None: ...
 
     @overload
     def send(
-        self, event: Union[Request, InformationalResponse, Response, Data, EndOfMessage]
-    ) -> bytes:
-        ...
+        self, event: Request | InformationalResponse | Response | Data | EndOfMessage
+    ) -> bytes: ...
 
     @overload
-    def send(self, event: Event) -> Optional[bytes]:
-        ...
+    def send(self, event: Event) -> bytes | None: ...
 
-    def send(self, event: Event) -> Optional[bytes]:
+    def send(self, event: Event) -> bytes | None:
         """Convert a high-level event into bytes that can be sent to the peer,
         while updating our internal state machine.
 
@@ -538,10 +526,9 @@ class Connection:
         data_list = self.send_with_data_passthrough(event)
         if data_list is None:
             return None
-        else:
-            return b"".join(data_list)
+        return b"".join(data_list)
 
-    def send_with_data_passthrough(self, event: Event) -> Optional[List[bytes]]:
+    def send_with_data_passthrough(self, event: Event) -> list[bytes] | None:
         """Identical to :meth:`send`, except that in situations where
         :meth:`send` returns a single :term:`bytes-like object`, this instead
         returns a list of them -- and when sending a :class:`Data` event, this
@@ -563,13 +550,12 @@ class Connection:
             self._process_event(self.our_role, event)
             if type(event) is ConnectionClosed:
                 return None
-            else:
-                # In any situation where writer is None, process_event should
-                # have raised ProtocolError
-                assert writer is not None
-                data_list: List[bytes] = []
-                writer(event, data_list.append)
-                return data_list
+            # In any situation where writer is None, process_event should
+            # have raised ProtocolError
+            assert writer is not None
+            data_list: list[bytes] = []
+            writer(event, data_list.append)
+            return data_list
         except:
             self._process_error(self.our_role)
             raise

@@ -1,5 +1,8 @@
-import socket, ssl
+import socket
+import ssl
+
 import h11
+
 
 class MyHttpClient:
     def __init__(self, host, port):

@@ -8,28 +8,27 @@
 import re
 from abc import ABC
 from dataclasses import dataclass
-from typing import List, Tuple, Union
 
 from ._abnf import method, request_target
 from ._headers import Headers, normalize_and_validate
-from ._util import bytesify, LocalProtocolError, validate
+from ._util import LocalProtocolError, bytesify, validate
 
 # Everything in __all__ gets re-exported as part of the h11 public API.
 __all__ = [
-    "Event",
-    "Request",
-    "InformationalResponse",
-    "Response",
+    "ConnectionClosed",
     "Data",
     "EndOfMessage",
-    "ConnectionClosed",
+    "Event",
+    "InformationalResponse",
+    "Request",
+    "Response",
 ]
 
 method_re = re.compile(method.encode("ascii"))
 request_target_re = re.compile(request_target.encode("ascii"))
 
 
-class Event(ABC):
+class Event(ABC):  # noqa: B024
     """
     Base class for h11 events.
     """
@@ -72,7 +71,7 @@ class Request(Event):
 
     """
 
-    __slots__ = ("method", "headers", "target", "http_version")
+    __slots__ = ("headers", "http_version", "method", "target")
 
     method: bytes
     headers: Headers
@@ -82,10 +81,10 @@ class Request(Event):
     def __init__(
         self,
         *,
-        method: Union[bytes, str],
-        headers: Union[Headers, List[Tuple[bytes, bytes]], List[Tuple[str, str]]],
-        target: Union[bytes, str],
-        http_version: Union[bytes, str] = b"1.1",
+        method: bytes | str,
+        headers: Headers | list[tuple[bytes, bytes]] | list[tuple[str, str]],
+        target: bytes | str,
+        http_version: bytes | str = b"1.1",
         _parsed: bool = False,
     ) -> None:
         super().__init__()
@@ -110,9 +109,10 @@ class Request(Event):
         # Host header field with an invalid field-value."
         # -- https://tools.ietf.org/html/rfc7230#section-5.4
         host_count = 0
-        for name, value in self.headers:
+        for name, _ in self.headers:
             if name == b"host":
                 host_count += 1
+
         if self.http_version == b"1.1" and host_count == 0:
             raise LocalProtocolError("Missing mandatory Host: header")
         if host_count > 1:
@@ -137,10 +137,10 @@ class _ResponseBase(Event):
     def __init__(
         self,
         *,
-        headers: Union[Headers, List[Tuple[bytes, bytes]], List[Tuple[str, str]]],
+        headers: Headers | list[tuple[bytes, bytes]] | list[tuple[str, str]],
         status_code: int,
-        http_version: Union[bytes, str] = b"1.1",
-        reason: Union[bytes, str] = b"",
+        http_version: bytes | str = b"1.1",
+        reason: bytes | str = b"",
         _parsed: bool = False,
     ) -> None:
         super().__init__()
@@ -207,7 +207,7 @@ class InformationalResponse(_ResponseBase):
         if not (100 <= self.status_code < 200):
             raise LocalProtocolError(
                 "InformationalResponse status_code should be in range "
-                "[100, 200), not {}".format(self.status_code)
+                f"[100, 200), not {self.status_code}"
             )
 
     # This is an unhashable type.
@@ -247,9 +247,8 @@ class Response(_ResponseBase):
     def __post_init__(self) -> None:
         if not (200 <= self.status_code < 1000):
             raise LocalProtocolError(
-                "Response status_code should be in range [200, 1000), not {}".format(
-                    self.status_code
-                )
+                "Response status_code should be in range [200, 1000), "
+                f"not {self.status_code}"
             )
 
     # This is an unhashable type.
@@ -290,7 +289,7 @@ class Data(Event):
 
     """
 
-    __slots__ = ("data", "chunk_start", "chunk_end")
+    __slots__ = ("chunk_end", "chunk_start", "data")
 
     data: bytes
     chunk_start: bool
@@ -304,7 +303,7 @@ class Data(Event):
         object.__setattr__(self, "chunk_end", chunk_end)
 
     # This is an unhashable type.
-    __hash__ = None  # type: ignore
+    __hash__ = None
 
 
 # XX FIXME: "A recipient MUST ignore (or consider as an error) any fields that
@@ -337,9 +336,10 @@ class EndOfMessage(Event):
     def __init__(
         self,
         *,
-        headers: Union[
-            Headers, List[Tuple[bytes, bytes]], List[Tuple[str, str]], None
-        ] = None,
+        headers: Headers
+        | list[tuple[bytes, bytes]]
+        | list[tuple[str, str]]
+        | None = None,
         _parsed: bool = False,
     ) -> None:
         super().__init__()
@@ -365,5 +365,3 @@ class ConnectionClosed(Event):
 
     No fields.
     """
-
-    pass

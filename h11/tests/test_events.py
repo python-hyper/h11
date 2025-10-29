@@ -79,14 +79,17 @@ def test_events() -> None:
         target.append(bad_byte)
         with pytest.raises(LocalProtocolError):
             Request(
-                method="GET", target=target, headers=[("Host", "a")], http_version="1.1"
+                method="GET",
+                target=bytes(target),
+                headers=[("Host", "a")],
+                http_version="1.1",
             )
 
     # Request method is validated
     with pytest.raises(LocalProtocolError):
         Request(
             method="GET / HTTP/1.1",
-            target=target,
+            target=bytes(target),  # type: ignore[unbound-name]
             headers=[("Host", "a")],
             http_version="1.1",
         )

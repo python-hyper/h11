@@ -1,3 +1,5 @@
+# ruff: noqa: N802, PT017
+
 import re
 import sys
 import traceback
@@ -6,11 +8,11 @@ from typing import NoReturn
 import pytest
 
 from .._util import (
-    bytesify,
     LocalProtocolError,
     ProtocolError,
     RemoteProtocolError,
     Sentinel,
+    bytesify,
     validate,
 )
 
@@ -36,6 +38,7 @@ def test_LocalProtocolError() -> None:
     def thunk() -> NoReturn:
         raise LocalProtocolError("a", error_status_hint=420)
 
+    orig_traceback = ""
     try:
         try:
             thunk()
@@ -86,7 +89,7 @@ def test_make_sentinel() -> None:
         pass
 
     assert repr(S) == "S"
-    assert S == S
+    assert S == S  # noqa: PLR0124, expected test
     assert type(S).__name__ == "S"
     assert S in {S}
     assert type(S) is S

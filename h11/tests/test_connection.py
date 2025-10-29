@@ -1,12 +1,15 @@
-from typing import Any, cast, Dict, List, Optional, Tuple, Type
+# ruff: noqa: N802, T201
+
+from typing import Any, cast
 
 import pytest
 
-from .._connection import _body_framing, _keep_alive, Connection, NEED_DATA, PAUSED
+from .._connection import NEED_DATA, PAUSED, Connection, _body_framing, _keep_alive
 from .._events import (
     ConnectionClosed,
     Data,
     EndOfMessage,
+    Event,
     InformationalResponse,
     Request,
     Response,
@@ -58,27 +61,27 @@ def test__keep_alive() -> None:
 
 
 def test__body_framing() -> None:
-    def headers(cl: Optional[int], te: bool) -> List[Tuple[str, str]]:
+    def headers(cl: int | None, te: bool) -> list[tuple[str, str]]:
         headers = []
         if cl is not None:
             headers.append(("Content-Length", str(cl)))
         if te:
             headers.append(("Transfer-Encoding", "chunked"))
-        return headers
+        return headers  # type: ignore
 
     def resp(
-        status_code: int = 200, cl: Optional[int] = None, te: bool = False
+        status_code: int = 200, cl: int | None = None, te: bool = False
     ) -> Response:
         return Response(status_code=status_code, headers=headers(cl, te))
 
-    def req(cl: Optional[int] = None, te: bool = False) -> Request:
+    def req(cl: int | None = None, te: bool = False) -> Request:
         h = headers(cl, te)
         h += [("Host", "example.com")]
         return Request(method="GET", target="/", headers=h)
 
     # Special cases where the headers are ignored:
     for kwargs in [{}, {"cl": 100}, {"te": True}, {"cl": 100, "te": True}]:
-        kwargs = cast(Dict[str, Any], kwargs)
+        kwargs = cast(dict[str, Any], kwargs)
         for meth, r in [
             (b"HEAD", resp(**kwargs)),
             (b"GET", resp(status_code=204, **kwargs)),
@@ -88,7 +91,7 @@ def test__body_framing() -> None:
 
     # Transfer-encoding
     for kwargs in [{"te": True}, {"cl": 100, "te": True}]:
-        kwargs = cast(Dict[str, Any], kwargs)
+        kwargs = cast(dict[str, Any], kwargs)
         for meth, r in [(None, req(**kwargs)), (b"GET", resp(**kwargs))]:  # type: ignore
             assert _body_framing(meth, r) == ("chunked", ())
 
@@ -102,7 +105,7 @@ def test__body_framing() -> None:
 
 
 def test_Connection_basics_and_content_length() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError):  # noqa: PT011
         Connection("CLIENT")  # type: ignore
 
     p = ConnectionPair()
@@ -120,7 +123,7 @@ def test_Connection_basics_and_content_length() -> None:
         ),
     )
     assert data == (
-        b"GET / HTTP/1.1\r\n" b"Host: example.com\r\n" b"Content-Length: 10\r\n\r\n"
+        b"GET / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 10\r\n\r\n"
     )
 
     for conn in p.conns:
@@ -203,10 +206,7 @@ def test_chunk_boundaries() -> None:
     conn = Connection(our_role=SERVER)
 
     request = (
-        b"POST / HTTP/1.1\r\n"
-        b"Host: example.com\r\n"
-        b"Transfer-Encoding: chunked\r\n"
-        b"\r\n"
+        b"POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n"
     )
     conn.receive_data(request)
     assert conn.next_event() == Request(
@@ -303,7 +303,7 @@ def test_automatic_transfer_encoding_in_response() -> None:
         # because if both are set then Transfer-Encoding wins
         [("Transfer-Encoding", "chunked"), ("Content-Length", "100")],
     ]:
-        user_headers = cast(List[Tuple[str, str]], user_headers)
+        user_headers = cast(list[tuple[str, str]], user_headers)
         p = ConnectionPair()
         p.send(
             CLIENT,
@@ -415,7 +415,7 @@ def test_max_incomplete_event_size_countermeasure() -> None:
     c = Connection(SERVER)
     c.receive_data(b"GET / HTTP/1.0\r\nEndless: ")
     assert c.next_event() is NEED_DATA
-    with pytest.raises(RemoteProtocolError):
+    with pytest.raises(RemoteProtocolError):  # noqa: PT012
         while True:
             c.receive_data(b"a" * 1024)
             c.next_event()
@@ -635,7 +635,7 @@ def test_protocol_switch() -> None:
 
         def setup() -> ConnectionPair:
             p = ConnectionPair()
-            p.send(CLIENT, req)
+            p.send(CLIENT, req)  # noqa: B023
             # No switch-related state change stuff yet; the client has to
             # finish the request before that kicks in
             for conn in p.conns:
@@ -720,14 +720,14 @@ def test_close_simple() -> None:
     # Just immediately closing a new connection without anything having
     # happened yet.
     for who_shot_first, who_shot_second in [(CLIENT, SERVER), (SERVER, CLIENT)]:
-
+        # all these noqas are fine bc the function is immediately called
         def setup() -> ConnectionPair:
             p = ConnectionPair()
-            p.send(who_shot_first, ConnectionClosed())
+            p.send(who_shot_first, ConnectionClosed())  # noqa: B023
             for conn in p.conns:
                 assert conn.states == {
-                    who_shot_first: CLOSED,
-                    who_shot_second: MUST_CLOSE,
+                    who_shot_first: CLOSED,  # noqa: B023
+                    who_shot_second: MUST_CLOSE,  # noqa: B023
                 }
             return p
 
@@ -758,11 +758,11 @@ def test_close_simple() -> None:
 
 
 def test_close_different_states() -> None:
-    req = [
+    req: list[Event] = [
         Request(method="GET", target="/foo", headers=[("Host", "a")]),
         EndOfMessage(),
     ]
-    resp = [
+    resp: list[Event] = [
         Response(status_code=200, headers=[(b"transfer-encoding", b"chunked")]),
         EndOfMessage(),
     ]
@@ -873,8 +873,8 @@ def test_sendfile() -> None:
     placeholder = SendfilePlaceholder()
 
     def setup(
-        header: Tuple[str, str], http_version: str
-    ) -> Tuple[Connection, Optional[List[bytes]]]:
+        header: tuple[str, str], http_version: str
+    ) -> tuple[Connection, list[bytes] | None]:
         c = Connection(SERVER)
         receive_and_get(
             c, f"GET / HTTP/{http_version}\r\nHost: a\r\n\r\n".encode("ascii")
@@ -924,7 +924,7 @@ def test_errors() -> None:
     # After an error sending, you can no longer send
     # (This is especially important for things like content-length errors,
     # where there's complex internal state being modified)
-    def conn(role: Type[Sentinel]) -> Connection:
+    def conn(role: type[Sentinel]) -> Connection:
         c = Connection(our_role=role)
         if role is SERVER:
             # Put it into the state where it *could* send a response...
@@ -948,17 +948,17 @@ def test_errors() -> None:
             bad = Response(status_code=200, headers=[], http_version="1.0")  # type: ignore[assignment]
         # Make sure 'good' actually is good
         c = conn(role)
-        c.send(good)
+        c.send(good)  # pyrefly: ignore[unbound-name]
         assert c.our_state is not ERROR
         # Do that again, but this time sending 'bad' first
         c = conn(role)
         with pytest.raises(LocalProtocolError):
-            c.send(bad)
+            c.send(bad)  # pyrefly: ignore[unbound-name]
         assert c.our_state is ERROR
         assert c.their_state is not ERROR
         # Now 'good' is not so good
         with pytest.raises(LocalProtocolError):
-            c.send(good)
+            c.send(good)  # pyrefly: ignore[unbound-name]
 
         # And check send_failed() too
         c = conn(role)
@@ -1092,7 +1092,7 @@ def test_HEAD_framing_headers() -> None:
 def test_special_exceptions_for_lost_connection_in_message_body() -> None:
     c = Connection(SERVER)
     c.receive_data(
-        b"POST / HTTP/1.1\r\n" b"Host: example.com\r\n" b"Content-Length: 100\r\n\r\n"
+        b"POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 100\r\n\r\n"
     )
     assert type(c.next_event()) is Request
     assert c.next_event() is NEED_DATA
@@ -1106,9 +1106,7 @@ def test_special_exceptions_for_lost_connection_in_message_body() -> None:
 
     c = Connection(SERVER)
     c.receive_data(
-        b"POST / HTTP/1.1\r\n"
-        b"Host: example.com\r\n"
-        b"Transfer-Encoding: chunked\r\n\r\n"
+        b"POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n"
     )
     assert type(c.next_event()) is Request
     assert c.next_event() is NEED_DATA

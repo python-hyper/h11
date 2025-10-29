@@ -260,18 +260,17 @@ async def http_serve(stream):
             wrapper.info("connection is not reusable, so shutting down")
             await wrapper.shutdown_and_clean_up()
             return
-        else:
-            try:
-                wrapper.info("trying to re-use connection")
-                wrapper.conn.start_next_cycle()
-            except h11.ProtocolError:
-                states = wrapper.conn.states
-                wrapper.info("unexpected state", states, "-- bailing out")
-                await maybe_send_error_response(
-                    wrapper, RuntimeError(f"unexpected state {states}")
-                )
-                await wrapper.shutdown_and_clean_up()
-                return
+        try:
+            wrapper.info("trying to re-use connection")
+            wrapper.conn.start_next_cycle()
+        except h11.ProtocolError:
+            states = wrapper.conn.states
+            wrapper.info("unexpected state", states, "-- bailing out")
+            await maybe_send_error_response(
+                wrapper, RuntimeError(f"unexpected state {states}")
+            )
+            await wrapper.shutdown_and_clean_up()
+            return
 
 
 ################################################################

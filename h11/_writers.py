@@ -7,7 +7,8 @@
 # - a writer
 # - or, for body writers, a dict of framin-dependent writer factories
 
-from typing import Any, Callable, Dict, List, Tuple, Type, Union
+from collections.abc import Callable
+from typing import Any
 
 from ._events import Data, EndOfMessage, Event, InformationalResponse, Request, Response
 from ._headers import Headers
@@ -42,7 +43,7 @@ def write_request(request: Request, write: Writer) -> None:
 
 # Shared between InformationalResponse and Response
 def write_any_response(
-    response: Union[InformationalResponse, Response], write: Writer
+    response: InformationalResponse | Response, write: Writer
 ) -> None:
     if response.http_version != b"1.1":
         raise LocalProtocolError("I only send HTTP/1.1")
@@ -66,7 +67,7 @@ class BodyWriter:
         elif type(event) is EndOfMessage:
             self.send_eom(event.headers, write)
         else:  # pragma: no cover
-            assert False
+            raise AssertionError
 
     def send_data(self, data: bytes, write: Writer) -> None:
         pass
@@ -91,7 +92,7 @@ class ContentLengthWriter(BodyWriter):
             raise LocalProtocolError("Too much data for declared Content-Length")
         write(data)
 
-    def send_eom(self, headers: Headers, write: Writer) -> None:
+    def send_eom(self, headers: Headers, write: Writer) -> None:  # noqa: ARG002
         if self._length != 0:
             raise LocalProtocolError("Too little data for declared Content-Length")
         if headers:
@@ -117,20 +118,18 @@ class Http10Writer(BodyWriter):
     def send_data(self, data: bytes, write: Writer) -> None:
         write(data)
 
-    def send_eom(self, headers: Headers, write: Writer) -> None:
+    def send_eom(self, headers: Headers, write: Writer) -> None:  # noqa: ARG002
         if headers:
             raise LocalProtocolError("can't send trailers to HTTP/1.0 client")
         # no need to close the socket ourselves, that will be taken care of by
         # Connection: close machinery
 
 
-WritersType = Dict[
-    Union[Tuple[Type[Sentinel], Type[Sentinel]], Type[Sentinel]],
-    Union[
-        Dict[str, Type[BodyWriter]],
-        Callable[[Union[InformationalResponse, Response], Writer], None],
-        Callable[[Request, Writer], None],
-    ],
+WritersType = dict[
+    tuple[type[Sentinel], type[Sentinel]] | type[Sentinel],
+    dict[str, type[BodyWriter]]
+    | Callable[[InformationalResponse | Response, Writer], None]
+    | Callable[[Request, Writer], None],
 ]
 
 WRITERS: WritersType = {

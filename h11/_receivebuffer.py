@@ -1,6 +1,9 @@
 import re
-import sys
-from typing import List, Optional, Union
+
+try:
+    from typing import Self  # pyrefly: ignore
+except ImportError:
+    from typing_extensions import Self
 
 __all__ = ["ReceiveBuffer"]
 
@@ -50,7 +53,7 @@ class ReceiveBuffer:
         self._next_line_search = 0
         self._multiple_lines_search = 0
 
-    def __iadd__(self, byteslike: Union[bytes, bytearray]) -> "ReceiveBuffer":
+    def __iadd__(self, byteslike: bytes | bytearray) -> Self:
         self._data += byteslike
         return self
 
@@ -74,7 +77,7 @@ class ReceiveBuffer:
 
         return out
 
-    def maybe_extract_at_most(self, count: int) -> Optional[bytearray]:
+    def maybe_extract_at_most(self, count: int) -> bytearray | None:
         """
         Extract a fixed number of bytes from the buffer.
         """
@@ -84,7 +87,7 @@ class ReceiveBuffer:
 
         return self._extract(count)
 
-    def maybe_extract_next_line(self) -> Optional[bytearray]:
+    def maybe_extract_next_line(self) -> bytearray | None:
         """
         Extract the first line, if it is completed in the buffer.
         """
@@ -101,7 +104,7 @@ class ReceiveBuffer:
 
         return self._extract(idx)
 
-    def maybe_extract_lines(self) -> Optional[List[bytearray]]:
+    def maybe_extract_lines(self) -> list[bytearray] | None:
         """
         Extract everything up to the first blank line, and return a list of lines.
         """

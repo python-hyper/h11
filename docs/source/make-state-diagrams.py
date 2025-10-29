@@ -1,6 +1,7 @@
 #!python
 
 import sys
+
 sys.path.append("../..")
 
 import os.path
@@ -9,8 +10,10 @@ import subprocess
 from h11._events import *
 from h11._state import *
 from h11._state import (
-    _SWITCH_UPGRADE, _SWITCH_CONNECT,
-    EVENT_TRIGGERED_TRANSITIONS, STATE_TRIGGERED_TRANSITIONS,
+    _SWITCH_CONNECT,
+    _SWITCH_UPGRADE,
+    EVENT_TRIGGERED_TRANSITIONS,
+    STATE_TRIGGERED_TRANSITIONS,
 )
 
 _EVENT_COLOR = "#002092"
@@ -24,13 +27,15 @@ digraph {
   edge  [fontname = "Lato"]
 """
 
+
 def finish(machine_name):
-    return ("""
+    return f"""
   labelloc="t"
   labeljust="l"
-  label=<<FONT POINT-SIZE="20">h11 state machine: {}</FONT>>
+  label=<<FONT POINT-SIZE="20">h11 state machine: {machine_name}</FONT>>
 }}
-""".format(machine_name))
+"""
+
 
 class Edges:
     def __init__(self):
@@ -40,18 +45,19 @@ class Edges:
         if italicize:
             quoted_label = f"<<i>{label}</i>>"
         else:
-            quoted_label = f'<{label}>'
+            quoted_label = f"<{label}>"
         self.edges.append(
-            f'{source} -> {target} [\n'
-            f'  label={quoted_label},\n'
+            f"{source} -> {target} [\n"
+            f"  label={quoted_label},\n"
             f'  color="{color}", fontcolor="{color}",\n'
-            f'  weight={weight},\n'
-            f']\n'
-            )
+            f"  weight={weight},\n"
+            f"]\n"
+        )
 
     def write(self, f):
         self.edges.sort()
         f.write("".join(self.edges))
+
 
 def make_dot_special_state(out_path):
     with open(out_path, "w") as f:
@@ -68,28 +74,34 @@ def make_dot_special_state(out_path):
 """)
         edges = Edges()
         for s in ["kaT", "kaF"]:
-            edges.e(s, "kaF",
-                    "Request/response with<br/>HTTP/1.0 or Connection: close",
-                    color=_EVENT_COLOR,
-                    italicize=True)
+            edges.e(
+                s,
+                "kaF",
+                "Request/response with<br/>HTTP/1.0 or Connection: close",
+                color=_EVENT_COLOR,
+                italicize=True,
+            )
 
-        edges.e("upF", "upT",
-                "Request with Upgrade:",
-                color=_EVENT_COLOR, italicize=True)
-        edges.e("upT", "upF",
-                "Response",
-                color=_EVENT_COLOR, italicize=True)
+        edges.e(
+            "upF", "upT", "Request with Upgrade:", color=_EVENT_COLOR, italicize=True
+        )
+        edges.e("upT", "upF", "Response", color=_EVENT_COLOR, italicize=True)
 
-        edges.e("coF", "coT",
-                "Request with CONNECT",
-                color=_EVENT_COLOR, italicize=True)
-        edges.e("coT", "coF",
-                "Response without 2xx status",
-                color=_EVENT_COLOR, italicize=True)
+        edges.e(
+            "coF", "coT", "Request with CONNECT", color=_EVENT_COLOR, italicize=True
+        )
+        edges.e(
+            "coT",
+            "coF",
+            "Response without 2xx status",
+            color=_EVENT_COLOR,
+            italicize=True,
+        )
 
         edges.write(f)
 
         f.write(finish("special states"))
+
 
 def make_dot(role, out_path):
     with open(out_path, "w") as f:
@@ -109,23 +121,21 @@ def make_dot(role, out_path):
         # of the file to fix them.
         edges = Edges()
 
-        CORE_EVENTS = {Request, InformationalResponse,
-                       Response, Data, EndOfMessage}
+        CORE_EVENTS = {Request, InformationalResponse, Response, Data, EndOfMessage}
 
-        for (source_state, t) in EVENT_TRIGGERED_TRANSITIONS[role].items():
-            for (event_type, target_state) in t.items():
+        for source_state, t in EVENT_TRIGGERED_TRANSITIONS[role].items():
+            for event_type, target_state in t.items():
                 weight = 1
                 color = _EVENT_COLOR
                 italicize = False
-                if (event_type in CORE_EVENTS
-                    and source_state is not target_state):
+                if event_type in CORE_EVENTS and source_state is not target_state:
                     weight = 10
                 # exception
-                if (event_type is Response and source_state is IDLE):
+                if event_type is Response and source_state is IDLE:
                     weight = 1
                 if isinstance(event_type, tuple):
                     # The weird special cases
-                    #color = _SPECIAL_COLOR
+                    # color = _SPECIAL_COLOR
                     if event_type == (Request, CLIENT):
                         name = "<i>client makes Request</i>"
                         weight = 10
@@ -139,8 +149,14 @@ def make_dot(role, out_path):
                         assert False
                 else:
                     name = event_type.__name__
-                edges.e(source_state, target_state, name, color,
-                        weight=weight, italicize=italicize)
+                edges.e(
+                    source_state,
+                    target_state,
+                    name,
+                    color,
+                    weight=weight,
+                    italicize=italicize,
+                )
 
         for state_pair, updates in STATE_TRIGGERED_TRANSITIONS.items():
             if role not in updates:
@@ -149,22 +165,32 @@ def make_dot(role, out_path):
                 (our_state, their_state) = state_pair
             else:
                 (their_state, our_state) = state_pair
-            edges.e(our_state, updates[role],
-                    f"<i>peer in</i><BR/>{their_state}",
-                    color=_STATE_COLOR)
+            edges.e(
+                our_state,
+                updates[role],
+                f"<i>peer in</i><BR/>{their_state}",
+                color=_STATE_COLOR,
+            )
 
         if role is CLIENT:
-            edges.e(DONE, MIGHT_SWITCH_PROTOCOL,
-                    "Potential Upgrade:<BR/>or CONNECT pending",
-                    _STATE_COLOR,
-                    italicize=True)
-            edges.e(MIGHT_SWITCH_PROTOCOL, DONE,
-                    "No potential Upgrade:<BR/>or CONNECT pending",
-                    _STATE_COLOR,
-                    italicize=True)
+            edges.e(
+                DONE,
+                MIGHT_SWITCH_PROTOCOL,
+                "Potential Upgrade:<BR/>or CONNECT pending",
+                _STATE_COLOR,
+                italicize=True,
+            )
+            edges.e(
+                MIGHT_SWITCH_PROTOCOL,
+                DONE,
+                "No potential Upgrade:<BR/>or CONNECT pending",
+                _STATE_COLOR,
+                italicize=True,
+            )
 
-        edges.e(DONE, MUST_CLOSE, "keep-alive<BR/>is disabled", _STATE_COLOR,
-                italicize=True)
+        edges.e(
+            DONE, MUST_CLOSE, "keep-alive<BR/>is disabled", _STATE_COLOR, italicize=True
+        )
         edges.e(DONE, IDLE, "start_next_cycle()", _SPECIAL_COLOR)
 
         edges.write(f)
@@ -172,6 +198,7 @@ def make_dot(role, out_path):
         # For some reason labelfontsize doesn't seem to do anything, but this
         # works
         f.write(finish(role))
+
 
 my_dir = os.path.dirname(__file__)
 out_dir = os.path.join(my_dir, "_static")

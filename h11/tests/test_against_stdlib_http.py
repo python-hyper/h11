@@ -1,11 +1,13 @@
+# ruff: noqa: T201, S310
+
 import json
 import os.path
 import socket
 import socketserver
 import threading
+from collections.abc import Callable, Generator
 from contextlib import closing, contextmanager
 from http.server import SimpleHTTPRequestHandler
-from typing import Callable, Generator
 from urllib.request import urlopen
 
 import h11
@@ -33,40 +35,42 @@ with open(test_file_path, "rb") as f:
 
 
 class SingleMindedRequestHandler(SimpleHTTPRequestHandler):
-    def translate_path(self, path: str) -> str:
+    def translate_path(self, path: str) -> str:  # noqa: ARG002
         return test_file_path
 
 
 def test_h11_as_client() -> None:
-    with socket_server(SingleMindedRequestHandler) as httpd:
-        with closing(socket.create_connection(httpd.server_address)) as s:  # type: ignore[arg-type]
-            c = h11.Connection(h11.CLIENT)
+    with (
+        socket_server(SingleMindedRequestHandler) as httpd,
+        closing(socket.create_connection(httpd.server_address)) as s,  # type: ignore
+    ):
+        c = h11.Connection(h11.CLIENT)
 
-            s.sendall(
-                c.send(
-                    h11.Request(
-                        method="GET", target="/foo", headers=[("Host", "localhost")]
-                    )
+        s.sendall(
+            c.send(
+                h11.Request(
+                    method="GET", target="/foo", headers=[("Host", "localhost")]
                 )
             )
-            s.sendall(c.send(h11.EndOfMessage()))
+        )
+        s.sendall(c.send(h11.EndOfMessage()))
 
-            data = bytearray()
-            while True:
-                event = c.next_event()
-                print(event)
-                if event is h11.NEED_DATA:
-                    # Use a small read buffer to make things more challenging
-                    # and exercise more paths :-)
-                    c.receive_data(s.recv(10))
-                    continue
-                if type(event) is h11.Response:
-                    assert event.status_code == 200
-                if type(event) is h11.Data:
-                    data += event.data
-                if type(event) is h11.EndOfMessage:
-                    break
-            assert bytes(data) == test_file_data
+        data = bytearray()
+        while True:
+            event = c.next_event()
+            print(event)
+            if event is h11.NEED_DATA:
+                # Use a small read buffer to make things more challenging
+                # and exercise more paths :-)
+                c.receive_data(s.recv(10))
+                continue
+            if type(event) is h11.Response:
+                assert event.status_code == 200
+            if type(event) is h11.Data:
+                data += event.data
+            if type(event) is h11.EndOfMessage:
+                break
+        assert bytes(data) == test_file_data
 
 
 class H11RequestHandler(socketserver.BaseRequestHandler):
@@ -103,7 +107,7 @@ class H11RequestHandler(socketserver.BaseRequestHandler):
 
 def test_h11_as_server() -> None:
     with socket_server(H11RequestHandler) as httpd:
-        host, port = httpd.server_address
+        host, port = httpd.server_address  # type: ignore
         url = f"http://{host}:{port}/some-path"  # type: ignore[str-bytes-safe]
         with closing(urlopen(url)) as f:
             assert f.getcode() == 200

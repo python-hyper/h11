@@ -1,4 +1,7 @@
-from typing import Any, Callable, Generator, List
+# ruff: noqa: T201, N802
+
+from collections.abc import Callable, Generator
+from typing import Any
 
 import pytest
 
@@ -12,23 +15,23 @@ from .._events import (
 )
 from .._headers import Headers, normalize_and_validate
 from .._readers import (
-    _obsolete_line_fold,
+    READERS,
     ChunkedReader,
     ContentLengthReader,
     Http10Reader,
-    READERS,
+    _obsolete_line_fold,
 )
 from .._receivebuffer import ReceiveBuffer
 from .._state import CLIENT, IDLE, SEND_RESPONSE, SERVER
 from .._util import LocalProtocolError
 from .._writers import (
+    WRITERS,
     ChunkedWriter,
     ContentLengthWriter,
     Http10Writer,
     write_any_response,
     write_headers,
     write_request,
-    WRITERS,
 )
 from .helpers import normalize_data_events
 
@@ -68,7 +71,7 @@ SIMPLE_CASES = [
 
 
 def dowrite(writer: Callable[..., None], obj: Any) -> bytes:
-    got_list: List[bytes] = []
+    got_list: list[bytes] = []
     writer(obj, got_list.append)
     return b"".join(got_list)
 
@@ -188,7 +191,7 @@ def test_readers_unusual() -> None:
     # 7230 -- this is a bug in the standard that we originally copied...)
     tr(
         READERS[SERVER, SEND_RESPONSE],
-        b"HTTP/1.0 200 OK\r\n" b"Foo: a a a a a \r\n\r\n",
+        b"HTTP/1.0 200 OK\r\nFoo: a a a a a \r\n\r\n",
         Response(
             status_code=200,
             headers=[("Foo", "a a a a a")],
@@ -200,7 +203,7 @@ def test_readers_unusual() -> None:
     # Empty headers -- also legal
     tr(
         READERS[SERVER, SEND_RESPONSE],
-        b"HTTP/1.0 200 OK\r\n" b"Foo:\r\n\r\n",
+        b"HTTP/1.0 200 OK\r\nFoo:\r\n\r\n",
         Response(
             status_code=200, headers=[("Foo", "")], http_version="1.0", reason=b"OK"
         ),
@@ -208,7 +211,7 @@ def test_readers_unusual() -> None:
 
     tr(
         READERS[SERVER, SEND_RESPONSE],
-        b"HTTP/1.0 200 OK\r\n" b"Foo: \t \t \r\n\r\n",
+        b"HTTP/1.0 200 OK\r\nFoo: \t \t \r\n\r\n",
         Response(
             status_code=200, headers=[("Foo", "")], http_version="1.0", reason=b"OK"
         ),
@@ -217,7 +220,7 @@ def test_readers_unusual() -> None:
     # Tolerate broken servers that leave off the response code
     tr(
         READERS[SERVER, SEND_RESPONSE],
-        b"HTTP/1.0 200\r\n" b"Foo: bar\r\n\r\n",
+        b"HTTP/1.0 200\r\nFoo: bar\r\n\r\n",
         Response(
             status_code=200, headers=[("Foo", "bar")], http_version="1.0", reason=b""
         ),
@@ -287,30 +290,30 @@ def test_readers_unusual() -> None:
     with pytest.raises(LocalProtocolError):
         tr(
             READERS[CLIENT, IDLE],
-            b"HEAD /foo HTTP/1.1\r\n" b"  folded: line\r\n\r\n",
+            b"HEAD /foo HTTP/1.1\r\n  folded: line\r\n\r\n",
             None,
         )
 
     with pytest.raises(LocalProtocolError):
         tr(
             READERS[CLIENT, IDLE],
-            b"HEAD /foo HTTP/1.1\r\n" b"foo  : line\r\n\r\n",
+            b"HEAD /foo HTTP/1.1\r\nfoo  : line\r\n\r\n",
             None,
         )
     with pytest.raises(LocalProtocolError):
         tr(
             READERS[CLIENT, IDLE],
-            b"HEAD /foo HTTP/1.1\r\n" b"foo\t: line\r\n\r\n",
+            b"HEAD /foo HTTP/1.1\r\nfoo\t: line\r\n\r\n",
             None,
         )
     with pytest.raises(LocalProtocolError):
         tr(
             READERS[CLIENT, IDLE],
-            b"HEAD /foo HTTP/1.1\r\n" b"foo\t: line\r\n\r\n",
+            b"HEAD /foo HTTP/1.1\r\nfoo\t: line\r\n\r\n",
             None,
         )
     with pytest.raises(LocalProtocolError):
-        tr(READERS[CLIENT, IDLE], b"HEAD /foo HTTP/1.1\r\n" b": line\r\n\r\n", None)
+        tr(READERS[CLIENT, IDLE], b"HEAD /foo HTTP/1.1\r\n: line\r\n\r\n", None)
 
 
 def test__obsolete_line_fold_bytes() -> None:
@@ -343,7 +346,7 @@ def _run_reader_iter(
         yield reader.read_eof()
 
 
-def _run_reader(*args: Any) -> List[Event]:
+def _run_reader(*args: Any) -> list[Event]:
     events = list(_run_reader_iter(*args))
     return normalize_data_events(events)
 
@@ -412,10 +415,7 @@ def test_ChunkedReader() -> None:
 
     t_body_reader(
         ChunkedReader,
-        b"5\r\n01234\r\n"
-        + b"10\r\n0123456789abcdef\r\n"
-        + b"0\r\n"
-        + b"Some: header\r\n\r\n",
+        b"5\r\n01234\r\n10\r\n0123456789abcdef\r\n0\r\nSome: header\r\n\r\n",
         [
             Data(data=b"012340123456789abcdef"),
             EndOfMessage(headers=[("Some", "header")]),
@@ -447,9 +447,9 @@ def test_ChunkedReader() -> None:
     t_body_reader(
         ChunkedReader,
         b"5; hello=there\r\n"
-        + b"xxxxx"
-        + b"\r\n"
-        + b'0; random="junk"; some=more; canbe=lonnnnngg\r\n\r\n',
+        b"xxxxx"
+        b"\r\n"
+        b'0; random="junk"; some=more; canbe=lonnnnngg\r\n\r\n',
         [Data(data=b"xxxxx"), EndOfMessage()],
     )
 
@@ -533,7 +533,7 @@ def test_reject_garbage_after_response_line() -> None:
     with pytest.raises(LocalProtocolError):
         tr(
             READERS[CLIENT, IDLE],
-            b"HEAD /foo HTTP/1.1 xxxxxx\r\n" b"Host: a\r\n\r\n",
+            b"HEAD /foo HTTP/1.1 xxxxxx\r\nHost: a\r\n\r\n",
             None,
         )
 
@@ -542,7 +542,7 @@ def test_reject_garbage_in_header_line() -> None:
     with pytest.raises(LocalProtocolError):
         tr(
             READERS[CLIENT, IDLE],
-            b"HEAD /foo HTTP/1.1\r\n" b"Host: foo\x00bar\r\n\r\n",
+            b"HEAD /foo HTTP/1.1\r\nHost: foo\x00bar\r\n\r\n",
             None,
         )
 
@@ -553,7 +553,7 @@ def test_reject_non_vchar_in_path() -> None:
         message.append(bad_char)
         message.extend(b" HTTP/1.1\r\nHost: foobar\r\n\r\n")
         with pytest.raises(LocalProtocolError):
-            tr(READERS[CLIENT, IDLE], message, None)
+            tr(READERS[CLIENT, IDLE], bytes(message), None)
 
 
 # https://github.com/python-hyper/h11/issues/57

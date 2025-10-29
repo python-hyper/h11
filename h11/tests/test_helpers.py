@@ -5,7 +5,7 @@ from .helpers import normalize_data_events
 def test_normalize_data_events() -> None:
     assert normalize_data_events(
         [
-            Data(data=bytearray(b"1")),
+            Data(data=bytearray(b"1")),  # type: ignore[bad-argument-type]
             Data(data=b"2"),
             Response(status_code=200, headers=[]),
             Data(data=b"3"),

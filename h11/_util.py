@@ -1,11 +1,12 @@
-from typing import Any, Dict, NoReturn, Pattern, Tuple, Type, TypeVar, Union
+from re import Pattern
+from typing import Any, NoReturn, TypeVar
 
 __all__ = [
-    "ProtocolError",
     "LocalProtocolError",
+    "ProtocolError",
     "RemoteProtocolError",
-    "validate",
     "bytesify",
+    "validate",
 ]
 
 
@@ -82,8 +83,11 @@ class RemoteProtocolError(ProtocolError):
 
 
 def validate(
-    regex: Pattern[bytes], data: bytes, msg: str = "malformed data", *format_args: Any
-) -> Dict[str, bytes]:
+    regex: Pattern[bytes],
+    data: bytes | bytearray,
+    msg: str = "malformed data",
+    *format_args: Any,
+) -> dict[str, bytes]:
     match = regex.fullmatch(data)
     if not match:
         if format_args:
@@ -106,25 +110,25 @@ _T_Sentinel = TypeVar("_T_Sentinel", bound="Sentinel")
 
 class Sentinel(type):
     def __new__(
-        cls: Type[_T_Sentinel],
+        cls: type[_T_Sentinel],
         name: str,
-        bases: Tuple[type, ...],
-        namespace: Dict[str, Any],
-        **kwds: Any
+        bases: tuple[type, ...],
+        namespace: dict[str, Any],
+        **kwds: Any,
     ) -> _T_Sentinel:
         assert bases == (Sentinel,)
         v = super().__new__(cls, name, bases, namespace, **kwds)
         v.__class__ = v  # type: ignore
         return v
 
-    def __repr__(self) -> str:
-        return self.__name__
+    def __repr__(cls) -> str:
+        return cls.__name__
 
 
 # Used for methods, request targets, HTTP versions, header names, and header
 # values. Accepts ascii-strings, or bytes/bytearray/memoryview/..., and always
 # returns bytes.
-def bytesify(s: Union[bytes, bytearray, memoryview, int, str]) -> bytes:
+def bytesify(s: bytes | bytearray | memoryview | int | str) -> bytes:
     # Fast-path:
     if type(s) is bytes:
         return s

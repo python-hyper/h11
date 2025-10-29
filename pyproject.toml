@@ -1,3 +1,97 @@
+[build-system]
+requires = [
+    "setuptools >= 77",
+    "setuptools_scm >= 6.4"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "h11"
+authors = [
+    { name = "Nathaniel J. Smith", email = "njs@pobox.com" }
+]
+license = { file = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+    "typing_extensions; python_version < '3.12'"
+]
+dynamic = ["version"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: System :: Networking",
+]
+
+[project.urls]
+source = "https://github.com/python-hyper/h11"
+
+[tool.setuptools]
+packages = ["h11"]
+
+[tool.setuptools.dynamic]
+version = { attr = "h11._version.__version__" }
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.2",
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
+    "tox>=4.32.0",
+    "pyrefly>=0.39.2",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+respect-gitignore = true
+src = ["h11"]
+exclude = ["fuzz", "examples", "docs/source", "bench"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "TID252",
+    "ERA001",
+    "PLR2004", # HTTP library has magic numbers, shocking!
+
+    # Existing project code style
+    "D",
+    "SLF001",
+    "PGH003",
+    
+    # Bad lints
+    "TRY",
+    "EM",
+    "S101",    # Allow asserts
+    "TC006",
+    "COM812",
+    "PTH",
+    "ANN401",
+    "FBT",
+    "PLR0915",
+    "PLR0911",
+    "PLR0912",
+    "S105",  # Hardcoded password? what?
+    "C90",
+]
+
+[tool.pyrefly]
+project-includes = [
+    "h11",
+]
+python-version = "3.10"
+
 [tool.towncrier]
 # Usage:
 # - PRs should drop a file like "issuenumber.feature" in newsfragments
@@ -44,3 +138,7 @@ strict = true
 warn_unused_configs = true
 warn_unused_ignores = true
 show_error_codes = true
+
+[tool.tox]
+requires = ["tox>=4.32"]
+envlist = ["format", "py310", "py311", "py312", "py313", "py314", "pypy3"]
