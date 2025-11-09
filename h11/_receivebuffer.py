@@ -1,6 +1,5 @@
 import re
-import sys
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 __all__ = ["ReceiveBuffer"]
 
@@ -101,7 +100,7 @@ class ReceiveBuffer:
 
         return self._extract(idx)
 
-    def maybe_extract_lines(self) -> Optional[List[bytearray]]:
+    def maybe_extract_lines(self) -> Optional[list[bytearray]]:
         """
         Extract everything up to the first blank line, and return a list of lines.
         """

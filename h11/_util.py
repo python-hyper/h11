@@ -1,4 +1,5 @@
-from typing import Any, Dict, NoReturn, Pattern, Tuple, Type, TypeVar, Union
+from re import Pattern
+from typing import Any, NoReturn, TypeVar, Union
 
 __all__ = [
     "ProtocolError",
@@ -83,7 +84,7 @@ class RemoteProtocolError(ProtocolError):
 
 def validate(
     regex: Pattern[bytes], data: bytes, msg: str = "malformed data", *format_args: Any
-) -> Dict[str, bytes]:
+) -> dict[str, bytes]:
     match = regex.fullmatch(data)
     if not match:
         if format_args:
@@ -106,10 +107,10 @@ _T_Sentinel = TypeVar("_T_Sentinel", bound="Sentinel")
 
 class Sentinel(type):
     def __new__(
-        cls: Type[_T_Sentinel],
+        cls: type[_T_Sentinel],
         name: str,
-        bases: Tuple[type, ...],
-        namespace: Dict[str, Any],
+        bases: tuple[type, ...],
+        namespace: dict[str, Any],
         **kwds: Any
     ) -> _T_Sentinel:
         assert bases == (Sentinel,)

@@ -1,17 +1,6 @@
 # This contains the main Connection class. Everything in h11 revolves around
 # this.
-from typing import (
-    Any,
-    Callable,
-    cast,
-    Dict,
-    List,
-    Optional,
-    overload,
-    Tuple,
-    Type,
-    Union,
-)
+from typing import Any, Callable, cast, Optional, overload, Union
 
 from ._events import (
     ConnectionClosed,
@@ -92,7 +81,7 @@ def _keep_alive(event: Union[Request, Response]) -> bool:
 
 def _body_framing(
     request_method: bytes, event: Union[Request, Response]
-) -> Tuple[str, Union[Tuple[()], Tuple[int]]]:
+) -> tuple[str, Union[tuple[()], tuple[int]]]:
     # Called when we enter SEND_BODY to figure out framing information for
     # this body.
     #
@@ -166,7 +155,7 @@ class Connection:
 
     def __init__(
         self,
-        our_role: Type[Sentinel],
+        our_role: type[Sentinel],
         max_incomplete_event_size: int = DEFAULT_MAX_INCOMPLETE_EVENT_SIZE,
     ) -> None:
         self._max_incomplete_event_size = max_incomplete_event_size
@@ -174,7 +163,7 @@ class Connection:
         if our_role not in (CLIENT, SERVER):
             raise ValueError(f"expected CLIENT or SERVER, not {our_role!r}")
         self.our_role = our_role
-        self.their_role: Type[Sentinel]
+        self.their_role: type[Sentinel]
         if our_role is CLIENT:
             self.their_role = SERVER
         else:
@@ -204,7 +193,7 @@ class Connection:
         self.client_is_waiting_for_100_continue = False
 
     @property
-    def states(self) -> Dict[Type[Sentinel], Type[Sentinel]]:
+    def states(self) -> dict[type[Sentinel], type[Sentinel]]:
         """A dictionary like::
 
            {CLIENT: <client state>, SERVER: <server state>}
@@ -215,14 +204,14 @@ class Connection:
         return dict(self._cstate.states)
 
     @property
-    def our_state(self) -> Type[Sentinel]:
+    def our_state(self) -> type[Sentinel]:
         """The current state of whichever role we are playing. See
         :ref:`state-machine` for details.
         """
         return self._cstate.states[self.our_role]
 
     @property
-    def their_state(self) -> Type[Sentinel]:
+    def their_state(self) -> type[Sentinel]:
         """The current state of whichever role we are NOT playing. See
         :ref:`state-machine` for details.
         """
@@ -252,12 +241,12 @@ class Connection:
         assert not self.client_is_waiting_for_100_continue
         self._respond_to_state_changes(old_states)
 
-    def _process_error(self, role: Type[Sentinel]) -> None:
+    def _process_error(self, role: type[Sentinel]) -> None:
         old_states = dict(self._cstate.states)
         self._cstate.process_error(role)
         self._respond_to_state_changes(old_states)
 
-    def _server_switch_event(self, event: Event) -> Optional[Type[Sentinel]]:
+    def _server_switch_event(self, event: Event) -> Optional[type[Sentinel]]:
         if type(event) is InformationalResponse and event.status_code == 101:
             return _SWITCH_UPGRADE
         if type(event) is Response:
@@ -269,7 +258,7 @@ class Connection:
         return None
 
     # All events go through here
-    def _process_event(self, role: Type[Sentinel], event: Event) -> None:
+    def _process_event(self, role: type[Sentinel], event: Event) -> None:
         # First, pass the event through the state machine to make sure it
         # succeeds.
         old_states = dict(self._cstate.states)
@@ -319,7 +308,7 @@ class Connection:
 
     def _get_io_object(
         self,
-        role: Type[Sentinel],
+        role: type[Sentinel],
         event: Optional[Event],
         io_dict: Union[ReadersType, WritersType],
     ) -> Optional[Callable[..., Any]]:
@@ -341,7 +330,7 @@ class Connection:
     # self._cstate.states to change.
     def _respond_to_state_changes(
         self,
-        old_states: Dict[Type[Sentinel], Type[Sentinel]],
+        old_states: dict[type[Sentinel], type[Sentinel]],
         event: Optional[Event] = None,
     ) -> None:
         # Update reader/writer
@@ -351,7 +340,7 @@ class Connection:
             self._reader = self._get_io_object(self.their_role, event, READERS)
 
     @property
-    def trailing_data(self) -> Tuple[bytes, bool]:
+    def trailing_data(self) -> tuple[bytes, bool]:
         """Data that has been received, but not yet processed, represented as
         a tuple with two elements, where the first is a byte-string containing
         the unprocessed data itself, and the second is a bool that is True if
@@ -409,7 +398,7 @@ class Connection:
 
     def _extract_next_receive_event(
         self,
-    ) -> Union[Event, Type[NEED_DATA], Type[PAUSED]]:
+    ) -> Union[Event, type[NEED_DATA], type[PAUSED]]:
         state = self.their_state
         # We don't pause immediately when they enter DONE, because even in
         # DONE state we can still process a ConnectionClosed() event. But
@@ -435,7 +424,7 @@ class Connection:
             event = NEED_DATA
         return event  # type: ignore[no-any-return]
 
-    def next_event(self) -> Union[Event, Type[NEED_DATA], Type[PAUSED]]:
+    def next_event(self) -> Union[Event, type[NEED_DATA], type[PAUSED]]:
         """Parse the next event out of our receive buffer, update our internal
         state, and return it.
 
@@ -541,7 +530,7 @@ class Connection:
         else:
             return b"".join(data_list)
 
-    def send_with_data_passthrough(self, event: Event) -> Optional[List[bytes]]:
+    def send_with_data_passthrough(self, event: Event) -> Optional[list[bytes]]:
         """Identical to :meth:`send`, except that in situations where
         :meth:`send` returns a single :term:`bytes-like object`, this instead
         returns a list of them -- and when sending a :class:`Data` event, this
@@ -567,7 +556,7 @@ class Connection:
                 # In any situation where writer is None, process_event should
                 # have raised ProtocolError
                 assert writer is not None
-                data_list: List[bytes] = []
+                data_list: list[bytes] = []
                 writer(event, data_list.append)
                 return data_list
         except:

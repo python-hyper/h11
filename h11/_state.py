@@ -110,7 +110,7 @@
 # tables. But it can't automatically read the transitions that are written
 # directly in Python code. So if you touch those, you need to also update the
 # script to keep it in sync!
-from typing import cast, Dict, Optional, Set, Tuple, Type, Union
+from typing import cast, Optional, Union
 
 from ._events import *
 from ._util import LocalProtocolError, Sentinel
@@ -185,11 +185,11 @@ class _SWITCH_CONNECT(Sentinel, metaclass=Sentinel):
     pass
 
 
-EventTransitionType = Dict[
-    Type[Sentinel],
-    Dict[
-        Type[Sentinel],
-        Dict[Union[Type[Event], Tuple[Type[Event], Type[Sentinel]]], Type[Sentinel]],
+EventTransitionType = dict[
+    type[Sentinel],
+    dict[
+        type[Sentinel],
+        dict[Union[type[Event], tuple[type[Event], type[Sentinel]]], type[Sentinel]],
     ],
 ]
 
@@ -226,8 +226,8 @@ EVENT_TRIGGERED_TRANSITIONS: EventTransitionType = {
     },
 }
 
-StateTransitionType = Dict[
-    Tuple[Type[Sentinel], Type[Sentinel]], Dict[Type[Sentinel], Type[Sentinel]]
+StateTransitionType = dict[
+    tuple[type[Sentinel], type[Sentinel]], dict[type[Sentinel], type[Sentinel]]
 ]
 
 # NB: there are also some special-case state-triggered transitions hard-coded
@@ -256,11 +256,11 @@ class ConnectionState:
 
         # This is a subset of {UPGRADE, CONNECT}, containing the proposals
         # made by the client for switching protocols.
-        self.pending_switch_proposals: Set[Type[Sentinel]] = set()
+        self.pending_switch_proposals: set[type[Sentinel]] = set()
 
-        self.states: Dict[Type[Sentinel], Type[Sentinel]] = {CLIENT: IDLE, SERVER: IDLE}
+        self.states: dict[type[Sentinel], type[Sentinel]] = {CLIENT: IDLE, SERVER: IDLE}
 
-    def process_error(self, role: Type[Sentinel]) -> None:
+    def process_error(self, role: type[Sentinel]) -> None:
         self.states[role] = ERROR
         self._fire_state_triggered_transitions()
 
@@ -268,17 +268,17 @@ class ConnectionState:
         self.keep_alive = False
         self._fire_state_triggered_transitions()
 
-    def process_client_switch_proposal(self, switch_event: Type[Sentinel]) -> None:
+    def process_client_switch_proposal(self, switch_event: type[Sentinel]) -> None:
         self.pending_switch_proposals.add(switch_event)
         self._fire_state_triggered_transitions()
 
     def process_event(
         self,
-        role: Type[Sentinel],
-        event_type: Type[Event],
-        server_switch_event: Optional[Type[Sentinel]] = None,
+        role: type[Sentinel],
+        event_type: type[Event],
+        server_switch_event: Optional[type[Sentinel]] = None,
     ) -> None:
-        _event_type: Union[Type[Event], Tuple[Type[Event], Type[Sentinel]]] = event_type
+        _event_type: Union[type[Event], tuple[type[Event], type[Sentinel]]] = event_type
         if server_switch_event is not None:
             assert role is SERVER
             if server_switch_event not in self.pending_switch_proposals:
@@ -298,18 +298,16 @@ class ConnectionState:
 
     def _fire_event_triggered_transitions(
         self,
-        role: Type[Sentinel],
-        event_type: Union[Type[Event], Tuple[Type[Event], Type[Sentinel]]],
+        role: type[Sentinel],
+        event_type: Union[type[Event], tuple[type[Event], type[Sentinel]]],
     ) -> None:
         state = self.states[role]
         try:
             new_state = EVENT_TRIGGERED_TRANSITIONS[role][state][event_type]
         except KeyError:
-            event_type = cast(Type[Event], event_type)
+            event_type = cast(type[Event], event_type)
             raise LocalProtocolError(
-                "can't handle event type {} when role={} and state={}".format(
-                    event_type.__name__, role, self.states[role]
-                )
+                f"can't handle event type {event_type.__name__} when role={role} and state={self.states[role]}"
             ) from None
         self.states[role] = new_state
 

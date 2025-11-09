@@ -8,7 +8,7 @@
 import re
 from abc import ABC
 from dataclasses import dataclass
-from typing import List, Tuple, Union
+from typing import Union
 
 from ._abnf import method, request_target
 from ._headers import Headers, normalize_and_validate
@@ -83,7 +83,7 @@ class Request(Event):
         self,
         *,
         method: Union[bytes, str],
-        headers: Union[Headers, List[Tuple[bytes, bytes]], List[Tuple[str, str]]],
+        headers: Union[Headers, list[tuple[bytes, bytes]], list[tuple[str, str]]],
         target: Union[bytes, str],
         http_version: Union[bytes, str] = b"1.1",
         _parsed: bool = False,
@@ -137,7 +137,7 @@ class _ResponseBase(Event):
     def __init__(
         self,
         *,
-        headers: Union[Headers, List[Tuple[bytes, bytes]], List[Tuple[str, str]]],
+        headers: Union[Headers, list[tuple[bytes, bytes]], list[tuple[str, str]]],
         status_code: int,
         http_version: Union[bytes, str] = b"1.1",
         reason: Union[bytes, str] = b"",
@@ -207,7 +207,7 @@ class InformationalResponse(_ResponseBase):
         if not (100 <= self.status_code < 200):
             raise LocalProtocolError(
                 "InformationalResponse status_code should be in range "
-                "[100, 200), not {}".format(self.status_code)
+                f"[100, 200), not {self.status_code}"
             )
 
     # This is an unhashable type.
@@ -247,9 +247,7 @@ class Response(_ResponseBase):
     def __post_init__(self) -> None:
         if not (200 <= self.status_code < 1000):
             raise LocalProtocolError(
-                "Response status_code should be in range [200, 1000), not {}".format(
-                    self.status_code
-                )
+                f"Response status_code should be in range [200, 1000), not {self.status_code}"
             )
 
     # This is an unhashable type.
@@ -338,7 +336,7 @@ class EndOfMessage(Event):
         self,
         *,
         headers: Union[
-            Headers, List[Tuple[bytes, bytes]], List[Tuple[str, str]], None
+            Headers, list[tuple[bytes, bytes]], list[tuple[str, str]], None
         ] = None,
         _parsed: bool = False,
     ) -> None:

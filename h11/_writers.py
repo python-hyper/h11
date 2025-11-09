@@ -7,7 +7,7 @@
 # - a writer
 # - or, for body writers, a dict of framin-dependent writer factories
 
-from typing import Any, Callable, Dict, List, Tuple, Type, Union
+from typing import Any, Callable, Union
 
 from ._events import Data, EndOfMessage, Event, InformationalResponse, Request, Response
 from ._headers import Headers
@@ -124,10 +124,10 @@ class Http10Writer(BodyWriter):
         # Connection: close machinery
 
 
-WritersType = Dict[
-    Union[Tuple[Type[Sentinel], Type[Sentinel]], Type[Sentinel]],
+WritersType = dict[
+    Union[tuple[type[Sentinel], type[Sentinel]], type[Sentinel]],
     Union[
-        Dict[str, Type[BodyWriter]],
+        dict[str, type[BodyWriter]],
         Callable[[Union[InformationalResponse, Response], Writer], None],
         Callable[[Request, Writer], None],
     ],

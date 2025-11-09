@@ -17,7 +17,8 @@
 # - or, for body readers, a dict of per-framing reader factories
 
 import re
-from typing import Any, Callable, Dict, Iterable, NoReturn, Optional, Tuple, Type, Union
+from collections.abc import Iterable
+from typing import Any, Callable, NoReturn, Optional, Union
 
 from ._abnf import chunk_header, header_field, request_line, status_line
 from ._events import Data, EndOfMessage, InformationalResponse, Request, Response
@@ -63,7 +64,7 @@ def _obsolete_line_fold(lines: Iterable[bytes]) -> Iterable[bytes]:
 
 def _decode_header_lines(
     lines: Iterable[bytes],
-) -> Iterable[Tuple[bytes, bytes]]:
+) -> Iterable[tuple[bytes, bytes]]:
     for line in _obsolete_line_fold(lines):
         matches = validate(header_field_re, line, "illegal header line: {!r}", line)
         yield (matches["field_name"], matches["field_value"])
@@ -107,7 +108,7 @@ def maybe_read_from_SEND_RESPONSE_server(
     )
     reason = b"" if matches["reason"] is None else matches["reason"]
     status_code = int(matches["status_code"])
-    class_: Union[Type[InformationalResponse], Type[Response]] = (
+    class_: Union[type[InformationalResponse], type[Response]] = (
         InformationalResponse if status_code < 200 else Response
     )
     return class_(
@@ -136,9 +137,7 @@ class ContentLengthReader:
     def read_eof(self) -> NoReturn:
         raise RemoteProtocolError(
             "peer closed connection without sending complete message body "
-            "(received {} bytes, expected {})".format(
-                self._length - self._remaining, self._length
-            )
+            f"(received {self._length - self._remaining} bytes, expected {self._length})"
         )
 
 
@@ -227,9 +226,9 @@ def expect_nothing(buf: ReceiveBuffer) -> None:
     return None
 
 
-ReadersType = Dict[
-    Union[Type[Sentinel], Tuple[Type[Sentinel], Type[Sentinel]]],
-    Union[Callable[..., Any], Dict[str, Callable[..., Any]]],
+ReadersType = dict[
+    Union[type[Sentinel], tuple[type[Sentinel], type[Sentinel]]],
+    Union[Callable[..., Any], dict[str, Callable[..., Any]]],
 ]
 
 READERS: ReadersType = {

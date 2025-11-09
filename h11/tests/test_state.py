@@ -4,7 +4,6 @@ from .._events import (
     ConnectionClosed,
     Data,
     EndOfMessage,
-    Event,
     InformationalResponse,
     Request,
     Response,

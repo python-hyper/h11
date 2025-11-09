@@ -1,4 +1,4 @@
-from typing import Any, cast, Dict, List, Optional, Tuple, Type
+from typing import Any, cast, Optional
 
 import pytest
 
@@ -58,7 +58,7 @@ def test__keep_alive() -> None:
 
 
 def test__body_framing() -> None:
-    def headers(cl: Optional[int], te: bool) -> List[Tuple[str, str]]:
+    def headers(cl: Optional[int], te: bool) -> list[tuple[str, str]]:
         headers = []
         if cl is not None:
             headers.append(("Content-Length", str(cl)))
@@ -78,7 +78,7 @@ def test__body_framing() -> None:
 
     # Special cases where the headers are ignored:
     for kwargs in [{}, {"cl": 100}, {"te": True}, {"cl": 100, "te": True}]:
-        kwargs = cast(Dict[str, Any], kwargs)
+        kwargs = cast(dict[str, Any], kwargs)
         for meth, r in [
             (b"HEAD", resp(**kwargs)),
             (b"GET", resp(status_code=204, **kwargs)),
@@ -88,7 +88,7 @@ def test__body_framing() -> None:
 
     # Transfer-encoding
     for kwargs in [{"te": True}, {"cl": 100, "te": True}]:
-        kwargs = cast(Dict[str, Any], kwargs)
+        kwargs = cast(dict[str, Any], kwargs)
         for meth, r in [(None, req(**kwargs)), (b"GET", resp(**kwargs))]:  # type: ignore
             assert _body_framing(meth, r) == ("chunked", ())
 
@@ -303,7 +303,7 @@ def test_automatic_transfer_encoding_in_response() -> None:
         # because if both are set then Transfer-Encoding wins
         [("Transfer-Encoding", "chunked"), ("Content-Length", "100")],
     ]:
-        user_headers = cast(List[Tuple[str, str]], user_headers)
+        user_headers = cast(list[tuple[str, str]], user_headers)
         p = ConnectionPair()
         p.send(
             CLIENT,
@@ -873,8 +873,8 @@ def test_sendfile() -> None:
     placeholder = SendfilePlaceholder()
 
     def setup(
-        header: Tuple[str, str], http_version: str
-    ) -> Tuple[Connection, Optional[List[bytes]]]:
+        header: tuple[str, str], http_version: str
+    ) -> tuple[Connection, Optional[list[bytes]]]:
         c = Connection(SERVER)
         receive_and_get(
             c, f"GET / HTTP/{http_version}\r\nHost: a\r\n\r\n".encode("ascii")
@@ -924,7 +924,7 @@ def test_errors() -> None:
     # After an error sending, you can no longer send
     # (This is especially important for things like content-length errors,
     # where there's complex internal state being modified)
-    def conn(role: Type[Sentinel]) -> Connection:
+    def conn(role: type[Sentinel]) -> Connection:
         c = Connection(our_role=role)
         if role is SERVER:
             # Put it into the state where it *could* send a response...

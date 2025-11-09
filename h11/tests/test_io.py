@@ -1,4 +1,5 @@
-from typing import Any, Callable, Generator, List
+from collections.abc import Generator
+from typing import Any, Callable
 
 import pytest
 
@@ -68,7 +69,7 @@ SIMPLE_CASES = [
 
 
 def dowrite(writer: Callable[..., None], obj: Any) -> bytes:
-    got_list: List[bytes] = []
+    got_list: list[bytes] = []
     writer(obj, got_list.append)
     return b"".join(got_list)
 
@@ -343,7 +344,7 @@ def _run_reader_iter(
         yield reader.read_eof()
 
 
-def _run_reader(*args: Any) -> List[Event]:
+def _run_reader(*args: Any) -> list[Event]:
     events = list(_run_reader_iter(*args))
     return normalize_data_events(events)
 

@@ -58,9 +58,9 @@ extensions = [
 # Undocumented trick: if we def setup here in conf.py, it gets called just
 # like an extension's setup function.
 def setup(app):
-    app.add_javascript("show-code.js")
-    app.add_javascript("facebox.js")
-    app.add_stylesheet("facebox.css")
+    app.add_js_file("show-code.js")
+    app.add_js_file("facebox.js")
+    app.add_css_file("facebox.css")
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

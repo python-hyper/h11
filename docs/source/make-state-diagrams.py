@@ -25,12 +25,12 @@ digraph {
 """
 
 def finish(machine_name):
-    return ("""
+    return (f"""
   labelloc="t"
   labeljust="l"
-  label=<<FONT POINT-SIZE="20">h11 state machine: {}</FONT>>
+  label=<<FONT POINT-SIZE="20">h11 state machine: {machine_name}</FONT>>
 }}
-""".format(machine_name))
+""")
 
 class Edges:
     def __init__(self):
