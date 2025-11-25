@@ -286,7 +286,7 @@ For some servers, we'd have to stop here, because they require a new
 connection for every request/response. But, this server is smarter
 than that -- it supports `keep-alive
 <https://en.wikipedia.org/wiki/HTTP_persistent_connection>`_, so we
-can re-use this connection to send another request. There's a few ways
+can reuse this connection to send another request. There's a few ways
 we can tell. First, if it didn't, then it would have closed the
 connection already, and we would have gotten a
 :class:`ConnectionClosed` event on our last call to

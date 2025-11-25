@@ -202,7 +202,7 @@ A basic HTTP request/response cycle looks like this:
   * and a :class:`EndOfMessage` event.
 
 And once that's finished, both sides either close the connection, or
-they go back to the top and re-use it for another request/response
+they go back to the top and reuse it for another request/response
 cycle.
 
 To coordinate this interaction, the h11 :class:`Connection` object
@@ -281,7 +281,7 @@ what's needed to handle the basic request/response cycle:
 
 * Server sending a :class:`Response` directly from :data:`IDLE`: This
   is used for error responses, when the client's request never arrived
-  (e.g. 408 Request Timed Out) or was unparseable gibberish (400 Bad
+  (e.g. 408 Request Timed Out) or was unparsable gibberish (400 Bad
   Request) and thus didn't register with our state machine as a real
   :class:`Request`.
 
@@ -471,7 +471,7 @@ There are four cases where these exceptions might be raised:
 
 * When calling :meth:`Connection.start_next_cycle`
   (:exc:`LocalProtocolError`): This indicates that the connection is
-  not ready to be re-used, because one or both of the peers are not in
+  not ready to be reused, because one or both of the peers are not in
   the :data:`DONE` state. The :class:`Connection` object remains
   usable, and you can try again later.
 
@@ -507,7 +507,7 @@ the remote peer. But sometimes, for one reason or another, this
 doesn't actually happen.
 
 Here's a concrete example. Suppose you're using h11 to implement an
-HTTP client that keeps a pool of connections so it can re-use them
+HTTP client that keeps a pool of connections so it can reuse them
 when possible (see :ref:`keepalive-and-pipelining`). You take a
 connection from the pool, and start to do a large upload... but then
 for some reason this gets cancelled (maybe you have a GUI and a user
@@ -518,7 +518,7 @@ successfully sent the full request, because you passed an
 you didn't, because you never sent the resulting bytes. And then –
 here's the really tricky part! – if you're not careful, you might
 think that it's OK to put this connection back into the connection
-pool and re-use it, because h11 is telling you that a full
+pool and reuse it, because h11 is telling you that a full
 request/response cycle was completed. But this is wrong; in fact you
 have to close this connection and open a new one.
 
@@ -605,10 +605,10 @@ cases:
 
 .. _keepalive-and-pipelining:
 
-Re-using a connection: keep-alive and pipelining
+Reusing a connection: keep-alive and pipelining
 ------------------------------------------------
 
-HTTP/1.1 allows a connection to be re-used for multiple
+HTTP/1.1 allows a connection to be reused for multiple
 request/response cycles (also known as "keep-alive"). This can make
 things faster by letting us skip the costly connection setup, but it
 does create some complexities: we have to keep track of whether a
@@ -635,7 +635,7 @@ these cases -- h11 will automatically add this header when
 necessary. Just worry about setting it when it's actually something
 that you're actively choosing.
 
-If you want to re-use a connection, you have to wait until both the
+If you want to reuse a connection, you have to wait until both the
 request and the response have been completed, bringing both the client
 and server to the :data:`DONE` state. Once this has happened, you can
 explicitly call :meth:`Connection.start_next_cycle` to reset both
@@ -651,7 +651,7 @@ skip past the :data:`DONE` state directly to the :data:`MUST_CLOSE` or
 thing you can legally do is to close this connection and make a new
 one.
 
-HTTP/1.1 also allows for a more aggressive form of connection re-use,
+HTTP/1.1 also allows for a more aggressive form of connection reuse,
 in which a client sends multiple requests in quick succession, and
 then waits for the responses to stream back in order
 ("pipelining"). This is generally considered to have been a bad idea,

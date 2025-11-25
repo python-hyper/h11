@@ -41,7 +41,7 @@
 #
 # - The error handling policy here is somewhat crude as well. It handles a lot
 #   of cases perfectly, but there are corner cases where the ideal behavior is
-#   more debateable. For example, if a client starts uploading a large
+#   more debatable. For example, if a client starts uploading a large
 #   request, uses 100-Continue, and we send an error response, then we'll shut
 #   down the connection immediately (for well-behaved clients) or after
 #   spending TIMEOUT seconds reading and discarding their upload (for
@@ -54,7 +54,7 @@
 #   and wasting your bandwidth if this is what it takes to guarantee that they
 #   see your error response. Up to you, really.
 #
-# - Another example of a debateable choice: if a response handler errors out
+# - Another example of a debatable choice: if a response handler errors out
 #   without having done *anything* -- hasn't started responding, hasn't read
 #   the request body -- then this connection actually is salvagable, if the
 #   server sends an error response + reads and discards the request body. This
@@ -262,7 +262,7 @@ async def http_serve(stream):
             return
         else:
             try:
-                wrapper.info("trying to re-use connection")
+                wrapper.info("trying to reuse connection")
                 wrapper.conn.start_next_cycle()
             except h11.ProtocolError:
                 states = wrapper.conn.states
