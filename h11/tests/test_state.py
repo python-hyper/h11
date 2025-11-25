@@ -239,7 +239,7 @@ def test_ConnectionState_reuse() -> None:
     with pytest.raises(LocalProtocolError):
         cs.start_next_cycle()
 
-    # Succesful protocol switch
+    # Successful protocol switch
 
     cs = ConnectionState()
     cs.process_client_switch_proposal(_SWITCH_UPGRADE)

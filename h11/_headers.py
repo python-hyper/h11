@@ -44,7 +44,7 @@ CONTENT_LENGTH_MAX_DIGITS = 20  # allow up to 1 billion TB - 1
 # message"
 # (and there are several headers where the order indicates a preference)
 #
-# Multiple occurences of the same header:
+# Multiple occurrences of the same header:
 # "A sender MUST NOT generate multiple header fields with the same field name
 # in a message unless either the entire field value for that header field is
 # defined as a comma-separated list [or the header is Set-Cookie which gets a
@@ -81,7 +81,7 @@ class Headers(Sequence[Tuple[bytes, bytes]]):
 
     Internally we actually store the representation as three-tuples,
     including both the raw original casing, in order to preserve casing
-    over-the-wire, and the lowercased name, for case-insensitive comparisions.
+    over-the-wire, and the lowercased name, for case-insensitive comparisons.
 
     r = Request(
         method="GET",

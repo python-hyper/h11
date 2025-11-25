@@ -652,7 +652,7 @@ def test_protocol_switch() -> None:
         for conn in p.conns:
             assert conn.states == {CLIENT: DONE, SERVER: SEND_BODY}
         p.send(SERVER, EndOfMessage())
-        # Check that re-use is still allowed after a denial
+        # Check that reuse is still allowed after a denial
         for conn in p.conns:
             conn.start_next_cycle()
 
