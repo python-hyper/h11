@@ -1,3 +1,40 @@
+[project]
+name = "h11"
+dynamic = ["version"]
+readme = "README.rst"
+description="A pure-Python, bring-your-own-I/O implementation of HTTP/1.1"
+authors = [
+    {name = "Nathaniel J. Smith", email = "njs@pobox.com"}
+]
+
+requires-python = ">=3.8"
+classifiers=[
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: System :: Networking"
+]
+
+[build-system]
+requires = ["setuptools"]
+
+[tool.setuptools.dynamic]
+version = {attr = "h11.__version__"}
+
+[project.urls]
+homepage = "https://github.com/python-hyper/h11"
+repository = "https://github.com/python-hyper/h11.git"
+
 [tool.towncrier]
 # Usage:
 # - PRs should drop a file like "issuenumber.feature" in newsfragments
