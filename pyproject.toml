@@ -35,8 +35,6 @@ version = {attr = "h11.__version__"}
     homepage = "https://github.com/python-hyper/h11"
     repository = "https://github.com/python-hyper/h11.git"
 
-
-
 [tool.towncrier]
 # Usage:
 # - PRs should drop a file like "issuenumber.feature" in newsfragments
