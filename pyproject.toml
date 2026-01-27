@@ -32,8 +32,8 @@ requires = ["setuptools"]
 version = {attr = "h11.__version__"}
 
 [project.urls]
-    homepage = "https://github.com/python-hyper/h11"
-    repository = "https://github.com/python-hyper/h11.git"
+homepage = "https://github.com/python-hyper/h11"
+repository = "https://github.com/python-hyper/h11.git"
 
 [tool.towncrier]
 # Usage:
