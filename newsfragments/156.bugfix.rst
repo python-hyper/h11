@@ -1,0 +1,2 @@
+Preserve an explicitly provided ``Connection`` header's original casing when
+it already requests ``close``.

@@ -365,6 +365,23 @@ def test_automagic_connection_close_handling() -> None:
         assert conn.states == {CLIENT: MUST_CLOSE, SERVER: MUST_CLOSE}
 
 
+def test_explicit_connection_close_preserves_header_case() -> None:
+    c = Connection(SERVER)
+    c.receive_data(
+        b"GET / HTTP/1.1\r\n"
+        b"Host: example.com\r\n"
+        b"Connection: close\r\n"
+        b"\r\n"
+    )
+    assert isinstance(c.next_event(), Request)
+    assert isinstance(c.next_event(), EndOfMessage)
+
+    assert (
+        c.send(Response(status_code=204, headers=[("connection", "close")]))
+        == b"HTTP/1.1 204 \r\nconnection: close\r\n\r\n"
+    )
+
+
 def test_100_continue() -> None:
     def setup() -> ConnectionPair:
         p = ConnectionPair()
