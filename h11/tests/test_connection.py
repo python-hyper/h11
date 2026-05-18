@@ -238,6 +238,22 @@ def test_chunk_boundaries() -> None:
     assert conn.next_event() == EndOfMessage()
 
 
+@pytest.mark.parametrize("data_wrapper", [bytearray, memoryview])
+def test_receive_data_accepts_byteslike_objects(data_wrapper: Any) -> None:
+    conn = Connection(our_role=SERVER)
+
+    conn.receive_data(
+        data_wrapper(b"GET / HTTP/1.1\r\nHost: example.com\r\n\r\n")
+    )
+
+    assert conn.next_event() == Request(
+        method="GET",
+        target="/",
+        headers=[("Host", "example.com")],
+    )
+    assert conn.next_event() == EndOfMessage()
+
+
 def test_client_talking_to_http10_server() -> None:
     c = Connection(CLIENT)
     c.send(Request(method="GET", target="/", headers=[("Host", "example.com")]))

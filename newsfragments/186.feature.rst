@@ -1,0 +1,2 @@
+Allow ``Connection.receive_data()`` to accept ``bytearray`` and
+``memoryview`` inputs in its public type hints.

@@ -361,7 +361,7 @@ class Connection:
         """
         return (bytes(self._receive_buffer), self._receive_buffer_closed)
 
-    def receive_data(self, data: bytes) -> None:
+    def receive_data(self, data: Union[bytes, bytearray, memoryview]) -> None:
         """Add data to our internal receive buffer.
 
         This does not actually do any processing on the data, just stores

@@ -50,7 +50,9 @@ class ReceiveBuffer:
         self._next_line_search = 0
         self._multiple_lines_search = 0
 
-    def __iadd__(self, byteslike: Union[bytes, bytearray]) -> "ReceiveBuffer":
+    def __iadd__(
+        self, byteslike: Union[bytes, bytearray, memoryview]
+    ) -> "ReceiveBuffer":
         self._data += byteslike
         return self
 
