@@ -1,0 +1,2 @@
+Include ``tox.ini`` in source distributions so downstream packagers can run
+the bundled test configuration from the sdist.
