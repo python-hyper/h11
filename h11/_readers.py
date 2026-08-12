@@ -51,6 +51,10 @@ def _obsolete_line_fold(lines: Iterable[bytes]) -> Iterable[bytes]:
             if not isinstance(last, bytearray):
                 # Cast to a mutable type, avoiding copy on append to ensure O(n) time
                 last = bytearray(last)
+            # OWS before a continuation is part of the obs-fold sequence, so
+            # replace it together with the leading continuation whitespace.
+            while last and last[-1] in (0x20, 0x09):
+                last.pop()
             last += b" "
             last += line[match.end() :]
         else:

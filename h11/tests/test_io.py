@@ -326,6 +326,22 @@ def test__obsolete_line_fold_bytes() -> None:
     ]
 
 
+def test_obsolete_line_fold_strips_preceding_whitespace() -> None:
+    tr(
+        READERS[CLIENT, IDLE],
+        b"GET / HTTP/1.1\r\n"
+        b"Host: example.com\r\n"
+        b"Some: value1 \t\r\n"
+        b" \tvalue2 \t\r\n"
+        b"\tvalue3\r\n\r\n",
+        Request(
+            method="GET",
+            target="/",
+            headers=[("Host", "example.com"), ("Some", "value1 value2 value3")],
+        ),
+    )
+
+
 def _run_reader_iter(
     reader: Any, buf: bytes, do_eof: bool
 ) -> Generator[Any, None, None]:
