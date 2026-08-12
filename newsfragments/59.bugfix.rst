@@ -1,0 +1,2 @@
+Normalize whitespace preceding obsolete folded header lines so each fold is
+represented by a single space.
