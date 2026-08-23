@@ -48,6 +48,9 @@ Vital statistics
 
   The last Python 2-compatible version was h11 0.11.x.
 
+  Status: production/stable. h11 is the HTTP/1.1 engine behind
+  httpx/httpcore and uvicorn's h11 backend.
+
 * Install: ``pip install h11``
 
 * Sources and bug tracker: https://github.com/python-hyper/h11

@@ -1,8 +1,8 @@
 h11
 ===
 
-.. image:: https://travis-ci.org/python-hyper/h11.svg?branch=master
-   :target: https://travis-ci.org/python-hyper/h11
+.. image:: https://github.com/python-hyper/h11/actions/workflows/ci.yml/badge.svg
+   :target: https://github.com/python-hyper/h11/actions
    :alt: Automated test status
 
 .. image:: https://codecov.io/gh/python-hyper/h11/branch/master/graph/badge.svg
@@ -83,11 +83,14 @@ scratch, at least I can make sure no-one *else* has to ever again.
 
 *Should I use it?*
 
-Maybe. You should be aware that it's a very young project. But, it's
-feature complete and has an exhaustive test-suite and complete docs,
-so the next step is for people to try using it and see how it goes
-:-). If you do then please let us know -- if nothing else we'll want
-to talk to you before making any incompatible changes!
+Yes, if you need a standalone HTTP/1.1 state machine. h11 has been
+feature-complete for a long time, the public API is stable, and it is
+what httpx/httpcore and uvicorn's h11 backend use to speak HTTP/1.1 in
+production.
+
+If you just want to make HTTP requests from an application, use httpx
+or urllib3 instead -- they already wrap a protocol library like this
+one.
 
 *What are the features/limitations?*
 
@@ -112,7 +115,7 @@ library.
 It has a test suite with 100.0% coverage for both statements and
 branches.
 
-Currently it supports Python 3 (testing on 3.8-3.12) and PyPy 3.
+Currently it supports Python 3 (testing on 3.8-3.13) and PyPy 3.
 The last Python 2-compatible version was h11 0.11.x.
 (Originally it had a Cython wrapper for `http-parser
 <https://github.com/nodejs/http-parser>`_ and a beautiful nested state
@@ -141,10 +144,8 @@ is now quite small and simple, I'm still annoyed that I haven't
 figured out how to make it even smaller and simpler. (Unfortunately,
 HTTP does not lend itself to simplicity.)
 
-The API is ~feature complete and I don't expect the general outlines
-to change much, but you can't judge an API's ergonomics until you
-actually document and use it, so I'd expect some changes in the
-details.
+The API is feature complete. The general outlines have been stable for
+years.
 
 *How do I try it?*
 

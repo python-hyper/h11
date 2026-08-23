@@ -1,0 +1,1 @@
+Refresh the README and docs so they no longer describe h11 as an alpha-stage project, and mark the PyPI classifier as Production/Stable.
