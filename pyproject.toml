@@ -94,7 +94,7 @@ select = [
 [tool.cibuildwheel]
 # PyPy is excluded on purpose: mypyc-compiled code is slower there than the
 # pure-Python build, which PyPy will get from the py3-none-any wheel instead.
-build = "cp310-* cp311-* cp312-* cp313-*"
+build = "cp310-* cp311-* cp312-* cp313-* cp314-*"
 skip = "*_i686 *-win32 *-musllinux_i686"
 build-frontend = "build[uv]"
 environment = { H11_MYPYC = "1" }
