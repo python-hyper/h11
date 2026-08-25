@@ -33,9 +33,9 @@ dependencies = []
 
 [project.urls]
 Repository = "https://github.com/danfimov/h11"
-Homepage = "danfimov.github.io/h11/"
-Documentation = "danfimov.github.io/h11/"
-Changelog = "danfimov.github.io/h11/changes/"
+Homepage = "https://danfimov.github.io/h11/"
+Documentation = "https://danfimov.github.io/h11/"
+Changelog = "https://danfimov.github.io/h11/changes/"
 
 [dependency-groups]
 dev = [
