@@ -1,0 +1,1 @@
+Fix documentation builds with Sphinx 9 and later.
