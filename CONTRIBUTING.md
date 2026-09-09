@@ -47,8 +47,8 @@ other hand, the following are all very welcome:
   [isort](https://github.com/timothycrosley/isort) as configured in
   the project. With those projects installed the commands,
 
-      black h11/ bench/ examples/ fuzz/
-      isort --profile black --dt h11 bench examples fuzz
+      uv run --locked black h11/ bench/ examples/ fuzz/
+      uv run --locked isort --profile black --dt h11 bench examples fuzz
 
   will format your code for you.
 
@@ -66,8 +66,8 @@ other hand, the following are all very welcome:
 * The test suite needs to pass. The easy way to check is:
 
   ```
-  pip install tox
-  tox
+  uv sync --locked
+  uv run --locked pytest --cov=h11
   ```
 
   But note that: (1) this might print slightly misleading coverage
@@ -75,8 +75,19 @@ other hand, the following are all very welcome:
   versions, and there might be some lines that are only executed on some
   python versions or implementations, and (2) the full test suite will
   automatically get run when you submit a pull request, so you don't
-  need to worry too much about tracking down a version of cpython 3.3
-  or whatever just to run the tests.
+  need to install every supported Python version just to run the tests.
+  Install [uv](https://docs.astral.sh/uv/getting-started/installation/)
+  first. Python 3.10 or newer is required. To run the full interpreter
+  matrix and formatting/type checks locally, use `uv run --locked tox`
+  with the corresponding interpreters installed. Individual checks can
+  be run with `uv run --locked tox -e format,mypy`.
+
+  Development dependencies are defined in `pyproject.toml` and pinned in
+  `uv.lock`. After changing dependencies, run `uv lock` and commit both
+  files. Build distributions with `uv build`. To build the documentation,
+  install [Graphviz](https://graphviz.org/download/) (including the `dot`
+  executable), then run
+  `uv run --locked sphinx-build -b html docs/source docs/build/html`.
 
 * Proposed speedups require some profiling and benchmarks to justify
   the change.
