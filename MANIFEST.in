@@ -1,5 +1,9 @@
-include LICENSE.txt README.rst notes.org tiny-client-demo.py h11/py.typed
+include LICENSE.txt README.rst CONTRIBUTING.md notes.org h11/py.typed uv.lock
+recursive-include newsfragments *.rst
 recursive-include docs *
 recursive-include h11/tests *
 recursive-include fuzz *
+recursive-include bench *.py *.json *.rst
+recursive-include examples *.py
 prune docs/build
+global-exclude *.py[cod]

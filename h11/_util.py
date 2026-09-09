@@ -110,7 +110,7 @@ class Sentinel(type):
         name: str,
         bases: Tuple[type, ...],
         namespace: Dict[str, Any],
-        **kwds: Any
+        **kwds: Any,
     ) -> _T_Sentinel:
         assert bases == (Sentinel,)
         v = super().__new__(cls, name, bases, namespace, **kwds)

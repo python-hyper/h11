@@ -1,3 +1,97 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "h11"
+dynamic = ["version"]
+description = "A pure-Python, bring-your-own-I/O implementation of HTTP/1.1"
+readme = { file = "README.rst", content-type = "text/x-rst" }
+authors = [{ name = "Nathaniel J. Smith", email = "njs@pobox.com" }]
+license = "MIT"
+license-files = ["LICENSE.txt"]
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: System :: Networking",
+]
+
+[project.urls]
+Homepage = "https://github.com/python-hyper/h11"
+Documentation = "https://h11.readthedocs.io/"
+"Bug Reports" = "https://github.com/python-hyper/h11/issues"
+Source = "https://github.com/python-hyper/h11"
+
+[dependency-groups]
+dev = [
+    { include-group = "testing" },
+    { include-group = "linting" },
+    { include-group = "docs" },
+    { include-group = "packaging" },
+    "tox>=4.23.2,<5",
+    "towncrier>=24.8",
+]
+testing = ["pytest>=8.3.3,<10", "pytest-cov>=6,<8"]
+linting = ["black==23.3.0", "isort==5.12.0", "mypy==1.8.0"]
+docs = ["sphinx>=7,<9", "ipython>=8,<10", "pickleshare>=0.7.5", "sphinxcontrib-jquery>=4,<5"]
+packaging = ["build>=1.2,<2", "twine>=6,<7"]
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.packages.find]
+include = ["h11", "h11.*"]
+exclude = ["h11.tests", "h11.tests.*"]
+
+[tool.setuptools.package-data]
+h11 = ["py.typed"]
+
+[tool.setuptools.dynamic]
+version = { attr = "h11._version.__version__" }
+
+[tool.pytest.ini_options]
+testpaths = ["h11"]
+
+[tool.coverage.run]
+branch = true
+source = ["h11"]
+
+[tool.coverage.report]
+exclude_lines = ["pragma: no cover", "^def test_"]
+precision = 1
+
+[tool.tox]
+min_version = "4.23.2"
+env_list = ["format", "py310", "py311", "py312", "py313", "py314", "pypy310", "pypy311", "mypy"]
+
+[tool.tox.env_run_base]
+dependency_groups = ["testing"]
+commands = [["pytest", "--cov=h11", "--cov-report=term", "--cov-report=xml", { replace = "posargs", extend = true }]]
+
+[tool.tox.env.format]
+base_python = ["python3.10"]
+dependency_groups = ["linting"]
+commands = [
+    ["black", "--check", "--diff", "h11/", "bench/", "examples/", "fuzz/"],
+    ["isort", "--check", "--diff", "--profile", "black", "--dt", "h11", "bench", "examples", "fuzz"],
+]
+
+[tool.tox.env.mypy]
+base_python = ["python3.10"]
+dependency_groups = ["linting", "testing"]
+commands = [["mypy", "h11/"]]
+
 [tool.towncrier]
 # Usage:
 # - PRs should drop a file like "issuenumber.feature" in newsfragments

@@ -5,13 +5,12 @@ build:
   apt_packages:
     - graphviz
   tools:
-    python: "3.8"
+    python: "3.13"
+  jobs:
+    post_create_environment:
+      - pip install uv
+    post_install:
+      - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv sync --locked --no-default-groups --group docs --inexact
 
 sphinx:
   configuration: docs/source/conf.py
-
-python:
-  install:
-    - method: pip
-      path: .
-    - requirements: docs/requirements.txt

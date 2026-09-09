@@ -73,13 +73,13 @@ Features
 - Add typing including a PEP 561 marker for usage by type checkers
   (`#135 <https://github.com/python-hyper/h11/pull/135>`__).
 - Expand the allowed status codes to [0, 999] from [0, 600] (`#134
-  https://github.com/python-hyper/h11/issues/134`__).
+  <https://github.com/python-hyper/h11/issues/134>`__).
 
 Backwards **in**\compatible changes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 - Ensure request method is a valid token (`#141
-  https://github.com/python-hyper/h11/pull/141>`__).
+  <https://github.com/python-hyper/h11/pull/141>`__).
 
 
 v0.12.0 (2021-01-01)

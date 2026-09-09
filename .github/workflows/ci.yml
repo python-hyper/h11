@@ -7,20 +7,19 @@ on:
     branches: ["master"]
 
 jobs:
-  tox:
+  tests:
     runs-on: ubuntu-latest
     strategy:
       max-parallel: 7
       matrix:
         python-version:
-        - 3.8
-        - 3.9
         - "3.10"
         - "3.11"
         - "3.12"
         - "3.13"
-        - pypy-3.9
+        - "3.14"
         - pypy-3.10
+        - pypy-3.11
 
     steps:
     - uses: actions/checkout@v4
@@ -28,16 +27,28 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
         allow-prereleases: true
-    - name: Install tox
-      run: |
-        python -m pip install --upgrade pip setuptools
-        pip install --upgrade tox tox-gh-actions
-    - name: Initialize tox envs
-      run: |
-        tox --parallel auto --notest
-    - name: Test with tox
-      run: |
-        tox --parallel 0
+    - uses: astral-sh/setup-uv@v6
+      with:
+        enable-cache: true
+    - name: Test
+      run: uv run --locked --no-default-groups --group testing --python "${{ matrix.python-version }}" pytest --cov=h11 --cov-report=term --cov-report=xml
     - uses: codecov/codecov-action@v4
       with:
-        file: ./coverage.xml
+        files: ./coverage.xml
+
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: astral-sh/setup-uv@v6
+      with:
+        python-version: "3.10"
+        enable-cache: true
+    - run: uv sync --locked
+    - run: uv run --locked black --check --diff h11/ bench/ examples/ fuzz/
+    - run: uv run --locked isort --check --diff --profile black --dt h11 bench examples fuzz
+    - run: uv run --locked mypy h11/
+    - run: uv build
+    - run: uv run --locked twine check dist/*
+    - run: sudo apt-get update && sudo apt-get install -y graphviz
+    - run: uv run --locked sphinx-build -W -b html docs/source docs/build/html

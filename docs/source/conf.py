@@ -47,6 +47,7 @@ sys._h11_hack_docs_source_path = os.path.dirname(__file__)
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'sphinxcontrib.jquery',
     'sphinx.ext.autodoc',
     'sphinx.ext.intersphinx',
     'sphinx.ext.viewcode',
@@ -58,9 +59,9 @@ extensions = [
 # Undocumented trick: if we def setup here in conf.py, it gets called just
 # like an extension's setup function.
 def setup(app):
-    app.add_javascript("show-code.js")
-    app.add_javascript("facebox.js")
-    app.add_stylesheet("facebox.css")
+    app.add_js_file("show-code.js")
+    app.add_js_file("facebox.js")
+    app.add_css_file("facebox.css")
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -96,7 +97,7 @@ release = h11.__version__
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = 'en'
 
 # There are two options for replacing |today|: either, you set today to some
 # non-false value, then it is used:
@@ -321,5 +322,5 @@ texinfo_documents = [
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3.5', None),
+    'python': ('https://docs.python.org/3', None),
 }
