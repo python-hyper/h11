@@ -3,14 +3,14 @@
 from typing import (
     Any,
     Callable,
-    cast,
     Dict,
     List,
     Optional,
-    overload,
     Tuple,
     Type,
     Union,
+    cast,
+    overload,
 )
 
 from ._events import (
@@ -29,13 +29,13 @@ from ._state import (
     _SWITCH_CONNECT,
     _SWITCH_UPGRADE,
     CLIENT,
-    ConnectionState,
     DONE,
     ERROR,
     MIGHT_SWITCH_PROTOCOL,
     SEND_BODY,
     SERVER,
     SWITCHED_PROTOCOL,
+    ConnectionState,
 )
 from ._util import (  # Import the internal things we need
     LocalProtocolError,
@@ -501,18 +501,15 @@ class Connection:
                 raise
 
     @overload
-    def send(self, event: ConnectionClosed) -> None:
-        ...
+    def send(self, event: ConnectionClosed) -> None: ...
 
     @overload
     def send(
         self, event: Union[Request, InformationalResponse, Response, Data, EndOfMessage]
-    ) -> bytes:
-        ...
+    ) -> bytes: ...
 
     @overload
-    def send(self, event: Event) -> Optional[bytes]:
-        ...
+    def send(self, event: Event) -> Optional[bytes]: ...
 
     def send(self, event: Event) -> Optional[bytes]:
         """Convert a high-level event into bytes that can be sent to the peer,

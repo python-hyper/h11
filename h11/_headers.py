@@ -1,8 +1,8 @@
 import re
-from typing import AnyStr, cast, List, overload, Sequence, Tuple, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, List, Sequence, Tuple, Union, overload
 
 from ._abnf import field_name, field_value
-from ._util import bytesify, LocalProtocolError, validate
+from ._util import LocalProtocolError, bytesify, validate
 
 if TYPE_CHECKING:
     from ._events import Request
@@ -133,20 +133,19 @@ HeaderTypes = Union[
 
 
 @overload
-def normalize_and_validate(headers: Headers, _parsed: Literal[True]) -> Headers:
-    ...
+def normalize_and_validate(headers: Headers, _parsed: Literal[True]) -> Headers: ...
 
 
 @overload
-def normalize_and_validate(headers: HeaderTypes, _parsed: Literal[False]) -> Headers:
-    ...
+def normalize_and_validate(
+    headers: HeaderTypes, _parsed: Literal[False]
+) -> Headers: ...
 
 
 @overload
 def normalize_and_validate(
     headers: Union[Headers, HeaderTypes], _parsed: bool = False
-) -> Headers:
-    ...
+) -> Headers: ...
 
 
 def normalize_and_validate(

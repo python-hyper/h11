@@ -4,7 +4,6 @@ from .._events import (
     ConnectionClosed,
     Data,
     EndOfMessage,
-    Event,
     InformationalResponse,
     Request,
     Response,
@@ -14,7 +13,6 @@ from .._state import (
     _SWITCH_UPGRADE,
     CLIENT,
     CLOSED,
-    ConnectionState,
     DONE,
     IDLE,
     MIGHT_SWITCH_PROTOCOL,
@@ -23,6 +21,7 @@ from .._state import (
     SEND_RESPONSE,
     SERVER,
     SWITCHED_PROTOCOL,
+    ConnectionState,
 )
 from .._util import LocalProtocolError
 

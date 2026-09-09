@@ -42,15 +42,14 @@ other hand, the following are all very welcome:
 
 * Code should work across all currently supported Python releases.
 
-* Code must be formatted using
-  [black](https://github.com/python/black) and
-  [isort](https://github.com/timothycrosley/isort) as configured in
+* Code must be linted and formatted using
+  [Ruff](https://docs.astral.sh/ruff/) as configured in
   the project. With those projects installed the commands,
 
-      uv run --locked black h11/ bench/ examples/ fuzz/
-      uv run --locked isort --profile black --dt h11 bench examples fuzz
+      uv run --locked ruff check --fix h11/ bench/ examples/ fuzz/
+      uv run --locked ruff format h11/ bench/ examples/ fuzz/
 
-  will format your code for you.
+  will fix lint issues (including import ordering) and format your code.
 
 * If you change the code, then you have to also add or fix at least
   one test. (See below for how to run the test suite.) This helps us

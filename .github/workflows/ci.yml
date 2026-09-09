@@ -45,8 +45,8 @@ jobs:
         python-version: "3.10"
         enable-cache: true
     - run: uv sync --locked
-    - run: uv run --locked black --check --diff h11/ bench/ examples/ fuzz/
-    - run: uv run --locked isort --check --diff --profile black --dt h11 bench examples fuzz
+    - run: uv run --locked ruff check h11/ bench/ examples/ fuzz/
+    - run: uv run --locked ruff format --check --diff h11/ bench/ examples/ fuzz/
     - run: uv run --locked mypy h11/
     - run: uv build
     - run: uv run --locked twine check dist/*

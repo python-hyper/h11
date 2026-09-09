@@ -45,6 +45,7 @@ htmlcov/
 .tox/
 .venv/
 .mypy_cache/
+.ruff_cache/
 .coverage
 .cache
 nosetests.xml

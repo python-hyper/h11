@@ -6,11 +6,11 @@ from typing import NoReturn
 import pytest
 
 from .._util import (
-    bytesify,
     LocalProtocolError,
     ProtocolError,
     RemoteProtocolError,
     Sentinel,
+    bytesify,
     validate,
 )
 

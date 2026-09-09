@@ -6,7 +6,7 @@
 # semantics to check that what you're asking to write to the wire is sensible,
 # but at least it gets you out of dealing with the wire itself.
 
-from h11._connection import Connection, NEED_DATA, PAUSED
+from h11._connection import NEED_DATA, PAUSED, Connection
 from h11._events import (
     ConnectionClosed,
     Data,
@@ -22,12 +22,14 @@ from h11._state import (
     DONE,
     ERROR,
     IDLE,
-    MIGHT_SWITCH_PROTOCOL,
     MUST_CLOSE,
     SEND_BODY,
     SEND_RESPONSE,
     SERVER,
     SWITCHED_PROTOCOL,
+)
+from h11._state import (
+    MIGHT_SWITCH_PROTOCOL as MIGHT_SWITCH_PROTOCOL,
 )
 from h11._util import LocalProtocolError, ProtocolError, RemoteProtocolError
 from h11._version import __version__

@@ -43,7 +43,7 @@ dev = [
     "towncrier>=24.8",
 ]
 testing = ["pytest>=8.3.3,<10", "pytest-cov>=6,<8"]
-linting = ["black==23.3.0", "isort==5.12.0", "mypy==1.8.0"]
+linting = ["ruff>=0.8.0,<1", "mypy==1.8.0"]
 docs = ["sphinx>=7,<9", "ipython>=8,<10", "pickleshare>=0.7.5", "sphinxcontrib-jquery>=4,<5"]
 packaging = ["build>=1.2,<2", "twine>=6,<7"]
 
@@ -62,6 +62,13 @@ version = { attr = "h11._version.__version__" }
 
 [tool.pytest.ini_options]
 testpaths = ["h11"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
 
 [tool.coverage.run]
 branch = true
@@ -83,8 +90,8 @@ commands = [["pytest", "--cov=h11", "--cov-report=term", "--cov-report=xml", { r
 base_python = ["python3.10"]
 dependency_groups = ["linting"]
 commands = [
-    ["black", "--check", "--diff", "h11/", "bench/", "examples/", "fuzz/"],
-    ["isort", "--check", "--diff", "--profile", "black", "--dt", "h11", "bench", "examples", "fuzz"],
+    ["ruff", "check", "h11/", "bench/", "examples/", "fuzz/"],
+    ["ruff", "format", "--check", "--diff", "h11/", "bench/", "examples/", "fuzz/"],
 ]
 
 [tool.tox.env.mypy]

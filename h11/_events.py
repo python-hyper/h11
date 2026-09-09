@@ -12,7 +12,7 @@ from typing import List, Tuple, Union
 
 from ._abnf import method, request_target
 from ._headers import Headers, normalize_and_validate
-from ._util import bytesify, LocalProtocolError, validate
+from ._util import LocalProtocolError, bytesify, validate
 
 # Everything in __all__ gets re-exported as part of the h11 public API.
 __all__ = [

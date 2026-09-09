@@ -1,8 +1,8 @@
-from typing import Any, cast, Dict, List, Optional, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple, Type, cast
 
 import pytest
 
-from .._connection import _body_framing, _keep_alive, Connection, NEED_DATA, PAUSED
+from .._connection import NEED_DATA, PAUSED, Connection, _body_framing, _keep_alive
 from .._events import (
     ConnectionClosed,
     Data,
@@ -120,7 +120,7 @@ def test_Connection_basics_and_content_length() -> None:
         ),
     )
     assert data == (
-        b"GET / HTTP/1.1\r\n" b"Host: example.com\r\n" b"Content-Length: 10\r\n\r\n"
+        b"GET / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 10\r\n\r\n"
     )
 
     for conn in p.conns:
@@ -203,10 +203,7 @@ def test_chunk_boundaries() -> None:
     conn = Connection(our_role=SERVER)
 
     request = (
-        b"POST / HTTP/1.1\r\n"
-        b"Host: example.com\r\n"
-        b"Transfer-Encoding: chunked\r\n"
-        b"\r\n"
+        b"POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n"
     )
     conn.receive_data(request)
     assert conn.next_event() == Request(
@@ -1092,7 +1089,7 @@ def test_HEAD_framing_headers() -> None:
 def test_special_exceptions_for_lost_connection_in_message_body() -> None:
     c = Connection(SERVER)
     c.receive_data(
-        b"POST / HTTP/1.1\r\n" b"Host: example.com\r\n" b"Content-Length: 100\r\n\r\n"
+        b"POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 100\r\n\r\n"
     )
     assert type(c.next_event()) is Request
     assert c.next_event() is NEED_DATA
@@ -1106,9 +1103,7 @@ def test_special_exceptions_for_lost_connection_in_message_body() -> None:
 
     c = Connection(SERVER)
     c.receive_data(
-        b"POST / HTTP/1.1\r\n"
-        b"Host: example.com\r\n"
-        b"Transfer-Encoding: chunked\r\n\r\n"
+        b"POST / HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n"
     )
     assert type(c.next_event()) is Request
     assert c.next_event() is NEED_DATA

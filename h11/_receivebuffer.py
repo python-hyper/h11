@@ -1,5 +1,4 @@
 import re
-import sys
 from typing import List, Optional, Union
 
 __all__ = ["ReceiveBuffer"]
