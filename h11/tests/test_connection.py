@@ -486,6 +486,16 @@ def test_max_incomplete_event_size_countermeasure() -> None:
         c.next_event()
 
 
+    # Complete oversized headers in a single chunk must also be rejected
+    # (previously only incomplete buffers above the limit were checked).
+    oversized = b"GET / HTTP/1.0\r\nBig: " + b"a" * 200 + b"\r\n\r\n"
+    assert len(oversized) > 100
+    c = Connection(SERVER, max_incomplete_event_size=100)
+    c.receive_data(oversized)
+    with pytest.raises(RemoteProtocolError):
+        c.next_event()
+
+
 def test_reuse_simple() -> None:
     p = ConnectionPair()
     p.send(
