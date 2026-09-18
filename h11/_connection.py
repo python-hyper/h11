@@ -478,8 +478,22 @@ class Connection:
         if self.their_state is ERROR:
             raise RemoteProtocolError("Can't receive data when peer state is ERROR")
         try:
+            # Snapshot length so we can measure how many bytes a completed
+            # header event consumed (request/response line + headers).
+            before = len(self._receive_buffer)
             event = self._extract_next_receive_event()
             if event not in [NEED_DATA, PAUSED]:
+                # Enforce max_incomplete_event_size for completed header events
+                # too (python-hyper/h11#182). Oversized headers that arrive in
+                # one chunk previously parsed successfully, while the same
+                # bytes split across packets hit the NEED_DATA size check —
+                # making enforcement depend on TCP framing.
+                if isinstance(event, (Request, InformationalResponse, Response)):
+                    consumed = before - len(self._receive_buffer)
+                    if consumed > self._max_incomplete_event_size:
+                        raise RemoteProtocolError(
+                            "Receive buffer too long", error_status_hint=431
+                        )
                 self._process_event(self.their_role, cast(Event, event))
             if event is NEED_DATA:
                 if len(self._receive_buffer) > self._max_incomplete_event_size:
