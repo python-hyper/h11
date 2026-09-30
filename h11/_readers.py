@@ -21,6 +21,7 @@ from typing import Any, Callable, Dict, Iterable, NoReturn, Optional, Tuple, Typ
 
 from ._abnf import chunk_header, header_field, request_line, status_line
 from ._events import Data, EndOfMessage, InformationalResponse, Request, Response
+from ._headers import _normalize_special_header, Headers
 from ._receivebuffer import ReceiveBuffer
 from ._state import (
     CLIENT,
@@ -61,12 +62,33 @@ def _obsolete_line_fold(lines: Iterable[bytes]) -> Iterable[bytes]:
         yield last
 
 
-def _decode_header_lines(
-    lines: Iterable[bytes],
-) -> Iterable[Tuple[bytes, bytes]]:
+def _decode_header_lines(lines: Iterable[bytes]) -> Headers:
+    full_items = []
     for line in _obsolete_line_fold(lines):
-        matches = validate(header_field_re, line, "illegal header line: {!r}", line)
-        yield (matches["field_name"], matches["field_value"])
+        match = header_field_re.fullmatch(line)
+        if match is None:
+            raise LocalProtocolError(f"illegal header line: {line!r}")
+        raw_name = match["field_name"]
+        full_items.append((raw_name, raw_name.lower(), match["field_value"]))
+
+    seen_content_length = None
+    saw_transfer_encoding = False
+    write_index = 0
+    for raw_name, name, value in full_items:
+        (
+            value,
+            seen_content_length,
+            saw_transfer_encoding,
+            keep,
+        ) = _normalize_special_header(
+            name, value, seen_content_length, saw_transfer_encoding
+        )
+        if keep:
+            full_items[write_index] = (raw_name, name, value)
+            write_index += 1
+
+    del full_items[write_index:]
+    return Headers(full_items)
 
 
 request_line_re = re.compile(request_line.encode("ascii"))
@@ -83,9 +105,7 @@ def maybe_read_from_IDLE_client(buf: ReceiveBuffer) -> Optional[Request]:
     matches = validate(
         request_line_re, lines[0], "illegal request line: {!r}", lines[0]
     )
-    return Request(
-        headers=list(_decode_header_lines(lines[1:])), _parsed=True, **matches
-    )
+    return Request(headers=_decode_header_lines(lines[1:]), _parsed=True, **matches)
 
 
 status_line_re = re.compile(status_line.encode("ascii"))
@@ -111,7 +131,7 @@ def maybe_read_from_SEND_RESPONSE_server(
         InformationalResponse if status_code < 200 else Response
     )
     return class_(
-        headers=list(_decode_header_lines(lines[1:])),
+        headers=_decode_header_lines(lines[1:]),
         _parsed=True,
         status_code=status_code,
         reason=reason,
@@ -158,7 +178,7 @@ class ChunkedReader:
             lines = buf.maybe_extract_lines()
             if lines is None:
                 return None
-            return EndOfMessage(headers=list(_decode_header_lines(lines)))
+            return EndOfMessage(headers=_decode_header_lines(lines))
         if self._bytes_to_discard:
             data = buf.maybe_extract_at_most(len(self._bytes_to_discard))
             if data is None:
