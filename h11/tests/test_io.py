@@ -547,6 +547,16 @@ def test_reject_garbage_in_header_line() -> None:
         )
 
 
+def test_header_syntax_error_precedes_semantic_error() -> None:
+    buf = makebuf(
+        b"GET / HTTP/1.1\r\n" b"Host: example.com \n" b"Content-Length:\n" b"0\r\n\r\n"
+    )
+    reader = READERS[CLIENT, IDLE]
+    assert callable(reader)
+    with pytest.raises(LocalProtocolError, match="illegal header line"):
+        reader(buf)
+
+
 def test_reject_non_vchar_in_path() -> None:
     for bad_char in b"\x00\x20\x7f\xee":
         message = bytearray(b"HEAD /")

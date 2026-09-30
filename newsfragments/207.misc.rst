@@ -1,0 +1,1 @@
+Reduce temporary allocations and redundant header normalization when parsing headers from the wire.
