@@ -10,6 +10,7 @@ from .._events import (
     Request,
     Response,
 )
+from .._headers import normalize_and_validate
 from .._util import LocalProtocolError
 
 
@@ -146,3 +147,12 @@ def test_header_casing() -> None:
         (b"Host", b"example.org"),
         (b"Connection", b"keep-alive"),
     ]
+
+
+def test_request_preserves_normalized_headers() -> None:
+    headers = normalize_and_validate([("Host", "example.org")])
+
+    request = Request(method="GET", target="/", headers=headers)
+
+    assert request.headers.raw_items() == [(b"Host", b"example.org")]
+    assert request.headers is headers
