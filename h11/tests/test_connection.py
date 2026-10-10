@@ -1,4 +1,4 @@
-from typing import Any, cast, Dict, List, Optional, Tuple, Type
+from typing import Any, Callable, cast, Dict, List, Optional, Tuple, Type, Union
 
 import pytest
 
@@ -239,12 +239,12 @@ def test_chunk_boundaries() -> None:
 
 
 @pytest.mark.parametrize("data_wrapper", [bytearray, memoryview])
-def test_receive_data_accepts_byteslike_objects(data_wrapper: Any) -> None:
+def test_receive_data_accepts_byteslike_objects(
+    data_wrapper: Callable[[bytes], Union[bytearray, memoryview]],
+) -> None:
     conn = Connection(our_role=SERVER)
 
-    conn.receive_data(
-        data_wrapper(b"GET / HTTP/1.1\r\nHost: example.com\r\n\r\n")
-    )
+    conn.receive_data(data_wrapper(b"GET / HTTP/1.1\r\nHost: example.com\r\n\r\n"))
 
     assert conn.next_event() == Request(
         method="GET",
