@@ -10,8 +10,12 @@ from typing import (
     overload,
     Tuple,
     Type,
+    TYPE_CHECKING,
     Union,
 )
+
+if TYPE_CHECKING:
+    from typing_extensions import Buffer
 
 from ._events import (
     ConnectionClosed,
@@ -361,7 +365,7 @@ class Connection:
         """
         return (bytes(self._receive_buffer), self._receive_buffer_closed)
 
-    def receive_data(self, data: bytes) -> None:
+    def receive_data(self, data: "Buffer") -> None:
         """Add data to our internal receive buffer.
 
         This does not actually do any processing on the data, just stores
@@ -501,18 +505,15 @@ class Connection:
                 raise
 
     @overload
-    def send(self, event: ConnectionClosed) -> None:
-        ...
+    def send(self, event: ConnectionClosed) -> None: ...
 
     @overload
     def send(
         self, event: Union[Request, InformationalResponse, Response, Data, EndOfMessage]
-    ) -> bytes:
-        ...
+    ) -> bytes: ...
 
     @overload
-    def send(self, event: Event) -> Optional[bytes]:
-        ...
+    def send(self, event: Event) -> Optional[bytes]: ...
 
     def send(self, event: Event) -> Optional[bytes]:
         """Convert a high-level event into bytes that can be sent to the peer,
