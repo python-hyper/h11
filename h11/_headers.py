@@ -116,7 +116,19 @@ class Headers(Sequence[Tuple[bytes, bytes]]):
     def __repr__(self) -> str:
         return "<Headers(%s)>" % repr(list(self))
 
-    def __getitem__(self, idx: int) -> Tuple[bytes, bytes]:  # type: ignore[override]
+    @overload
+    def __getitem__(self, idx: int) -> Tuple[bytes, bytes]:
+        ...
+
+    @overload
+    def __getitem__(self, idx: slice) -> "Headers":
+        ...
+
+    def __getitem__(
+        self, idx: Union[int, slice]
+    ) -> Union[Tuple[bytes, bytes], "Headers"]:
+        if isinstance(idx, slice):
+            return Headers(self._full_items[idx])
         _, name, value = self._full_items[idx]
         return (name, value)
 

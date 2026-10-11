@@ -11,6 +11,34 @@ from .._headers import (
 from .._util import LocalProtocolError
 
 
+@pytest.mark.parametrize(
+    "index",
+    [
+        slice(None, 1),
+        slice(None, 3),
+        slice(1, 1),
+        slice(None, None, -1),
+        slice(None, None, 2),
+    ],
+)
+def test_headers_slicing(index: slice) -> None:
+    headers = Request(
+        method="GET",
+        target="/",
+        headers=[("Host", "example.org"), ("X-First", "one"), ("X-Second", "two")],
+    ).headers
+    items = list(headers)
+    raw_items = headers.raw_items()
+
+    sliced = headers[index]
+
+    assert isinstance(sliced, Headers)
+    assert list(sliced) == items[index]
+    assert sliced.raw_items() == raw_items[index]
+    assert list(headers) == items
+    assert headers.raw_items() == raw_items
+
+
 def test_normalize_and_validate() -> None:
     assert normalize_and_validate([("foo", "bar")]) == [(b"foo", b"bar")]
     assert normalize_and_validate([(b"foo", b"bar")]) == [(b"foo", b"bar")]
