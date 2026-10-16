@@ -1,0 +1,3 @@
+Preserve ``Data.chunk_start`` when a chunk header is received before its
+payload, so the first data event for each chunk is marked correctly
+regardless of how incoming bytes are split across reads.

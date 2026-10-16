@@ -238,6 +238,42 @@ def test_chunk_boundaries() -> None:
     assert conn.next_event() == EndOfMessage()
 
 
+@pytest.mark.parametrize("role", [CLIENT, SERVER])
+@pytest.mark.parametrize("chunk_header", [b"5\r\n", b"5; foo=bar\r\n"])
+def test_chunk_start_after_header_only(
+    role: Type[Sentinel], chunk_header: bytes
+) -> None:
+    conn = Connection(role)
+    if role is CLIENT:
+        conn.send(Request(method="GET", target="/", headers=[("Host", "example.com")]))
+        conn.send(EndOfMessage())
+        conn.receive_data(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n")
+        assert isinstance(conn.next_event(), Response)
+    else:
+        conn.receive_data(
+            b"POST / HTTP/1.1\r\nHost: example.com\r\n"
+            b"Transfer-Encoding: chunked\r\n\r\n"
+        )
+        assert isinstance(conn.next_event(), Request)
+
+    # A complete header can arrive without any of its payload. Polling while
+    # waiting for that payload must not lose the chunk's start marker.
+    for byte in chunk_header:
+        conn.receive_data(bytes([byte]))
+        assert conn.next_event() is NEED_DATA
+    assert conn.next_event() is NEED_DATA
+
+    conn.receive_data(b"he")
+    assert conn.next_event() == Data(data=b"he", chunk_start=True, chunk_end=False)
+    assert conn.next_event() is NEED_DATA
+    conn.receive_data(b"ll")
+    assert conn.next_event() == Data(data=b"ll", chunk_start=False, chunk_end=False)
+    conn.receive_data(b"o\r\n3\r\nbye\r\n0\r\n\r\n")
+    assert conn.next_event() == Data(data=b"o", chunk_start=False, chunk_end=True)
+    assert conn.next_event() == Data(data=b"bye", chunk_start=True, chunk_end=True)
+    assert conn.next_event() == EndOfMessage()
+
+
 def test_client_talking_to_http10_server() -> None:
     c = Connection(CLIENT)
     c.send(Request(method="GET", target="/", headers=[("Host", "example.com")]))
