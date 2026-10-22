@@ -132,6 +132,11 @@ def test_intenum_status_code() -> None:
     assert type(r.status_code) is int
 
 
+def test_informational_response_status_upper_boundary() -> None:
+    response = InformationalResponse(status_code=199, headers=[])
+    assert response.status_code == 199
+
+
 def test_header_casing() -> None:
     r = Request(
         method="GET",
