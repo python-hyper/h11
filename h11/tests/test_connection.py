@@ -365,7 +365,8 @@ def test_automagic_connection_close_handling() -> None:
         assert conn.states == {CLIENT: MUST_CLOSE, SERVER: MUST_CLOSE}
 
 
-def test_100_continue() -> None:
+@pytest.mark.parametrize("informational_status", [None, 102, 103])
+def test_100_continue(informational_status: Optional[int]) -> None:
     def setup() -> ConnectionPair:
         p = ConnectionPair()
         p.send(
@@ -382,6 +383,14 @@ def test_100_continue() -> None:
         )
         for conn in p.conns:
             assert conn.client_is_waiting_for_100_continue
+        if informational_status is not None:
+            for _ in range(2):
+                p.send(
+                    SERVER,
+                    InformationalResponse(status_code=informational_status, headers=[]),
+                )
+                for conn in p.conns:
+                    assert conn.client_is_waiting_for_100_continue
         assert not p.conn[CLIENT].they_are_waiting_for_100_continue
         assert p.conn[SERVER].they_are_waiting_for_100_continue
         return p

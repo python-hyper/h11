@@ -310,7 +310,11 @@ class Connection:
         # 100-continue
         if type(event) is Request and has_expect_100_continue(event):
             self.client_is_waiting_for_100_continue = True
-        if type(event) in (InformationalResponse, Response):
+        # Other informational responses, such as 103 Early Hints, do not
+        # tell the client to send its request body.
+        if type(event) is Response or (
+            type(event) is InformationalResponse and event.status_code in (100, 101)
+        ):
             self.client_is_waiting_for_100_continue = False
         if role is CLIENT and type(event) in (Data, EndOfMessage):
             self.client_is_waiting_for_100_continue = False

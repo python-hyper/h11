@@ -431,9 +431,10 @@ The Connection object
 
       True if the client sent a request with the ``Expect:
       100-continue`` header, and is still waiting for a response
-      (i.e., the server has not sent a 100 Continue or any other kind
-      of response, and the client has not gone ahead and started
-      sending the body anyway).
+      (i.e., the server has not sent a 100 Continue, switched protocols,
+      or sent a final response, and the client has not gone ahead and
+      started sending the body anyway). Other informational responses,
+      such as 103 Early Hints, do not clear this flag.
 
       See `RFC 7231 section 5.1.1
       <https://tools.ietf.org/html/rfc7231#section-5.1.1>`_ for details.
@@ -693,16 +694,20 @@ will cause a deadlock.
 One complication here is that if you're implementing a server, you
 have to be prepared to handle :class:`Request`\s that have an
 ``Expect: 100-continue`` header. You can `read the spec
-<https://tools.ietf.org/html/rfc7231#section-5.1.1>`_ for the full
+<https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.1>`_ for the full
 details, but basically what this header means is that after sending
-the :class:`Request`, the client plans to pause and wait until they
-see some response from the server before they send that request's
-:class:`Data`. The server's response would normally be an
-:class:`InformationalResponse` with status ``100 Continue``, but it
-could be anything really (e.g. a full :class:`Response` with a 4xx
-status code). The crucial thing as a server, though, is that you
-should never block trying to read a request body if the client is
-blocked waiting for you to tell them to send the request body.
+the :class:`Request`, the client plans to pause and wait for a
+``100 Continue`` or a final response before they send that request's
+:class:`Data`. The server can send an :class:`InformationalResponse`
+with status ``100 Continue`` to request the body, or a final
+:class:`Response` (e.g. with a 4xx status code). Other informational
+responses, such as ``103 Early Hints``, leave the client waiting for
+``100 Continue``. The client may also send the body without waiting for
+a response, and should not wait indefinitely. When h11 processes body
+data from the client, it clears the waiting flag. The crucial thing as
+a server, though, is that you should never block trying to read a
+request body if the client is blocked waiting for you to tell them to
+send the request body.
 
 Fortunately, h11 makes this easy, because it tracks whether the client
 is in the waiting-for-100-continue state, and exposes this as
