@@ -108,6 +108,9 @@ class Headers(Sequence[Tuple[bytes, bytes]]):
         return bool(self._full_items)
 
     def __eq__(self, other: object) -> bool:
+        other_type = type(other)
+        if not (hasattr(other_type, "__iter__") or hasattr(other_type, "__getitem__")):
+            return NotImplemented
         return list(self) == list(other)  # type: ignore
 
     def __len__(self) -> int:
