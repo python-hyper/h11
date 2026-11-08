@@ -1,0 +1,1 @@
+Comparing event headers with non-iterable objects now follows Python's equality fallback instead of raising ``TypeError``, allowing sentinel comparisons and reflected equality such as ``unittest.mock.ANY``.
