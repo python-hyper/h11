@@ -1,0 +1,1 @@
+Clarify that empty data may be omitted by send_with_data_passthrough when chunked transfer encoding is used.
