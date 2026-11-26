@@ -546,7 +546,8 @@ class Connection:
         :meth:`send` returns a single :term:`bytes-like object`, this instead
         returns a list of them -- and when sending a :class:`Data` event, this
         list is guaranteed to contain the exact object you passed in as
-        :attr:`Data.data`. See :ref:`sendfile` for discussion.
+        :attr:`Data.data`, except that empty data may be omitted when using
+        chunked transfer encoding. See :ref:`sendfile` for discussion.
 
         """
         if self.our_state is ERROR:
