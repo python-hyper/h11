@@ -113,6 +113,15 @@ def test_events() -> None:
     with pytest.raises(LocalProtocolError):
         InformationalResponse(status_code=b"100", headers=[], http_version="1.0")  # type: ignore[arg-type]
 
+    resp = Response(status_code=200, headers=[], reason="Totally OK\tfine")
+    assert resp.reason == b"Totally OK\tfine"
+
+    for bad_reason in [b"OK\r\nSet-Cookie: a=b", b"OK\n", b"OK\r", b"OK\x00"]:
+        with pytest.raises(LocalProtocolError):
+            Response(status_code=200, headers=[], reason=bad_reason)
+        with pytest.raises(LocalProtocolError):
+            InformationalResponse(status_code=100, headers=[], reason=bad_reason)
+
     d = Data(data=b"asdf")
     assert d.data == b"asdf"
 
