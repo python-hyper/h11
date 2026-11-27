@@ -10,7 +10,7 @@ from abc import ABC
 from dataclasses import dataclass
 from typing import List, Tuple, Union
 
-from ._abnf import method, request_target
+from ._abnf import method, reason_phrase, request_target
 from ._headers import Headers, normalize_and_validate
 from ._util import bytesify, LocalProtocolError, validate
 
@@ -27,6 +27,7 @@ __all__ = [
 
 method_re = re.compile(method.encode("ascii"))
 request_target_re = re.compile(request_target.encode("ascii"))
+reason_phrase_re = re.compile(reason_phrase.encode("ascii"))
 
 
 class Event(ABC):
@@ -162,6 +163,8 @@ class _ResponseBase(Event):
             object.__setattr__(self, "reason", reason)
             object.__setattr__(self, "http_version", http_version)
             object.__setattr__(self, "status_code", status_code)
+
+        validate(reason_phrase_re, self.reason, "Illegal reason phrase")
 
         self.__post_init__()
 
