@@ -1,0 +1,1 @@
+Reject a ``reason`` containing characters that are not allowed in an HTTP reason phrase, such as CR or LF, when constructing ``Response`` and ``InformationalResponse``.
