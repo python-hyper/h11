@@ -333,6 +333,56 @@ def test_automatic_transfer_encoding_in_response() -> None:
         assert c.send(Data(data=b"12345")) == b"12345"
 
 
+# A request that carries both Transfer-Encoding and Content-Length is
+# illegal to send: "A sender MUST NOT send a Content-Length header field in
+# any message that contains a Transfer-Encoding header field."
+# https://tools.ietf.org/html/rfc7230#section-3.3.2
+#
+# _body_framing always lets Transfer-Encoding win, so leaving the redundant
+# Content-Length on the wire would make the framing header disagree with the
+# framing we actually use. Responses already drop it (see
+# test_automatic_transfer_encoding_in_response); requests did not.
+def test_request_framing_headers() -> None:
+    def send(headers: List[Tuple[str, str]], body: bytes = b"") -> bytes:
+        c = Connection(CLIENT)
+        out = c.send(Request(method="POST", target="/", headers=headers))
+        if body:
+            out += c.send(Data(data=body))
+        out += c.send(EndOfMessage())
+        return out
+
+    # Neither framing header: no body, nothing added to the wire.
+    assert send([("Host", "example.com")]) == (
+        b"POST / HTTP/1.1\r\nHost: example.com\r\n\r\n"
+    )
+    # Content-Length only: passed through untouched.
+    assert send([("Host", "example.com"), ("Content-Length", "5")], b"12345") == (
+        b"POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 5\r\n\r\n" b"12345"
+    )
+    # Transfer-Encoding only: passed through untouched.
+    assert send(
+        [("Host", "example.com"), ("Transfer-Encoding", "chunked")], b"12345"
+    ) == (
+        b"POST / HTTP/1.1\r\nHost: example.com\r\n"
+        b"Transfer-Encoding: chunked\r\n\r\n"
+        b"5\r\n12345\r\n0\r\n\r\n"
+    )
+    # Both: Transfer-Encoding wins for framing, so the Content-Length is
+    # dropped instead of being sent as a contradiction.
+    assert send(
+        [
+            ("Host", "example.com"),
+            ("Content-Length", "5"),
+            ("Transfer-Encoding", "chunked"),
+        ],
+        b"12345",
+    ) == (
+        b"POST / HTTP/1.1\r\nHost: example.com\r\n"
+        b"Transfer-Encoding: chunked\r\n\r\n"
+        b"5\r\n12345\r\n0\r\n\r\n"
+    )
+
+
 def test_automagic_connection_close_handling() -> None:
     p = ConnectionPair()
     # If the user explicitly sets Connection: close, then we notice and
