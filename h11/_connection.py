@@ -554,6 +554,8 @@ class Connection:
         try:
             if type(event) is Response:
                 event = self._clean_up_response_headers_for_sending(event)
+            elif type(event) is Request:
+                event = self._clean_up_request_headers_for_sending(event)
             # We want to call _process_event before calling the writer,
             # because if someone tries to do something invalid then this will
             # give a sensible error message, while our writers all just assume
@@ -583,6 +585,38 @@ class Connection:
 
         """
         self._process_error(self.our_role)
+
+    # When sending a Request, we take responsibility for one thing:
+    #
+    # - If the user set both Transfer-Encoding and Content-Length, we drop the
+    #   Content-Length. "A sender MUST NOT send a Content-Length header field
+    #   in any message that contains a Transfer-Encoding header field."
+    #   -- https://tools.ietf.org/html/rfc7230#section-3.3.2
+    #
+    #   _body_framing always lets Transfer-Encoding win, so passing a
+    #   redundant Content-Length through would put a framing header on the
+    #   wire that disagrees with the framing we actually use -- which is the
+    #   shape request smuggling attacks rely on. Responses already get this
+    #   treatment below; this is the same rule for requests.
+    #
+    #   Note this is purely a *sending* rule. On the receiving side h11 still
+    #   accepts both and lets Transfer-Encoding win, as the RFC's framing
+    #   algorithm requires (see gh-90).
+    def _clean_up_request_headers_for_sending(self, request: Request) -> Request:
+        assert type(request) is Request
+
+        headers = request.headers
+        if not get_comma_header(headers, b"transfer-encoding"):
+            return request
+        if not get_comma_header(headers, b"content-length"):
+            return request
+
+        return Request(
+            method=request.method,
+            target=request.target,
+            headers=set_comma_header(headers, b"content-length", []),
+            http_version=request.http_version,
+        )
 
     # When sending a Response, we take responsibility for a few things:
     #

@@ -1,0 +1,2 @@
+Dropped a ``Content-Length`` header from a request that also had a
+``Transfer-Encoding`` header, instead of sending both
